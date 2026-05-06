@@ -48,6 +48,27 @@ function luhn(imei) {
   return sum % 10 === 0;
 }
 
+function normalizarEscaneo(datos = {}) {
+  const texto = (valor) => String(valor ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+  const imei = (valor) => String(valor ?? '').replace(/\D/g, '').slice(0, 15);
+  const gb = (valor) => {
+    const match = String(valor ?? '').match(/\d{1,4}/);
+    return match ? match[0] : '';
+  };
+
+  return {
+    imei1: imei(datos.imei1),
+    imei2: imei(datos.imei2),
+    sn: texto(datos.sn),
+    marca: texto(datos.marca),
+    modelo: texto(datos.modelo),
+    nombreComercial: texto(datos.nombreComercial),
+    ram: gb(datos.ram),
+    memoria: gb(datos.memoria),
+    color: texto(datos.color),
+  };
+}
+
 // ============================================================================
 // COMPONENTES PRINCIPALES
 // ============================================================================
@@ -1012,17 +1033,24 @@ function EscanerIA({ onResult, onClose }) {
   const [error, setError]       = React.useState('');
   const [msg, setMsg]           = React.useState('');
 
+  const abrirCamara = React.useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('La camara solo funciona en HTTPS, localhost o navegadores compatibles.');
+    }
+    return navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } }
+    });
+  }, []);
+
   React.useEffect(() => {
     let activo = true;
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } }
-    }).then(stream => {
+    abrirCamara().then(stream => {
       if (!activo) { stream.getTracks().forEach(t => t.stop()); return; }
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
     }).catch(() => setError('Sin acceso a cámara. Verifica permisos.'));
     return () => { activo = false; streamRef.current?.getTracks().forEach(t => t.stop()); };
-  }, []);
+  }, [abrirCamara]);
 
   const capturar = () => {
     const video = videoRef.current;
@@ -1039,51 +1067,61 @@ function EscanerIA({ onResult, onClose }) {
   };
 
   const analizar = async () => {
+    if (!fotoBase64) {
+      setError('Primero toma una foto de la caja.');
+      return;
+    }
     setFase('procesando');
     setMsg('Analizando...');
     setError('');
-    const GEMINI_KEY = 'AIzaSyCxSCzAsjs1r40hIQsJibBJpXq3DER-ek0';
+    const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!GEMINI_KEY) {
+      setError('Falta configurar VITE_GEMINI_API_KEY en .env.local.');
+      setFase('preview');
+      setMsg('');
+      return;
+    }
     const MODELO  = 'gemini-flash-latest';
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent?key=${GEMINI_KEY}`;
     const PROMPT = `Eres un experto en OCR de cajas de celulares. La imagen puede estar oscura, borrosa o con reflejo. Tu tarea es extraer TODOS los datos que puedas leer, aunque sean parciales.
 
-REGLA MÁS IMPORTANTE: Siempre responde con un JSON válido. NUNCA digas que no puedes leer. Si un dato es ilegible, deja el campo vacío "". Pero si puedes leer ALGO del campo, ponlo aunque no estés 100% seguro.
+REGLA MAS IMPORTANTE: Siempre responde con un JSON valido. NUNCA digas que no puedes leer. Si un dato es ilegible, deja el campo vacio "". Pero si puedes leer ALGO del campo, ponlo aunque no estes 100% seguro.
 
-Responde ÚNICAMENTE con este JSON (sin backticks, sin explicaciones):
+Responde UNICAMENTE con este JSON (sin backticks, sin explicaciones):
 {"imei1":"","imei2":"","sn":"","marca":"","modelo":"","nombreComercial":"","ram":"","memoria":"","color":""}
 
-Guía de extracción:
-- imei1: número de 15 dígitos cerca de la palabra "IMEI" o "IMEI 1". Solo dígitos.
-- imei2: segundo número de 15 dígitos cerca de "IMEI 2". Solo dígitos. Si no hay, "".
-- sn: alfanumérico junto a "S/N", "SN:", "Serial No" o "Serial Number".
-- marca: SAMSUNG / XIAOMI / MOTOROLA / APPLE / OPPO / REALME / HUAWEI / VIVO / TECNO / INFINIX / ONEPLUS / NOKIA. En mayúsculas.
-- modelo: código técnico como SM-A566E, 23053RN02A, XT2343-1. En mayúsculas.
-- nombreComercial: nombre de marketing como GALAXY A56, REDMI NOTE 13. En mayúsculas.
-- ram: solo número en GB. Si dice "8GB RAM" → "8".
-- memoria: solo número en GB de almacenamiento. Si dice "256GB" → "256".
-- color: color en mayúsculas. Ej: NEGRO, AZUL, BLANCO.
+Guia de extraccion:
+- imei1: numero de 15 digitos cerca de la palabra "IMEI" o "IMEI 1". Solo digitos.
+- imei2: segundo numero de 15 digitos cerca de "IMEI 2". Solo digitos. Si no hay, "".
+- sn: alfanumerico junto a "S/N", "SN:", "Serial No" o "Serial Number".
+- marca: SAMSUNG / XIAOMI / MOTOROLA / APPLE / OPPO / REALME / HUAWEI / VIVO / TECNO / INFINIX / ONEPLUS / NOKIA. En mayusculas.
+- modelo: codigo tecnico como SM-A566E, 23053RN02A, XT2343-1. En mayusculas.
+- nombreComercial: nombre de marketing como GALAXY A56, REDMI NOTE 13. En mayusculas.
+- ram: solo numero en GB. Si dice "8GB RAM" -> "8".
+- memoria: solo numero en GB de almacenamiento. Si dice "256GB" -> "256".
+- color: color en mayusculas. Ej: NEGRO, AZUL, BLANCO.
 
-Aunque la imagen sea difícil de leer, SIEMPRE devuelve el JSON con lo que puedas extraer.`;
+Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas extraer.`;
 
     try {
       const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [
-              { inline_data: { mime_type: 'image/jpeg', data: fotoBase64 } },
-              { text: PROMPT }
-            ]}],
-            generationConfig: { temperature: 0, maxOutputTokens: 1024 }
-          })
-        }
-      );
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { inline_data: { mime_type: 'image/jpeg', data: fotoBase64 } },
+            { text: PROMPT }
+          ]}],
+          generationConfig: { temperature: 0, maxOutputTokens: 1024 }
+        })
+      });
       const data = await response.json();
 
-      // Verificar si hay error de API
       if (data.error) {
         console.error('Gemini API error:', data.error);
-        setError(`Error API: ${data.error.message}`);
+        const mensaje = data.error.message || 'No se pudo analizar la imagen.';
+        const keyFiltrada = /api key|leaked|key/i.test(mensaje);
+        setError(keyFiltrada ? 'La API key de Gemini fue bloqueada. Crea una nueva y colócala en .env.local.' : `Error API: ${mensaje}`);
         setFase('preview'); setMsg('');
         return;
       }
@@ -1097,7 +1135,6 @@ Aunque la imagen sea difícil de leer, SIEMPRE devuelve el JSON con lo que pueda
         return;
       }
 
-      // Extraer campos con regex — funciona con JSON completo o cortado
       const extraer = (campo) => {
         const r = new RegExp(`"${campo}"\\s*:\\s*"([^"]*)"`, 'i');
         const m = texto.match(r);
@@ -1105,12 +1142,10 @@ Aunque la imagen sea difícil de leer, SIEMPRE devuelve el JSON con lo que pueda
       };
 
       let parsed = {};
-      // Intentar JSON completo primero
       const matchCompleto = texto.match(/\{[\s\S]*\}/);
       if (matchCompleto) {
         try { parsed = JSON.parse(matchCompleto[0]); } catch (_) {}
       }
-      // Si parsed está vacío (JSON cortado o inválido), extraer campo por campo
       if (!Object.values(parsed).some(v => v)) {
         parsed = {
           imei1:           extraer('imei1'),
@@ -1125,8 +1160,9 @@ Aunque la imagen sea difícil de leer, SIEMPRE devuelve el JSON con lo que pueda
         };
       }
 
-      console.log('parsed final:', parsed);
-      onResult(parsed);
+      const normalizado = normalizarEscaneo(parsed);
+      console.log('parsed final:', normalizado);
+      onResult(normalizado);
     } catch (e) {
       console.error('Error escáner:', e);
       setError(`Error: ${e.message}`);
@@ -1137,8 +1173,9 @@ Aunque la imagen sea difícil de leer, SIEMPRE devuelve el JSON con lo que pueda
 
   const reintentar = () => {
     setFoto(null); setError(''); setMsg(''); setFase('camara');
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } } })
-      .then(stream => { streamRef.current = stream; if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); } });
+    abrirCamara()
+      .then(stream => { streamRef.current = stream; if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); } })
+      .catch((e) => setError(e.message || 'Sin acceso a camara. Verifica permisos.'));
   };
 
   return (
@@ -1286,6 +1323,7 @@ function RegistroForm({ user, clientes, equipos, registros, initialData, onCance
   const onEscaneo = (datos) => {
     console.log('onEscaneo recibido:', datos);
     setMostrarEscaner(false);
+    onDirty?.();
     setFormData(prev => {
       const next = {
         ...prev,
@@ -2052,6 +2090,7 @@ function VentaForm({ user, clientes, equipos, ventas, logoVentas, initialData, o
   const onEscaneo = (datos) => {
     console.log('onEscaneo venta recibido:', datos);
     setMostrarEscaner(false);
+    onDirty?.();
     setFormData(prev => ({
       ...prev,
       imei1:           datos.imei1           || prev.imei1,
@@ -2856,6 +2895,7 @@ function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   const [mostrarEscanerBoleta, setMostrarEscanerBoleta] = useState(false);
   const emptyForm = { nombre: '', rut: '', imei1: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', memoria: '', color: '', precio: '' };
   const [form, setForm] = useState(emptyForm);
+  const [buscandoReniecBoleta, setBuscandoReniecBoleta] = useState(false);
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
@@ -2865,6 +2905,46 @@ function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
     if (['nombre','marca','modelo','nombreComercial','color'].includes(name)) v = v.toUpperCase();
     setForm(prev => ({ ...prev, [name]: v }));
   };
+
+  useEffect(() => {
+    if (form.rut.length !== 8) return;
+
+    const clienteExistente = clientes.find(c => c.dni === form.rut);
+    if (clienteExistente) {
+      setForm(prev => ({ ...prev, nombre: clienteExistente.nombre || prev.nombre }));
+      return;
+    }
+
+    let activo = true;
+    const buscarNombre = async () => {
+      setBuscandoReniecBoleta(true);
+      try {
+        const resp = await fetch(`https://api-codart.cgrt.org/api/v1/consultas/reniec/dni/${form.rut}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer lp7RnuenVXVOlVVoNFNa1NpbThAtUOAcYRoC018BrPJVCtn1gAybQTEVamx2'
+          }
+        });
+        const json = await resp.json();
+        if (!activo) return;
+        if (json.success && json.result?.full_name) {
+          setForm(prev => ({ ...prev, nombre: json.result.full_name.toUpperCase() }));
+          showToast('✓ Nombre encontrado por DNI', 'success');
+        } else {
+          showToast('DNI no encontrado', 'error');
+        }
+      } catch (e) {
+        console.error('RENIEC boleta error:', e);
+        if (activo) showToast('Error al consultar DNI', 'error');
+      } finally {
+        if (activo) setBuscandoReniecBoleta(false);
+      }
+    };
+
+    buscarNombre();
+    return () => { activo = false; };
+  }, [form.rut, clientes]);
 
   const onEscanerBoleta = (datos) => {
     setMostrarEscanerBoleta(false);
@@ -2886,6 +2966,12 @@ function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   const emitirNueva = () => {
     if (!form.nombre || !form.rut || !form.imei1 || !form.precio) {
       showToast('Completa nombre, RUT, IMEI y precio', 'error'); return;
+    }
+    if (!luhn(form.imei1)) {
+      showToast('El IMEI 1 no es válido — verifica los dígitos', 'error'); return;
+    }
+    if (form.imei2 && !luhn(form.imei2)) {
+      showToast('El IMEI 2 no es válido — verifica los dígitos', 'error'); return;
     }
     const clpVal = penToClp(form.precio);
     setModalBoleta({
@@ -3023,7 +3109,11 @@ function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
             <p className="text-xs font-semibold text-gray-500 uppercase border-b pb-1">Datos del Cliente</p>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs text-gray-500 mb-1">Nombre *</label><input name="nombre" value={form.nombre} onChange={handleFormChange} className="w-full border rounded p-2 text-sm" placeholder="NOMBRE COMPLETO"/></div>
-              <div><label className="block text-xs text-gray-500 mb-1">RUT (DNI) *</label><input name="rut" value={form.rut} onChange={handleFormChange} className="w-full border rounded p-2 text-sm font-mono" placeholder="12345678" inputMode="numeric"/></div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">RUT (DNI) *</label>
+                <input name="rut" value={form.rut} onChange={handleFormChange} className="w-full border rounded p-2 text-sm font-mono" placeholder="12345678" inputMode="numeric"/>
+                {buscandoReniecBoleta && <p className="text-xs text-blue-600 mt-1">Consultando DNI...</p>}
+              </div>
             </div>
 
             {/* Equipo */}
@@ -3034,8 +3124,26 @@ function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
               </button>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-xs text-gray-500 mb-1">IMEI 1 *</label><input name="imei1" value={form.imei1} onChange={handleFormChange} className="w-full border rounded p-2 text-sm font-mono" inputMode="numeric"/></div>
-              <div><label className="block text-xs text-gray-500 mb-1">IMEI 2</label><input name="imei2" value={form.imei2} onChange={handleFormChange} className="w-full border rounded p-2 text-sm font-mono" inputMode="numeric"/></div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">IMEI 1 *</label>
+                <input name="imei1" value={form.imei1} onChange={handleFormChange}
+                  className={`w-full border rounded p-2 text-sm font-mono ${form.imei1.length === 15 ? (luhn(form.imei1) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} inputMode="numeric"/>
+                {form.imei1.length === 15 && (
+                  <p className={`text-xs mt-1 font-medium ${luhn(form.imei1) ? 'text-green-600' : 'text-red-600'}`}>
+                    {luhn(form.imei1) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">IMEI 2</label>
+                <input name="imei2" value={form.imei2} onChange={handleFormChange}
+                  className={`w-full border rounded p-2 text-sm font-mono ${form.imei2.length === 15 ? (luhn(form.imei2) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} inputMode="numeric"/>
+                {form.imei2.length === 15 && (
+                  <p className={`text-xs mt-1 font-medium ${luhn(form.imei2) ? 'text-green-600' : 'text-red-600'}`}>
+                    {luhn(form.imei2) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
+                  </p>
+                )}
+              </div>
               <div><label className="block text-xs text-gray-500 mb-1">N° Serie (S/N)</label><input name="sn" value={form.sn} onChange={handleFormChange} className="w-full border rounded p-2 text-sm font-mono"/></div>
               <div><label className="block text-xs text-gray-500 mb-1">Marca</label><input name="marca" value={form.marca} onChange={handleFormChange} className="w-full border rounded p-2 text-sm"/></div>
               <div><label className="block text-xs text-gray-500 mb-1">Nombre Comercial</label><input name="nombreComercial" value={form.nombreComercial} onChange={handleFormChange} className="w-full border rounded p-2 text-sm"/></div>
