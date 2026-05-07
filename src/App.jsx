@@ -33,6 +33,27 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 // Un identificador fijo para tu base de datos principal
 const appId = 'comunicate-pos';
+const FUNCTIONS_BASE_URL = import.meta.env.VITE_FUNCTIONS_BASE_URL || `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net`;
+
+async function llamarFuncionSegura(nombre, payload) {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error('AUTH_REQUIRED');
+  const resp = await fetch(`${FUNCTIONS_BASE_URL}/${nombre}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || 'FUNCTION_ERROR');
+  return data;
+}
+
+async function consultarReniecDni(dni) {
+  return llamarFuncionSegura('consultarReniec', { dni: String(dni) });
+}
 
 // ============================================================================
 // 🔢 ALGORITMO DE LUHN — Validación de IMEI
@@ -1059,7 +1080,7 @@ function EscanerIA({ onResult, onClose }) {
     canvas.width  = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0);
-    // Sin ningún preprocesamiento — enviamos la imagen tal cual, como lo hace Gemini AI
+    // Sin ningún preprocesamiento: enviamos la imagen tal cual a Gemini mediante Cloud Functions.
     const base64 = canvas.toDataURL('image/jpeg', 0.97).split(',')[1];
     setFoto(base64);
     setFase('preview');
@@ -1074,61 +1095,19 @@ function EscanerIA({ onResult, onClose }) {
     setFase('procesando');
     setMsg('Analizando...');
     setError('');
-    const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!GEMINI_KEY) {
-      setError('Falta configurar VITE_GEMINI_API_KEY en .env.local.');
-      setFase('preview');
-      setMsg('');
-      return;
-    }
-    const MODELO  = 'gemini-flash-latest';
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent?key=${GEMINI_KEY}`;
-    const PROMPT = `Eres un experto en OCR de cajas de celulares. La imagen puede estar oscura, borrosa o con reflejo. Tu tarea es extraer TODOS los datos que puedas leer, aunque sean parciales.
-
-REGLA MAS IMPORTANTE: Siempre responde con un JSON valido. NUNCA digas que no puedes leer. Si un dato es ilegible, deja el campo vacio "". Pero si puedes leer ALGO del campo, ponlo aunque no estes 100% seguro.
-
-Responde UNICAMENTE con este JSON (sin backticks, sin explicaciones):
-{"imei1":"","imei2":"","sn":"","marca":"","modelo":"","nombreComercial":"","ram":"","memoria":"","color":""}
-
-Guia de extraccion:
-- imei1: numero de 15 digitos cerca de la palabra "IMEI" o "IMEI 1". Solo digitos.
-- imei2: segundo numero de 15 digitos cerca de "IMEI 2". Solo digitos. Si no hay, "".
-- sn: alfanumerico junto a "S/N", "SN:", "Serial No" o "Serial Number".
-- marca: SAMSUNG / XIAOMI / MOTOROLA / APPLE / OPPO / REALME / HUAWEI / VIVO / TECNO / INFINIX / ONEPLUS / NOKIA. En mayusculas.
-- modelo: codigo tecnico como SM-A566E, 23053RN02A, XT2343-1. En mayusculas.
-- nombreComercial: nombre de marketing como GALAXY A56, REDMI NOTE 13. En mayusculas.
-- ram: solo numero en GB. Si dice "8GB RAM" -> "8".
-- memoria: solo numero en GB de almacenamiento. Si dice "256GB" -> "256".
-- color: color en mayusculas. Ej: NEGRO, AZUL, BLANCO.
-
-Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas extraer.`;
-
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [
-            { inline_data: { mime_type: 'image/jpeg', data: fotoBase64 } },
-            { text: PROMPT }
-          ]}],
-          generationConfig: { temperature: 0, maxOutputTokens: 1024 }
-        })
-      });
-      const data = await response.json();
+      const data = await llamarFuncionSegura('analizarCajaGemini', { imageBase64: fotoBase64 });
 
       if (data.error) {
         console.error('Gemini API error:', data.error);
         const mensaje = data.error.message || 'No se pudo analizar la imagen.';
         const keyFiltrada = /api key|leaked|key/i.test(mensaje);
-        setError(keyFiltrada ? 'La API key de Gemini fue bloqueada. Crea una nueva y colócala en .env.local.' : `Error API: ${mensaje}`);
+        setError(keyFiltrada ? 'La API key de Gemini fue bloqueada. Actualiza GEMINI_API_KEY en functions/.env.' : `Error API: ${mensaje}`);
         setFase('preview'); setMsg('');
         return;
       }
 
       const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      console.log('Gemini respuesta:', texto);
-
       if (!texto) {
         setError('Gemini no devolvió texto. Reintenta.');
         setFase('preview'); setMsg('');
@@ -1161,7 +1140,6 @@ Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas
       }
 
       const normalizado = normalizarEscaneo(parsed);
-      console.log('parsed final:', normalizado);
       onResult(normalizado);
     } catch (e) {
       console.error('Error escáner:', e);
@@ -1292,14 +1270,7 @@ function RegistroForm({ user, clientes, equipos, registros, initialData, onCance
   const buscarReniec = async (dni) => {
     setBuscandoReniec(true);
     try {
-      const resp = await fetch(`https://api-codart.cgrt.org/api/v1/consultas/reniec/dni/${String(dni)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer lp7RnuenVXVOlVVoNFNa1NpbThAtUOAcYRoC018BrPJVCtn1gAybQTEVamx2'
-        }
-      });
-      const json = await resp.json();
+      const json = await consultarReniecDni(dni);
       if (json.success && json.result) {
         const r = json.result;
         setFormData(prev => ({
@@ -1314,14 +1285,13 @@ function RegistroForm({ user, clientes, equipos, registros, initialData, onCance
       }
     } catch (e) {
       console.error('RENIEC error:', e);
-      showToast('Error al consultar RENIEC', 'error');
+      showToast(e.message === 'RENIEC_TOKEN_MISSING' ? 'Falta configurar token RENIEC' : 'Error al consultar RENIEC', 'error');
     } finally {
       setBuscandoReniec(false);
     }
   };
 
   const onEscaneo = (datos) => {
-    console.log('onEscaneo recibido:', datos);
     setMostrarEscaner(false);
     onDirty?.();
     setFormData(prev => {
@@ -1334,7 +1304,6 @@ function RegistroForm({ user, clientes, equipos, registros, initialData, onCance
         modelo:          datos.modelo          || prev.modelo,
         nombreComercial: datos.nombreComercial || prev.nombreComercial,
       };
-      console.log('formData actualizado:', next);
       return next;
     });
     const campos = [datos.imei1, datos.marca, datos.nombreComercial].filter(Boolean).join(' · ');
@@ -2060,14 +2029,7 @@ function VentaForm({ user, clientes, equipos, ventas, logoVentas, initialData, o
   const buscarReniecV = async (dni) => {
     setBuscandoReniecV(true);
     try {
-      const resp = await fetch(`https://api-codart.cgrt.org/api/v1/consultas/reniec/dni/${String(dni)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer lp7RnuenVXVOlVVoNFNa1NpbThAtUOAcYRoC018BrPJVCtn1gAybQTEVamx2'
-        }
-      });
-      const json = await resp.json();
+      const json = await consultarReniecDni(dni);
       if (json.success && json.result) {
         const r = json.result;
         setFormData(prev => ({
@@ -2081,14 +2043,13 @@ function VentaForm({ user, clientes, equipos, ventas, logoVentas, initialData, o
       }
     } catch (e) {
       console.error('RENIEC error:', e);
-      showToast('Error al consultar RENIEC', 'error');
+      showToast(e.message === 'RENIEC_TOKEN_MISSING' ? 'Falta configurar token RENIEC' : 'Error al consultar RENIEC', 'error');
     } finally {
       setBuscandoReniecV(false);
     }
   };
 
   const onEscaneo = (datos) => {
-    console.log('onEscaneo venta recibido:', datos);
     setMostrarEscaner(false);
     onDirty?.();
     setFormData(prev => ({
@@ -2919,14 +2880,7 @@ function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
     const buscarNombre = async () => {
       setBuscandoReniecBoleta(true);
       try {
-        const resp = await fetch(`https://api-codart.cgrt.org/api/v1/consultas/reniec/dni/${form.rut}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer lp7RnuenVXVOlVVoNFNa1NpbThAtUOAcYRoC018BrPJVCtn1gAybQTEVamx2'
-          }
-        });
-        const json = await resp.json();
+        const json = await consultarReniecDni(form.rut);
         if (!activo) return;
         if (json.success && json.result?.full_name) {
           setForm(prev => ({ ...prev, nombre: json.result.full_name.toUpperCase() }));
@@ -2936,7 +2890,7 @@ function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
         }
       } catch (e) {
         console.error('RENIEC boleta error:', e);
-        if (activo) showToast('Error al consultar DNI', 'error');
+        if (activo) showToast(e.message === 'RENIEC_TOKEN_MISSING' ? 'Falta configurar token RENIEC' : 'Error al consultar DNI', 'error');
       } finally {
         if (activo) setBuscandoReniecBoleta(false);
       }
