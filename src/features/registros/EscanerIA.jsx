@@ -1,0 +1,171 @@
+import React from 'react';
+import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import { llamarFuncionSegura } from '../../services/functionsClient.js';
+import { normalizarEscaneo } from '../../utils/scanner.js';
+export function EscanerIA({ onResult, onClose }) {
+  const videoRef  = React.useRef(null);
+  const canvasRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  const [fase, setFase]         = React.useState('camara'); // 'camara' | 'preview' | 'procesando'
+  const [fotoBase64, setFoto]   = React.useState(null);
+  const [error, setError]       = React.useState('');
+  const [msg, setMsg]           = React.useState('');
+
+  const abrirCamara = React.useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('La camara solo funciona en HTTPS, localhost o navegadores compatibles.');
+    }
+    return navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } }
+    });
+  }, []);
+
+  React.useEffect(() => {
+    let activo = true;
+    abrirCamara().then(stream => {
+      if (!activo) { stream.getTracks().forEach(t => t.stop()); return; }
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+    }).catch(() => setError('Sin acceso a cámara. Verifica permisos.'));
+    return () => { activo = false; streamRef.current?.getTracks().forEach(t => t.stop()); };
+  }, [abrirCamara]);
+
+  const capturar = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    // Sin ningún preprocesamiento: enviamos la imagen tal cual a Gemini mediante Cloud Functions.
+    const base64 = canvas.toDataURL('image/jpeg', 0.97).split(',')[1];
+    setFoto(base64);
+    setFase('preview');
+    streamRef.current?.getTracks().forEach(t => t.stop());
+  };
+
+  const analizar = async () => {
+    if (!fotoBase64) {
+      setError('Primero toma una foto de la caja.');
+      return;
+    }
+    setFase('procesando');
+    setMsg('Analizando...');
+    setError('');
+    try {
+      const data = await llamarFuncionSegura('analizarCajaGemini', { imageBase64: fotoBase64 });
+
+      if (data.error) {
+        console.error('Gemini API error:', data.error);
+        const mensaje = data.error.message || 'No se pudo analizar la imagen.';
+        const keyFiltrada = /api key|leaked|key/i.test(mensaje);
+        setError(keyFiltrada ? 'La API key de Gemini fue bloqueada. Actualiza GEMINI_API_KEY en functions/.env.' : `Error API: ${mensaje}`);
+        setFase('preview'); setMsg('');
+        return;
+      }
+
+      const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!texto) {
+        setError('Gemini no devolvió texto. Reintenta.');
+        setFase('preview'); setMsg('');
+        return;
+      }
+
+      const extraer = (campo) => {
+        const r = new RegExp(`"${campo}"\\s*:\\s*"([^"]*)"`, 'i');
+        const m = texto.match(r);
+        return m ? m[1].trim() : '';
+      };
+
+      let parsed = {};
+      const matchCompleto = texto.match(/\{[\s\S]*\}/);
+      if (matchCompleto) {
+        try { parsed = JSON.parse(matchCompleto[0]); } catch { parsed = {}; }
+      }
+      if (!Object.values(parsed).some(v => v)) {
+        parsed = {
+          imei1:           extraer('imei1'),
+          imei2:           extraer('imei2'),
+          sn:              extraer('sn'),
+          marca:           extraer('marca'),
+          modelo:          extraer('modelo'),
+          nombreComercial: extraer('nombreComercial'),
+          ram:             extraer('ram'),
+          memoria:         extraer('memoria'),
+          color:           extraer('color'),
+        };
+      }
+
+      const normalizado = normalizarEscaneo(parsed);
+      onResult(normalizado);
+    } catch (e) {
+      console.error('Error escáner:', e);
+      setError(`Error: ${e.message}`);
+      setFase('preview');
+      setMsg('');
+    }
+  };
+
+  const reintentar = () => {
+    setFoto(null); setError(''); setMsg(''); setFase('camara');
+    abrirCamara()
+      .then(stream => { streamRef.current = stream; if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); } })
+      .catch((e) => setError(e.message || 'Sin acceso a camara. Verifica permisos.'));
+  };
+
+  return (
+    // Panel fijo en esquina inferior derecha — NO bloquea el formulario
+    <div className="fixed bottom-4 right-4 z-[200] w-72 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 bg-slate-900">
+        <div className="flex items-center gap-2 text-white text-xs font-medium">
+          <ScanBarcode size={15} />
+          {fase === 'camara'     && 'Apunta a la caja del equipo'}
+          {fase === 'preview'    && 'Revisar foto'}
+          {fase === 'procesando' && (msg || 'Procesando...')}
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={16} /></button>
+      </div>
+
+      {/* Visor compacto */}
+      <div className="relative bg-black" style={{aspectRatio:'4/3'}}>
+        {fase === 'camara' && (
+          <video ref={videoRef} muted playsInline className="w-full h-full object-cover" />
+        )}
+        {(fase === 'preview' || fase === 'procesando') && fotoBase64 && (
+          <img src={`data:image/jpeg;base64,${fotoBase64}`} alt="preview" className="w-full h-full object-cover" />
+        )}
+        {fase === 'procesando' && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <p className="text-white text-xs px-3 text-center">Leyendo datos...</p>
+          </div>
+        )}
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
+
+      {/* Acciones */}
+      <div className="px-3 py-2.5 flex flex-col gap-2">
+        {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+        {fase === 'camara' && (
+          <button onClick={capturar}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded-lg flex items-center justify-center gap-2">
+            <ScanBarcode size={16} /> Tomar foto
+          </button>
+        )}
+        {(fase === 'preview' || (fase === 'procesando' && error)) && (
+          <div className="flex gap-2">
+            <button onClick={reintentar}
+              className="flex-1 border border-gray-300 text-gray-600 text-xs py-2 rounded-lg hover:bg-gray-50">
+              Repetir
+            </button>
+            <button onClick={analizar} disabled={fase === 'procesando'}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium py-2 rounded-lg">
+              Analizar IA
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

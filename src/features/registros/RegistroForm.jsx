@@ -1,0 +1,545 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import { collection, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { consultarReniecDni } from '../../services/functionsClient.js';
+import { luhn } from '../../utils/imei.js';
+import { EscanerIA } from './EscanerIA.jsx';
+export function RegistroForm({ clientes, equipos, registros, initialData, onCancel, onSave, onDirty, showToast, db, appId }) {
+  const [loading, setLoading] = useState(false);
+  const [showManualEqForm, setShowManualEqForm] = useState(true);
+  const [equiposCliente, setEquiposCliente] = useState([]);
+  const [imeiSeleccionado, setImeiSeleccionado] = useState(null); // equipo previo pendiente de elegir IMEI
+
+  // Fuente de verdad: IMEIs que ya tienen registro activo
+  const imeisRegistrados = useMemo(() => {
+    const set = new Set();
+    registros.forEach(r => {
+      // Solo el IMEI específico que se registró, no imeiEquipo (que es siempre IMEI 1)
+      if (r.imeiRegistrado) set.add(r.imeiRegistrado);
+    });
+    return set;
+  }, [registros]);
+
+  const imeiYaRegistrado = (imei) => {
+    if (!imei) return false;
+    // Al editar, ignorar el registro actual para no bloquearse a sí mismo
+    if (initialData && (initialData.imeiEquipo === imei || initialData.imeiRegistrado === imei)) return false;
+    return imeisRegistrados.has(imei);
+  };
+
+  const toLocalDatetimeValue = (isoString) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const [formData, setFormData] = useState({
+    dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
+  });
+
+  useEffect(() => {
+    if (initialData) {
+      const cliente = clientes.find(c => c.dni === initialData.dniCliente) || {};
+      const eq = equipos.find(e => e.idEquipo === initialData.imeiEquipo) || {};
+      setFormData({
+        dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: cliente.direccion || '', imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', sn: eq.sn || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
+      });
+      setShowManualEqForm(true);
+    }
+  }, [initialData, clientes]);
+
+
+
+
+
+
+
+  const [mostrarEscaner, setMostrarEscaner] = useState(false);
+  const [buscandoReniec, setBuscandoReniec] = useState(false);
+  const [datosAnterioresReg, setDatosAnterioresReg] = useState(null);
+
+  const buscarReniec = async (dni) => {
+    setBuscandoReniec(true);
+    try {
+      const json = await consultarReniecDni(dni);
+      if (json.success && json.result) {
+        const r = json.result;
+        setFormData(prev => ({
+          ...prev,
+          nombre:    r.full_name  ? r.full_name  : prev.nombre,
+          direccion: r.address && !r.address.includes('*') ? r.address : prev.direccion,
+          correo:    r.email   && !r.email.includes('*')   ? r.email   : prev.correo,
+        }));
+        showToast('✓ Datos encontrados en RENIEC', 'success');
+      } else {
+        showToast('DNI no encontrado en RENIEC', 'error');
+      }
+    } catch (e) {
+      console.error('RENIEC error:', e);
+      const mensaje = e.message === 'RENIEC_TOKEN_MISSING'
+        ? 'Falta configurar token RENIEC'
+        : e.message === 'RENIEC_FUNCTION_NOT_DEPLOYED'
+          ? 'Función RENIEC no desplegada'
+          : 'Error al consultar RENIEC';
+      showToast(mensaje, 'error');
+    } finally {
+      setBuscandoReniec(false);
+    }
+  };
+
+  const onEscaneo = (datos) => {
+    setMostrarEscaner(false);
+    onDirty?.();
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        imei:            datos.imei1           || prev.imei,
+        imei2:           datos.imei2           || prev.imei2,
+        sn:              datos.sn              || prev.sn,
+        marca:           datos.marca           || prev.marca,
+        modelo:          datos.modelo          || prev.modelo,
+        nombreComercial: datos.nombreComercial || prev.nombreComercial,
+      };
+      return next;
+    });
+    const campos = [datos.imei1, datos.marca, datos.nombreComercial].filter(Boolean).join(' · ');
+    showToast(campos ? `✓ ${campos}` : 'Sin datos — rellena manualmente', campos ? 'success' : 'error');
+  };
+
+  useEffect(() => {
+    if (formData.dni.length >= 8 && !initialData) {
+      const clienteExistente = clientes.find(c => c.dni === formData.dni);
+      if (clienteExistente) {
+        setDatosAnterioresReg({ celular: clienteExistente.celular || '', correo: clienteExistente.correo || '' });
+        setFormData(prev => ({ ...prev, nombre: clienteExistente.nombre, celular: clienteExistente.celular, celularRef: prev.celularRef || clienteExistente.celular, correo: clienteExistente.correo, direccion: clienteExistente.direccion || '' }));
+      } else {
+        setDatosAnterioresReg(null);
+        buscarReniec(formData.dni);
+      }
+      const eqsRaw = equipos.filter(e => e.idDuenio === formData.dni);
+      // Agrupar duplicados (mismo sn o imei2 cruzado) igual que en ClientesList
+      const vistos = new Set();
+      const eqsAgrupados = [];
+      for (const eq of eqsRaw) {
+        if (vistos.has(eq.idEquipo)) continue;
+        const gemelo = eqsRaw.find(e =>
+          e.idEquipo !== eq.idEquipo && !vistos.has(e.idEquipo) &&
+          ((eq.imei2 && e.idEquipo === eq.imei2) || (e.imei2 && eq.idEquipo === e.imei2) || (eq.sn && e.sn && eq.sn === e.sn))
+        );
+        if (gemelo) {
+          const principal = eq.imei2 ? eq : gemelo.imei2 ? gemelo : (eq.idEquipo < gemelo.idEquipo ? eq : gemelo);
+          const secundario = principal === eq ? gemelo : eq;
+          eqsAgrupados.push({ ...principal, imei2: principal.imei2 || secundario.idEquipo, sn: principal.sn || secundario.sn, imei1Registrado: principal.imei1Registrado || principal.isRegistrado || false, imei2Registrado: secundario.imei2Registrado || secundario.imei1Registrado || secundario.isRegistrado || false, isRegistrado: principal.isRegistrado || secundario.isRegistrado, isVendido: principal.isVendido || secundario.isVendido });
+          vistos.add(principal.idEquipo); vistos.add(secundario.idEquipo);
+        } else {
+          eqsAgrupados.push(eq); vistos.add(eq.idEquipo);
+        }
+      }
+      setEquiposCliente(eqsAgrupados);
+      if (eqsAgrupados.length > 0 && !formData.imei) setShowManualEqForm(false);
+      else setShowManualEqForm(true);
+    } else if (!initialData && formData.dni.length < 8) {
+      setEquiposCliente([]);
+      setShowManualEqForm(true);
+    }
+  }, [formData.dni, clientes, equipos, initialData]);
+
+  // Cuando escriben el IMEI manualmente, autocompletar solo campos vacíos
+  useEffect(() => {
+    if (formData.imei.length >= 14 && !initialData) {
+      const eq = equipos.find(e => e.idEquipo === formData.imei || e.imei2 === formData.imei);
+      if (eq) {
+        setFormData(prev => ({
+          ...prev,
+          imei2:           prev.imei2 || (formData.imei === eq.idEquipo ? (eq.imei2 || '') : eq.idEquipo),
+          marca:           prev.marca           || eq.marca           || '',
+          modelo:          prev.modelo          || eq.modelo          || '',
+          nombreComercial: prev.nombreComercial || eq.nombreComercial || '',
+          sn:              prev.sn              || eq.sn              || '',
+        }));
+      }
+    }
+  }, [formData.imei, equipos, initialData]);
+
+  const handleEqClick = (eq) => {
+    if (eq.imei2) {
+      setImeiSeleccionado(eq); // mostrar selector de IMEI
+    } else {
+      handleConfirmEqSelection(eq, eq.idEquipo);
+    }
+  };
+  const handleConfirmEqSelection = (eq, selectedImei) => {
+    setFormData(prev => ({
+      ...prev,
+      imei: selectedImei,          // el IMEI exacto que eligió registrar
+      imei2: selectedImei === eq.idEquipo ? (eq.imei2 || '') : (eq.idEquipo || ''),
+      sn: eq.sn || '', marca: eq.marca || '', modelo: eq.modelo || '',
+      nombreComercial: eq.nombreComercial || ''
+    }));
+    setImeiSeleccionado(null);
+    setShowManualEqForm(true);
+  };
+
+  const CAMPOS_SOLO_NUMEROS = ['dni', 'celular', 'celularRef', 'imei', 'imei2'];
+  const CAMPOS_MAYUSCULAS   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'sn', 'operador', 'estado', 'tipo'];
+  const CAMPOS_CORREO       = ['correo'];
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    let val = value;
+    if (CAMPOS_SOLO_NUMEROS.includes(name)) val = val.replace(/\D/g, '');
+    if (name === 'imei' || name === 'imei2') val = val.slice(0, 15);
+    if (name === 'celular' || name === 'celularRef') val = val.slice(0, 9);
+    if (CAMPOS_MAYUSCULAS.includes(name)) val = val.toUpperCase();
+    onDirty?.();
+    setFormData(prev => {
+      const next = { ...prev, [name]: val };
+      if (name === 'celular' && !prev.celularRef) next.celularRef = val;
+      return next;
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validar IMEI con algoritmo de Luhn
+    if (!luhn(formData.imei)) {
+      showToast('El IMEI ingresado no es válido — verifica los dígitos', 'error');
+      return;
+    }
+    // Bloquear si el IMEI elegido ya tiene un registro activo
+    if (!initialData && imeiYaRegistrado(formData.imei)) {
+      showToast(`El IMEI ${formData.imei} ya tiene un registro activo`, 'error');
+      return;
+    }
+
+    // Validar precio mínimo si el estado es BLOQUEADO
+    if (formData.estado === 'BLOQUEADO' && parseFloat(formData.precio || 0) < 50) {
+      showToast('El precio mínimo para un equipo BLOQUEADO es S/. 50.00', 'error');
+      return;
+    }
+
+    // Confirmación final
+    const confirmMsg = `¿Los datos son correctos?\n\n👤 Cliente: ${formData.nombre} (DNI: ${formData.dni})\n📱 Equipo: ${formData.marca} ${formData.nombreComercial} ${formData.modelo}\n🔢 IMEI: ${formData.imei}\n📡 Operador: ${formData.operador} | ${formData.estado}\n🏷 Tipo: ${formData.tipo}\n💰 Precio: S/. ${parseFloat(formData.precio || 0).toFixed(2)}`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setLoading(true);
+    try {
+      // Calcular IMEIs reales
+      const imei1Real = formData.imei2
+        ? (formData.imei < formData.imei2 ? formData.imei : formData.imei2)
+        : formData.imei;
+      const imei2Real = formData.imei2
+        ? (formData.imei < formData.imei2 ? formData.imei2 : formData.imei)
+        : '';
+
+      // Construir datos del registro
+      const eqExistente = equipos.find(e => e.idEquipo === imei1Real) || {};
+      const registroData = {
+        dniCliente: formData.dni, celularCliente: formData.celular,
+        celularRef: formData.celularRef || formData.celular,
+        imeiEquipo: imei1Real, imeiRegistrado: formData.imei, imei2Equipo: imei2Real,
+        modeloEquipo: formData.modelo, marcaEquipo: formData.marca,
+        nombreComercialEquipo: formData.nombreComercial,
+        estado: formData.estado, operador: formData.operador,
+        tipo: formData.tipo, precio: formData.precio,
+        fecha: new Date(formData.fecha).toISOString(),
+      };
+
+      // Eliminar docs viejos si cambiaron DNI o IMEI (en paralelo)
+      const deleteOps = [];
+      if (initialData && initialData.dniCliente !== formData.dni)
+        deleteOps.push(deleteDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'clientes', initialData.dniCliente)));
+      if (initialData && initialData.imeiEquipo !== imei1Real)
+        deleteOps.push(deleteDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'equipos', initialData.imeiEquipo)));
+      if (deleteOps.length) await Promise.all(deleteOps);
+
+      // Guardar cliente, equipo y registro en paralelo
+      if (initialData) {
+        registroData.nRegistro = initialData.nRegistro;
+        await Promise.all([
+          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'clientes', formData.dni),
+            { dni: formData.dni, nombre: formData.nombre, celular: formData.celular, celularRef: formData.celularRef || formData.celular, correo: formData.correo, direccion: formData.direccion }, { merge: true }),
+          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'equipos', imei1Real),
+            { idEquipo: imei1Real, idDuenio: formData.dni, imei2: imei2Real, sn: formData.sn, marca: formData.marca, modelo: formData.modelo, nombreComercial: formData.nombreComercial, isRegistrado: true,
+              imei1Registrado: formData.imei === imei1Real ? true : (eqExistente.imei1Registrado || false),
+              imei2Registrado: formData.imei === imei2Real ? true : (eqExistente.imei2Registrado || false),
+            }, { merge: true }),
+          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'registros', initialData.id), registroData),
+        ]);
+        showToast('Actualizado exitosamente');
+      } else {
+        const siguiente = (registros.length + 1).toString().padStart(5, '0');
+        registroData.nRegistro = `RECO-${siguiente}`;
+        await Promise.all([
+          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'clientes', formData.dni),
+            { dni: formData.dni, nombre: formData.nombre, celular: formData.celular, celularRef: formData.celularRef || formData.celular, correo: formData.correo, direccion: formData.direccion }, { merge: true }),
+          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'equipos', imei1Real),
+            { idEquipo: imei1Real, idDuenio: formData.dni, imei2: imei2Real, sn: formData.sn, marca: formData.marca, modelo: formData.modelo, nombreComercial: formData.nombreComercial, isRegistrado: true,
+              imei1Registrado: formData.imei === imei1Real ? true : (eqExistente.imei1Registrado || false),
+              imei2Registrado: formData.imei === imei2Real ? true : (eqExistente.imei2Registrado || false),
+            }, { merge: true }),
+          addDoc(collection(db, 'artifacts', appId, 'users', 'shared', 'registros'), registroData),
+        ]);
+        showToast('Guardado exitosamente');
+      }
+      (onSave || onCancel)();
+    } catch (error) { console.error(error); showToast('Error al guardar', 'error'); } finally { setLoading(false); }
+  };
+
+  const [paso, setPaso] = useState(1);
+
+  const validarPaso1 = () => {
+    if (!formData.dni || !formData.nombre || !formData.celular) {
+      showToast('Completa DNI, nombre y celular', 'error'); return false;
+    }
+    if (!formData.direccion.trim()) {
+      showToast('La dirección es obligatoria', 'error'); return false;
+    }
+    if (!formData.correo.trim()) {
+      showToast('El correo electrónico es obligatorio', 'error'); return false;
+    }
+    return true;
+  };
+  const validarPaso2 = () => {
+    if (!formData.imei || !formData.marca || !formData.modelo) {
+      showToast('Completa IMEI, marca y modelo', 'error'); return false;
+    }
+    if (!formData.nombreComercial) {
+      showToast('El nombre comercial es obligatorio', 'error'); return false;
+    }
+    if (imeiYaRegistrado(formData.imei)) {
+      showToast(`El IMEI ${formData.imei} ya tiene un registro activo`, 'error'); return false;
+    }
+    return true;
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 max-w-2xl mx-auto overflow-hidden">
+      {/* Header */}
+      <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
+        <h3 className="font-semibold text-gray-700">{initialData ? 'Editar Registro' : 'Nuevo Registro'}</h3>
+        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+      </div>
+
+      {/* Indicador de pasos */}
+      <div className="flex items-center px-6 pt-5 pb-2 gap-2">
+        {[1,2,3].map(n => (
+          <React.Fragment key={n}>
+            <div className={`flex items-center gap-2 ${paso === n ? 'text-blue-600' : paso > n ? 'text-green-600' : 'text-gray-400'}`}>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors
+                ${paso === n ? 'border-blue-600 bg-blue-50 text-blue-600' : paso > n ? 'border-green-500 bg-green-50 text-green-600' : 'border-gray-300 text-gray-400'}`}>
+                {paso > n ? '✓' : n}
+              </div>
+              <span className="text-xs font-medium hidden sm:block">
+                {n === 1 ? 'Cliente' : n === 2 ? 'Equipo' : 'Detalle'}
+              </span>
+            </div>
+            {n < 3 && <div className={`flex-1 h-0.5 ${paso > n ? 'bg-green-400' : 'bg-gray-200'}`} />}
+          </React.Fragment>
+        ))}
+      </div>
+
+      <form onSubmit={handleSubmit} className="p-6">
+
+        {/* PASO 1 — DATOS DEL CLIENTE */}
+        {paso === 1 && (
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-blue-600 uppercase border-b pb-2">Datos del Cliente</h4>
+            {buscandoReniec && (
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+                <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                Consultando RENIEC...
+              </div>
+            )}
+            {datosAnterioresReg && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                <p className="font-semibold mb-1">⚠ Cliente existente — datos anteriores registrados:</p>
+                {datosAnterioresReg.celular && <p>📱 Celular anterior: <span className="font-mono font-bold">{datosAnterioresReg.celular}</span></p>}
+                {datosAnterioresReg.correo  && <p>✉ Correo anterior: <span className="font-mono font-bold">{datosAnterioresReg.correo}</span></p>}
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label className="block text-xs text-gray-500 mb-1">DNI *</label><input name="dni" value={formData.dni} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" placeholder="8 dígitos" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Nombre Completo *</label><input name="nombre" value={formData.nombre} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Celular *</label><input name="celular" value={formData.celular} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">N° Referencia</label><input name="celularRef" value={formData.celularRef} onChange={handleChange} placeholder={formData.celular || 'Igual al celular'} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} /></div>
+              <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Dirección *</label><input name="direccion" value={formData.direccion} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Av. / Jr. / Calle..." /></div>
+              <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Correo Electrónico *</label><input type="email" name="correo" value={formData.correo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+            </div>
+            <div className="flex justify-between pt-4 border-t">
+              <button type="button" onClick={onCancel} className="px-5 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">Cancelar</button>
+              <button type="button" onClick={() => validarPaso1() && setPaso(2)} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Siguiente →</button>
+            </div>
+          </div>
+        )}
+
+
+
+        {/* PASO 2 — DATOS DEL EQUIPO */}
+        {paso === 2 && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b pb-2">
+              <h4 className="text-sm font-semibold text-blue-600 uppercase">Datos del Equipo</h4>
+              {showManualEqForm && <button type="button" onClick={() => setMostrarEscaner(true)} className="flex items-center text-xs bg-gray-800 text-white px-3 py-1.5 rounded"><ScanBarcode size={14} className="mr-1"/> Escanear</button>}
+            </div>
+            {mostrarEscaner && <EscanerIA onResult={onEscaneo} onClose={() => setMostrarEscaner(false)} />}
+
+            {/* Equipos previos */}
+            {!showManualEqForm && equiposCliente.length > 0 && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                <h5 className="font-semibold text-blue-800 mb-3 text-sm">Equipos previos:</h5>
+                {imeiSeleccionado ? (
+                  <div className="p-3 bg-white rounded border border-blue-200">
+                    <p className="text-sm font-medium mb-1">{imeiSeleccionado.marca} {imeiSeleccionado.nombreComercial || imeiSeleccionado.modelo}</p>
+                    <p className="text-xs text-gray-500 mb-3">Elige el IMEI a registrar:</p>
+                    <div className="flex gap-2 flex-wrap">
+                      <button type="button" onClick={() => !imeiYaRegistrado(imeiSeleccionado.idEquipo) && handleConfirmEqSelection(imeiSeleccionado, imeiSeleccionado.idEquipo)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded border text-xs font-mono ${imeiYaRegistrado(imeiSeleccionado.idEquipo) ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'}`}>
+                        IMEI 1: {imeiSeleccionado.idEquipo}
+                        {imeisRegistrados.has(imeiSeleccionado.idEquipo) && <span className="bg-blue-200 text-blue-800 px-1 rounded">reg</span>}
+                      </button>
+                      {imeiSeleccionado.imei2 && (
+                        <button type="button" onClick={() => !imeiYaRegistrado(imeiSeleccionado.imei2) && handleConfirmEqSelection(imeiSeleccionado, imeiSeleccionado.imei2)}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded border text-xs font-mono ${imeiYaRegistrado(imeiSeleccionado.imei2) ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'}`}>
+                          IMEI 2: {imeiSeleccionado.imei2}
+                          {imeisRegistrados.has(imeiSeleccionado.imei2) && <span className="bg-blue-200 text-blue-800 px-1 rounded">reg</span>}
+                        </button>
+                      )}
+                    </div>
+                    <button type="button" onClick={() => setImeiSeleccionado(null)} className="mt-3 text-xs text-gray-400 hover:text-gray-600"><X size={12} className="inline mr-1"/>Cancelar</button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {equiposCliente.map(eq => (
+                      <button type="button" key={eq.idEquipo} onClick={() => handleEqClick(eq)} className="p-3 text-left bg-white rounded shadow-sm border border-blue-200 hover:border-blue-400 transition-colors">
+                        <div className="font-semibold text-gray-800 text-sm">{eq.marca} {eq.nombreComercial || eq.modelo}</div>
+                        {eq.nombreComercial && <div className="text-xs text-gray-400 mb-1">{eq.modelo}</div>}
+                        <div className="space-y-0.5 mt-1">
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono">IMEI 1: {eq.idEquipo}{imeisRegistrados.has(eq.idEquipo) && <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">reg</span>}</div>
+                          {eq.imei2 && <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono">IMEI 2: {eq.imei2}{imeisRegistrados.has(eq.imei2) && <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">reg</span>}</div>}
+                          {eq.sn && <div className="text-xs text-gray-500 font-mono">S/N: {eq.sn}</div>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3 pt-3 border-t border-blue-200 text-right">
+                  <button type="button" onClick={() => {setShowManualEqForm(true); setFormData(prev => ({...prev, imei:'', imei2:'', marca:'', modelo:'', nombreComercial:''}))}} className="text-sm text-blue-700 hover:underline">+ Agregar equipo nuevo</button>
+                </div>
+              </div>
+            )}
+
+            {showManualEqForm && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                <label className="block text-xs text-gray-500 mb-1">IMEI a registrar *</label>
+                <input name="imei" value={formData.imei} onChange={handleChange}
+                  className={`w-full border rounded p-2 text-sm font-mono ${formData.imei.length === 15 ? (luhn(formData.imei) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`}
+                  placeholder="15 dígitos" />
+                {formData.imei.length === 15 && (
+                  <p className={`text-xs mt-1 font-medium ${luhn(formData.imei) ? 'text-green-600' : 'text-red-600'}`}>
+                    {luhn(formData.imei) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
+                  </p>
+                )}
+              </div>
+                <div><label className="block text-xs text-gray-500 mb-1">N° de Serie (S/N)</label><input name="sn" value={formData.sn} onChange={handleChange} className="w-full border rounded p-2 text-sm font-mono" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">Nombre Comercial *</label><input name="nombreComercial" value={formData.nombreComercial} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: GALAXY A56" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">Marca *</label><input name="marca" value={formData.marca} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+                <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Modelo *</label><input name="modelo" value={formData.modelo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+              </div>
+            )}
+
+            <div className="flex justify-between pt-4 border-t">
+              <button type="button" onClick={() => setPaso(1)} className="px-5 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">← Atrás</button>
+              <button type="button" onClick={() => validarPaso2() && setPaso(3)} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Siguiente →</button>
+            </div>
+          </div>
+        )}
+
+        {/* PASO 3 — OPERADOR, ESTADO, TIPO, PRECIO */}
+        {paso === 3 && (
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-blue-600 uppercase border-b pb-2">Detalle del Registro</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label className="block text-xs text-gray-500 mb-1">Operador</label>
+                <select name="operador" value={formData.operador} onChange={handleChange} className="w-full border rounded p-2 text-sm">
+                  <option>CLARO</option><option>MOVISTAR</option><option>ENTEL</option><option>BITEL</option>
+                </select>
+              </div>
+              <div><label className="block text-xs text-gray-500 mb-1">Estado</label>
+                <select name="estado" value={formData.estado} onChange={handleChange} className="w-full border rounded p-2 text-sm">
+                  <option>NO BLOQUEADO</option><option>BLOQUEADO</option>
+                </select>
+              </div>
+              <div><label className="block text-xs text-gray-500 mb-1">Tipo</label>
+                <select name="tipo" value={formData.tipo} onChange={handleChange} className="w-full border rounded p-2 text-sm">
+                  <option>TIENDA</option><option>EXTERNO</option><option>PASE</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">
+                  Precio (S/.) *
+                  {formData.estado === 'BLOQUEADO' && <span className="ml-1 text-orange-500 font-semibold">(mín. S/. 50.00)</span>}
+                </label>
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  min={formData.estado === 'BLOQUEADO' ? 50 : 0}
+                  name="precio"
+                  value={formData.precio}
+                  onChange={handleChange}
+                  className={`w-full border rounded p-2 text-sm font-bold ${
+                    formData.estado === 'BLOQUEADO' && parseFloat(formData.precio || 0) < 50 && formData.precio !== ''
+                      ? 'border-red-400 bg-red-50 text-red-600'
+                      : 'text-green-700'
+                  }`}
+                />
+                {formData.estado === 'BLOQUEADO' && parseFloat(formData.precio || 0) < 50 && formData.precio !== '' && (
+                  <p className="text-xs text-red-500 mt-1">⚠ El precio mínimo para BLOQUEADO es S/. 50.00</p>
+                )}
+              </div>
+              <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Fecha y hora *</label>
+                <input required type="datetime-local" name="fecha" value={formData.fecha} onChange={handleChange} className="w-full border rounded p-2 text-sm" />
+              </div>
+            </div>
+
+            {/* Resumen completo para confirmar */}
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 space-y-2 text-sm">
+              <p className="font-semibold text-blue-800 mb-1">📋 Verifica que los datos sean correctos:</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
+                <span className="font-medium text-gray-700">Cliente:</span><span>{formData.nombre}</span>
+                <span className="font-medium text-gray-700">DNI:</span><span>{formData.dni}</span>
+                <span className="font-medium text-gray-700">Celular:</span><span>{formData.celular}</span>
+                <span className="font-medium text-gray-700">Dirección:</span><span>{formData.direccion}</span>
+                <span className="font-medium text-gray-700">Correo:</span><span>{formData.correo}</span>
+                <span className="font-medium text-gray-700">Equipo:</span><span>{formData.marca} {formData.nombreComercial}</span>
+                <span className="font-medium text-gray-700">Modelo:</span><span>{formData.modelo}</span>
+                <span className="font-medium text-gray-700">IMEI registrado:</span><span className="font-mono">{formData.imei}</span>
+                <span className="font-medium text-gray-700">Operador:</span><span>{formData.operador}</span>
+                <span className="font-medium text-gray-700">Estado:</span><span>{formData.estado}</span>
+                <span className="font-medium text-gray-700">Tipo:</span><span>{formData.tipo}</span>
+                <span className="font-medium text-gray-700">Precio:</span><span className="text-green-700 font-bold">S/. {parseFloat(formData.precio || 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-4 border-t">
+              <button type="button" onClick={() => setPaso(2)} className="px-5 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">← Atrás</button>
+              <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold">
+                {loading ? 'Guardando...' : '✓ Confirmar y Guardar'}
+              </button>
+            </div>
+          </div>
+        )}
+
+      </form>
+    </div>
+  );
+}
+
+// ============================================================================
+// MÓDULO: VENTAS
+// ============================================================================
+
