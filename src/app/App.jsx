@@ -9,12 +9,18 @@ import { Dashboard } from '../features/dashboard/Dashboard.jsx';
 import { ConfiguracionLogo } from '../features/settings/ConfiguracionLogo.jsx';
 import { TopNavItem } from '../components/navigation/TopNavItem.jsx';
 import { MobileNavIcon } from '../components/navigation/MobileNavIcon.jsx';
+import { AppFooter } from '../components/branding/AppFooter.jsx';
+import { IntroSplash } from '../components/branding/IntroSplash.jsx';
 import { RegistrosList } from '../features/registros/RegistrosList.jsx';
 import { RegistroForm } from '../features/registros/RegistroForm.jsx';
 import { VentasList } from '../features/ventas/VentasList.jsx';
 import { VentaForm } from '../features/ventas/VentaForm.jsx';
 import { ClientesList } from '../features/clientes/ClientesList.jsx';
 import { BoletaExtranjera } from '../features/boletas/BoletaExtranjera.jsx';
+
+const INTRO_LOGIN_KEY = 'ggs_intro_after_login_uid';
+const INTRO_SEEN_PREFIX = 'ggs_intro_seen_at_';
+const INTRO_REPEAT_AFTER_MS = 12 * 60 * 60 * 1000;
 
 function App() {
   const [user, setUser] = useState(null);
@@ -25,6 +31,7 @@ function App() {
   const [busquedaGlobal, setBusquedaGlobal] = useState('');
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [logoVentas, setLogoVentas] = useState(null);
+  const [showIntro, setShowIntro] = useState(false);
 
   const [clientes, setClientes] = useState([]);
   const [equipos, setEquipos]   = useState([]);
@@ -34,6 +41,7 @@ function App() {
   const [cargandoVentas, setCargandoVentas]       = useState(true);
 
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const lastIntroUserRef = React.useRef(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -67,6 +75,32 @@ function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      lastIntroUserRef.current = null;
+      return;
+    }
+
+    if (lastIntroUserRef.current === user.uid) return;
+
+    const now = Date.now();
+    const seenKey = `${INTRO_SEEN_PREFIX}${user.uid}`;
+    const lastSeenAt = Number(window.localStorage.getItem(seenKey) || 0);
+    const loginUid = window.sessionStorage.getItem(INTRO_LOGIN_KEY);
+    const shouldShowIntro = loginUid === user.uid || !lastSeenAt || now - lastSeenAt > INTRO_REPEAT_AFTER_MS;
+
+    lastIntroUserRef.current = user.uid;
+    window.sessionStorage.removeItem(INTRO_LOGIN_KEY);
+
+    if (!shouldShowIntro) return;
+
+    window.localStorage.setItem(seenKey, String(now));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowIntro(true);
+    const timeoutId = window.setTimeout(() => setShowIntro(false), 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [user]);
 
   // ── SUSCRIPCIONES LAZY POR MÓDULO ──
   // clientes + equipos: siempre cargados (necesarios en múltiples módulos)
@@ -231,6 +265,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 overflow-hidden font-sans">
+      {showIntro && <IntroSplash />}
 
       {/* ── TOPBAR ── */}
       <header className="bg-slate-900 text-white flex items-center justify-between px-4 md:px-6 h-14 shrink-0 z-50">
@@ -388,6 +423,7 @@ function App() {
           </div>
         )}
       </main>
+      <AppFooter />
     </div>
   );
 }
@@ -398,4 +434,5 @@ function App() {
 
 
 export default App;
+
 

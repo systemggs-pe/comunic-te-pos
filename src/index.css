@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes ggsSplashFade {
+  0% { opacity: 0; transform: scale(0.98); }
+  15% { opacity: 1; transform: scale(1); }
+  75% { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
+@keyframes ggsSplashBackdrop {
+  0% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+
+.ggs-splash-screen {
+  animation: ggsSplashBackdrop 2.4s ease-in-out forwards;
+}
+
+.ggs-splash-logo {
+  animation: ggsSplashFade 2.4s ease-in-out forwards;
+}

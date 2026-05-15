@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { AppFooter } from '../../components/branding/AppFooter.jsx';
 export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -15,7 +16,9 @@ export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
         showToast('Acceso denegado. Tu correo no está autorizado.', 'error');
         return;
       }
-      showToast('Sesión iniciada con Google');
+      window.sessionStorage.setItem('ggs_intro_after_login_uid', result.user.uid);
+
+      showToast('Sesion iniciada con Google');
     } catch (error) {
       console.error("Error Google Auth:", error);
       if (error.code !== 'auth/popup-closed-by-user') {
@@ -27,8 +30,9 @@ export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full text-center border border-gray-100">
+    <div className="min-h-screen flex flex-col bg-gray-100">
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full text-center border border-gray-100">
         <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
           <Users size={32} />
         </div>
@@ -48,8 +52,11 @@ export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
           </svg>
           {isLoading ? 'Verificando...' : 'Ingresar con Google'}
         </button>
+        </div>
       </div>
+      <AppFooter />
     </div>
   );
 }
+
 
