@@ -1,20 +1,24 @@
 import React from 'react';
-
-const WHATSAPP_URL = 'https://wa.me/51929138755';
-const SUPPORT_EMAIL = 'systemggs.pe@gmail.com';
+import {
+  DIGITAL_SIGNATURE,
+  SUPPORT_EMAIL,
+  SUPPORT_PHONE,
+  SUPPORT_WHATSAPP_URL,
+  SYSTEM_VERSION,
+} from '../../config/branding.js';
 
 export function AppFooter() {
   return (
     <footer className="shrink-0 border-t border-gray-200 bg-white/95 px-4 py-2 text-center text-[11px] text-gray-500">
-      <span>Creado por <strong className="font-semibold text-gray-700">GGS System v5.0.0</strong></span>
+      <span>Creado por <strong className="font-semibold text-gray-700">{DIGITAL_SIGNATURE} {SYSTEM_VERSION}</strong></span>
       <span className="mx-2 text-gray-300">|</span>
       <a
-        href={WHATSAPP_URL}
+        href={SUPPORT_WHATSAPP_URL}
         target="_blank"
         rel="noreferrer"
         className="font-medium text-green-700 hover:text-green-800 hover:underline"
       >
-        Soporte +51929138755
+        Soporte {SUPPORT_PHONE}
       </a>
       <span className="mx-2 text-gray-300">|</span>
       <a

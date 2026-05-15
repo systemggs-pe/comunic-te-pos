@@ -87,13 +87,8 @@ export function Dashboard({ stats, setCurrentView, user }) {
           <Plus size={16} /> Nueva Venta
         </button>
       </div>
-
-      {/* Footer */}
-      <div className="mt-auto text-center pb-6">
-        <p className="text-xs text-gray-300 font-medium">v3.0.0 · Creado por Brand Daniel Peralta Rodriguez</p>
-        <p className="text-xs text-gray-300">SOPORTE +51 946 007 646 · <span className="text-blue-400">brand050103@gmail.com</span></p>
-      </div>
     </div>
   );
 }
+
 
