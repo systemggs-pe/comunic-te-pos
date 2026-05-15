@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "backend": "node backend/server.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node backend/server.js",
+    "serve": "npm run build && node backend/server.js"
   },
   "dependencies": {
     "firebase": "^12.10.0",

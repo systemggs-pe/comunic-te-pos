@@ -1,12 +1,12 @@
-import { auth, firebaseConfig } from '../lib/firebase.js';
+import { auth } from '../lib/firebase.js';
 
-const FUNCTIONS_BASE_URL = import.meta.env.VITE_FUNCTIONS_BASE_URL || `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net`;
+const BACKEND_BASE_URL = (import.meta.env.VITE_BACKEND_BASE_URL || '').replace(/\/$/, '');
 
 export async function llamarFuncionSegura(nombre, payload) {
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error('AUTH_REQUIRED');
 
-  const resp = await fetch(`${FUNCTIONS_BASE_URL}/${nombre}`, {
+  const resp = await fetch(`${BACKEND_BASE_URL}/api/${nombre}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -17,7 +17,7 @@ export async function llamarFuncionSegura(nombre, payload) {
 
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    const error = new Error(resp.status === 404 ? 'RENIEC_FUNCTION_NOT_DEPLOYED' : data.error || 'FUNCTION_ERROR');
+    const error = new Error(data.error || 'BACKEND_ERROR');
     error.status = resp.status;
     error.payload = data;
     throw error;
@@ -26,26 +26,5 @@ export async function llamarFuncionSegura(nombre, payload) {
 }
 
 export function consultarReniecDni(dni) {
-  if (import.meta.env.DEV) {
-    return consultarReniecLocal(dni);
-  }
-  return llamarFuncionSegura('consultarReniec', { dni: String(dni) });
+  return llamarFuncionSegura('reniec', {dni: String(dni)});
 }
-
-async function consultarReniecLocal(dni) {
-  const resp = await fetch('/api/reniec', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ dni: String(dni) }),
-  });
-
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    const error = new Error(data.error || 'RENIEC_LOCAL_ERROR');
-    error.status = resp.status;
-    error.payload = data;
-    throw error;
-  }
-  return data;
-}
-
