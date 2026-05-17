@@ -1,0 +1,22 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/reniec"
+  to = "/.netlify/functions/reniec"
+  status = 200
+
+[[redirects]]
+  from = "/api/analizarCajaGemini"
+  to = "/.netlify/functions/analizarCajaGemini"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

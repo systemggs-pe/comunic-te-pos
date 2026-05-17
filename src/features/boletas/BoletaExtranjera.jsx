@@ -82,6 +82,10 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
         console.error('RENIEC boleta error:', e);
         const mensaje = e.message === 'RENIEC_TOKEN_MISSING'
           ? 'Falta configurar token RENIEC'
+          : e.message === 'BACKEND_NOT_DEPLOYED'
+            ? 'Backend no desplegado: abre la app desde el servidor Node'
+          : e.message === 'BACKEND_INVALID_RESPONSE'
+            ? 'Respuesta invalida del backend'
           : e.message === 'RENIEC_FUNCTION_NOT_DEPLOYED'
             ? 'Función RENIEC no desplegada'
             : 'Error al consultar DNI';

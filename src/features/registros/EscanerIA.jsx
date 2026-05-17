@@ -34,11 +34,13 @@ export function EscanerIA({ onResult, onClose }) {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    const maxSide = 1600;
+    const scale = Math.min(1, maxSide / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
     // Sin ningún preprocesamiento: enviamos la imagen tal cual a Gemini mediante Cloud Functions.
-    const base64 = canvas.toDataURL('image/jpeg', 0.97).split(',')[1];
+    const base64 = canvas.toDataURL('image/jpeg', 0.82).split(',')[1];
     setFoto(base64);
     setFase('preview');
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -100,7 +102,12 @@ export function EscanerIA({ onResult, onClose }) {
       onResult(normalizado);
     } catch (e) {
       console.error('Error escáner:', e);
-      setError(`Error: ${e.message}`);
+      const mensaje = e.message === 'BACKEND_NOT_DEPLOYED'
+        ? 'Backend no desplegado: abre la app desde el servidor Node'
+        : e.message === 'BACKEND_INVALID_RESPONSE'
+          ? 'Respuesta invalida del backend'
+          : e.message;
+      setError(`Error: ${mensaje}`);
       setFase('preview');
       setMsg('');
     }

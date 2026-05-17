@@ -12,7 +12,17 @@ loadEnv(join(rootDir, 'functions', '.env'));
 
 const PORT = Number(process.env.BACKEND_PORT || process.env.PORT || 3001);
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyBLosM4ocr9OBLcpcRUc5QF3k8eVc4h5mA';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const RENIEC_URL = 'https://api-codart.cgrt.org/api/v1/consultas/reniec/dni';
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'https://comunicate-tacna.web.app',
+  'https://comunicate-tacna.firebaseapp.com',
+  ...(process.env.ALLOWED_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean),
+];
 const rateLimits = new Map();
 
 function loadEnv(path) {
@@ -33,12 +43,22 @@ function sendJson(res, status, body, headers = {}) {
   res.end(JSON.stringify(body));
 }
 
+function setCors(req, res) {
+  const origin = req.headers.origin || '';
+  if (allowedOrigins.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
 function readBody(req) {
   return new Promise((resolveBody, reject) => {
     let body = '';
     req.on('data', chunk => {
       body += chunk;
-      if (body.length > 8 * 1024 * 1024) {
+      if (body.length > 12 * 1024 * 1024) {
         reject(Object.assign(new Error('Payload demasiado grande'), {status: 413}));
         req.destroy();
       }
@@ -170,8 +190,7 @@ Guia de extraccion:
 
 Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas extraer.`;
 
-  const modelo = 'gemini-flash-latest';
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -194,6 +213,13 @@ Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas
 }
 
 async function handleApi(req, res) {
+  setCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end('');
+    return;
+  }
+
   if (req.method !== 'POST') {
     sendJson(res, 405, {error: 'Metodo no permitido'});
     return;
@@ -204,7 +230,7 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const path = new URL(req.url, 'http://localhost').pathname;
 
-    if (path === '/api/reniec') {
+    if (path === '/api/reniec' || path === '/api/consultarReniec') {
       enforceRateLimit(res, user, 'reniec', 60);
       sendJson(res, 200, await consultarReniec(body));
       return;
