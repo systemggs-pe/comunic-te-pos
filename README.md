@@ -1,16 +1,64 @@
-# React + Vite
+# Comunicate
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicacion React + Vite desplegada en Netlify.
 
-Currently, two official plugins are available:
+## Backend canonico
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+El unico backend activo del proyecto esta en `netlify/functions`.
 
-## React Compiler
+- `reniec.mjs`: consulta DNI con token RENIEC.
+- `analizarCajaGemini.mjs`: OCR de caja con Gemini.
+- `registros.mjs`: altas, ediciones, desbloqueos y borrados de registros con transacciones Firestore.
+- `ventas.mjs`: altas, ediciones y borrados de ventas con transacciones Firestore.
+- `_validators.mjs`: modelos Zod compartidos para validar DNI, celular, email, IMEI, precio y fechas en servidor.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+No se usan Firebase Cloud Functions para mantener compatibilidad con el plan gratuito de Firebase.
 
-## Expanding the ESLint configuration
+## Variables de entorno en Netlify
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Configurar en `Site configuration > Environment variables`:
+
+```env
+FIREBASE_SERVICE_ACCOUNT=JSON_PRIVADO_DE_FIREBASE_ADMIN_EN_UNA_LINEA
+FIREBASE_API_KEY=TU_FIREBASE_WEB_API_KEY
+ALLOWED_EMAILS=correo1@gmail.com,correo2@gmail.com
+ALLOWED_ORIGINS=https://tu-sitio.netlify.app
+RENIEC_TOKEN=TU_TOKEN_RENIEC
+GEMINI_API_KEY=TU_API_KEY_GEMINI
+GEMINI_MODEL=gemini-2.0-flash
+VITE_BACKEND_BASE_URL=
+```
+
+Si el frontend se despliega en Netlify junto con las funciones, `VITE_BACKEND_BASE_URL` queda vacio.
+
+## Desarrollo local
+
+Para revisar solo frontend:
+
+```bash
+npm run dev
+```
+
+Para probar frontend y Netlify Functions localmente:
+
+```bash
+npx netlify dev
+```
+
+## Despliegue
+
+Netlify construye con:
+
+```bash
+npm run build
+```
+
+Firestore rules se despliegan aparte:
+
+```bash
+npx firebase deploy --only firestore
+```
+
+No desplegar Firebase Functions.
+
+La configuracion de Firestore incluye `firestore.rules` y `firestore.indexes.json`. Los listados de ventas y registros leen por paginas ordenadas por `fecha desc`.

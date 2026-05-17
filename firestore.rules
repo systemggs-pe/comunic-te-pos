@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAllowedUser() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'brand050103@gmail.com',
+          'lauryruyz50@gmail.com'
+        ];
+    }
+
+    function isSharedApp(appId, scope) {
+      return appId == 'comunicate-pos' && scope == 'shared';
+    }
+
+    function canUseSharedData(appId, scope) {
+      return isAllowedUser() && isSharedApp(appId, scope);
+    }
+
+    function hasOnly(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function optionalString(field, maxSize) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is string
+          && request.resource.data[field].size() <= maxSize);
+    }
+
+    function optionalBool(field) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] is bool;
+    }
+
+    function validDni(value) {
+      return value is string && value.matches('^\\d{8}$');
+    }
+
+    function validImei(value) {
+      return value is string && value.matches('^\\d{15}$');
+    }
+
+    function validOptionalImei(field) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is string
+          && (request.resource.data[field] == ''
+            || request.resource.data[field].matches('^\\d{15}$')));
+    }
+
+    function validPhone(field) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is string
+          && request.resource.data[field].matches('^\\d{0,9}$'));
+    }
+
+    function validMoney(field) {
+      return request.resource.data[field] is string
+        && request.resource.data[field].matches('^\\d+(\\.\\d{1,2})?$')
+        && request.resource.data[field].size() <= 20;
+    }
+
+    function validIsoDate(field) {
+      return request.resource.data[field] is string
+        && request.resource.data[field].size() <= 40;
+    }
+
+    function validCliente(clienteId) {
+      return hasOnly(['dni', 'nombre', 'celular', 'celularRef', 'correo', 'direccion'])
+        && request.resource.data.dni == clienteId
+        && validDni(request.resource.data.dni)
+        && optionalString('nombre', 160)
+        && validPhone('celular')
+        && validPhone('celularRef')
+        && optionalString('correo', 180)
+        && optionalString('direccion', 300);
+    }
+
+    function validEquipo(equipoId) {
+      return hasOnly([
+          'idEquipo', 'idDuenio', 'imei2', 'sn', 'marca', 'modelo',
+          'nombreComercial', 'isRegistrado', 'imei1Registrado',
+          'imei2Registrado', 'isVendido', 'ram', 'memoria', 'color'
+        ])
+        && request.resource.data.idEquipo == equipoId
+        && validImei(request.resource.data.idEquipo)
+        && validDni(request.resource.data.idDuenio)
+        && validOptionalImei('imei2')
+        && optionalString('sn', 80)
+        && optionalString('marca', 80)
+        && optionalString('modelo', 100)
+        && optionalString('nombreComercial', 140)
+        && optionalString('ram', 12)
+        && optionalString('memoria', 12)
+        && optionalString('color', 80)
+        && optionalBool('isRegistrado')
+        && optionalBool('imei1Registrado')
+        && optionalBool('imei2Registrado')
+        && optionalBool('isVendido');
+    }
+
+    function validRegistro() {
+      return hasOnly([
+          'dniCliente', 'celularCliente', 'celularRef', 'imeiEquipo',
+          'imeiRegistrado', 'imei2Equipo', 'modeloEquipo', 'marcaEquipo',
+          'nombreComercialEquipo', 'estado', 'operador', 'tipo', 'precio',
+          'fecha', 'nRegistro', 'pdfDniUrl', 'pdfCajaUrl', 'pdfReciboUrl'
+        ])
+        && validDni(request.resource.data.dniCliente)
+        && validImei(request.resource.data.imeiEquipo)
+        && validImei(request.resource.data.imeiRegistrado)
+        && validOptionalImei('imei2Equipo')
+        && validPhone('celularCliente')
+        && validPhone('celularRef')
+        && request.resource.data.estado in ['NO BLOQUEADO', 'BLOQUEADO']
+        && request.resource.data.operador in ['CLARO', 'MOVISTAR', 'ENTEL', 'BITEL']
+        && request.resource.data.tipo in ['TIENDA', 'EXTERNO', 'PASE']
+        && validMoney('precio')
+        && validIsoDate('fecha')
+        && optionalString('modeloEquipo', 100)
+        && optionalString('marcaEquipo', 80)
+        && optionalString('nombreComercialEquipo', 140)
+        && optionalString('nRegistro', 30)
+        && optionalString('pdfDniUrl', 1200)
+        && optionalString('pdfCajaUrl', 1200)
+        && optionalString('pdfReciboUrl', 1200);
+    }
+
+    function validVenta() {
+      return hasOnly([
+          'dniCliente', 'imeiEquipo', 'imei2Equipo', 'sn', 'modeloEquipo',
+          'marcaEquipo', 'nombreComercial', 'ram', 'memoria', 'color',
+          'precio', 'fecha', 'nVenta'
+        ])
+        && validDni(request.resource.data.dniCliente)
+        && validImei(request.resource.data.imeiEquipo)
+        && validOptionalImei('imei2Equipo')
+        && validMoney('precio')
+        && validIsoDate('fecha')
+        && optionalString('sn', 80)
+        && optionalString('modeloEquipo', 100)
+        && optionalString('marcaEquipo', 80)
+        && optionalString('nombreComercial', 140)
+        && optionalString('ram', 12)
+        && optionalString('memoria', 12)
+        && optionalString('color', 80)
+        && optionalString('nVenta', 30);
+    }
+
+    function validLogo() {
+      return hasOnly(['dataUrl'])
+        && request.resource.data.dataUrl is string
+        && request.resource.data.dataUrl.matches('^data:image/(png|jpeg|jpg|webp);base64,.*')
+        && request.resource.data.dataUrl.size() <= 900000;
+    }
+
+    match /artifacts/{appId}/users/{scope}/clientes/{clienteId} {
+      allow read: if canUseSharedData(appId, scope);
+      allow create, update, delete: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/equipos/{equipoId} {
+      allow read: if canUseSharedData(appId, scope);
+      allow create, update, delete: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/registros/{registroId} {
+      allow read: if canUseSharedData(appId, scope);
+      allow create, update, delete: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/ventas/{ventaId} {
+      allow read: if canUseSharedData(appId, scope);
+      allow create, update, delete: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/configuracion/logoVentas {
+      allow read: if canUseSharedData(appId, scope);
+      allow create, update: if canUseSharedData(appId, scope) && validLogo();
+      allow delete: if canUseSharedData(appId, scope);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

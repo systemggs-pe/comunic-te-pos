@@ -85,9 +85,9 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
           : e.message === 'BACKEND_NOT_DEPLOYED'
             ? 'Backend no desplegado: abre la app desde el servidor Node'
           : e.message === 'BACKEND_INVALID_RESPONSE'
-            ? 'Respuesta invalida del backend'
-          : e.message === 'RENIEC_FUNCTION_NOT_DEPLOYED'
-            ? 'Función RENIEC no desplegada'
+            ? 'Respuesta invalida de Netlify Functions'
+          : e.message === 'BACKEND_NOT_DEPLOYED'
+            ? 'Funciones Netlify no desplegadas'
             : 'Error al consultar DNI';
         if (activo) showToast(mensaje, 'error');
       } finally {

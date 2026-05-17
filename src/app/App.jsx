@@ -1,26 +1,37 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, query, orderBy, limit, startAfter, getDocs, getCountFromServer } from 'firebase/firestore';
 import { EMAILS_PERMITIDOS } from '../config/auth.js';
 import { auth, db, appId } from '../lib/firebase.js';
 import { LoginScreen } from '../features/auth/LoginScreen.jsx';
-import { Dashboard } from '../features/dashboard/Dashboard.jsx';
-import { ConfiguracionLogo } from '../features/settings/ConfiguracionLogo.jsx';
 import { TopNavItem } from '../components/navigation/TopNavItem.jsx';
 import { MobileNavIcon } from '../components/navigation/MobileNavIcon.jsx';
 import { AppFooter } from '../components/branding/AppFooter.jsx';
 import { IntroSplash } from '../components/branding/IntroSplash.jsx';
-import { RegistrosList } from '../features/registros/RegistrosList.jsx';
-import { RegistroForm } from '../features/registros/RegistroForm.jsx';
-import { VentasList } from '../features/ventas/VentasList.jsx';
-import { VentaForm } from '../features/ventas/VentaForm.jsx';
-import { ClientesList } from '../features/clientes/ClientesList.jsx';
-import { BoletaExtranjera } from '../features/boletas/BoletaExtranjera.jsx';
+
+const lazyNamed = (loader, name) => lazy(() => loader().then(module => ({default: module[name]})));
+const Dashboard = lazyNamed(() => import('../features/dashboard/Dashboard.jsx'), 'Dashboard');
+const ConfiguracionLogo = lazyNamed(() => import('../features/settings/ConfiguracionLogo.jsx'), 'ConfiguracionLogo');
+const RegistrosList = lazyNamed(() => import('../features/registros/RegistrosList.jsx'), 'RegistrosList');
+const RegistroForm = lazyNamed(() => import('../features/registros/RegistroForm.jsx'), 'RegistroForm');
+const VentasList = lazyNamed(() => import('../features/ventas/VentasList.jsx'), 'VentasList');
+const VentaForm = lazyNamed(() => import('../features/ventas/VentaForm.jsx'), 'VentaForm');
+const ClientesList = lazyNamed(() => import('../features/clientes/ClientesList.jsx'), 'ClientesList');
+const BoletaExtranjera = lazyNamed(() => import('../features/boletas/BoletaExtranjera.jsx'), 'BoletaExtranjera');
 
 const INTRO_LOGIN_KEY = 'ggs_intro_after_login_uid';
 const INTRO_SEEN_PREFIX = 'ggs_intro_seen_at_';
 const INTRO_REPEAT_AFTER_MS = 12 * 60 * 60 * 1000;
+const PAGE_SIZE = 40;
+
+function mergeByDateDesc(primary, secondary) {
+  const seen = new Set(primary.map(item => item.id));
+  return [
+    ...primary,
+    ...secondary.filter(item => !seen.has(item.id)),
+  ].sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -39,9 +50,16 @@ function App() {
   const [ventas, setVentas]       = useState([]);
   const [cargandoRegistros, setCargandoRegistros] = useState(true);
   const [cargandoVentas, setCargandoVentas]       = useState(true);
+  const [cargandoMasRegistros, setCargandoMasRegistros] = useState(false);
+  const [cargandoMasVentas, setCargandoMasVentas] = useState(false);
+  const [hayMasRegistros, setHayMasRegistros] = useState(false);
+  const [hayMasVentas, setHayMasVentas] = useState(false);
+  const [totales, setTotales] = useState({registros: 0, ventas: 0});
 
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const lastIntroUserRef = React.useRef(null);
+  const lastRegistroDocRef = React.useRef(null);
+  const lastVentaDocRef = React.useRef(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -109,6 +127,31 @@ function App() {
   const unsubRegistrosRef = React.useRef(null);
   const unsubVentasRef    = React.useRef(null);
 
+  const registrosRef = useMemo(
+    () => collection(db, 'artifacts', appId, 'users', 'shared', 'registros'),
+    []
+  );
+  const ventasRef = useMemo(
+    () => collection(db, 'artifacts', appId, 'users', 'shared', 'ventas'),
+    []
+  );
+
+  const refrescarTotales = React.useCallback(async () => {
+    if (!auth.currentUser) return;
+    try {
+      const [registrosCount, ventasCount] = await Promise.all([
+        getCountFromServer(registrosRef),
+        getCountFromServer(ventasRef),
+      ]);
+      setTotales({
+        registros: registrosCount.data().count,
+        ventas: ventasCount.data().count,
+      });
+    } catch (err) {
+      console.error('Error totales:', err);
+    }
+  }, [registrosRef, ventasRef]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -137,18 +180,26 @@ function App() {
     return () => { unsubClientes(); unsubEquipos(); unsubLogo(); };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refrescarTotales();
+  }, [user, refrescarTotales]);
+
   // Suscribir/desuscribir registros según la vista
   useEffect(() => {
-    const necesitaRegistros = currentView.startsWith('registros') || currentView === 'dashboard' || currentView === 'boleta_extranjera' || currentView === 'clientes_list';
+    const necesitaRegistros = currentView.startsWith('registros') || currentView === 'boleta_extranjera' || currentView === 'clientes_list';
     if (!user || !necesitaRegistros) return;
     if (unsubRegistrosRef.current) return; // ya suscrito
 
+    const registrosQuery = query(registrosRef, orderBy('fecha', 'desc'), limit(PAGE_SIZE));
     unsubRegistrosRef.current = onSnapshot(
-      collection(db, 'artifacts', appId, 'users', 'shared', 'registros'),
+      registrosQuery,
       (snap) => {
         const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-        setRegistros(data);
+        lastRegistroDocRef.current = snap.docs.at(-1) || null;
+        setHayMasRegistros(snap.size === PAGE_SIZE);
+        setRegistros(prev => mergeByDateDesc(data, prev));
         setCargandoRegistros(false);
       },
       (err) => { console.error('Error registros:', err); setCargandoRegistros(false); }
@@ -158,39 +209,115 @@ function App() {
       // Mantener la suscripción activa mientras el usuario esté logueado
       // Solo se cancela al cerrar sesión
     };
-  }, [user, currentView]);
+  }, [user, currentView, registrosRef]);
 
   // Suscribir/desuscribir ventas según la vista
   useEffect(() => {
-    const necesitaVentas = currentView.startsWith('ventas') || currentView === 'dashboard' || currentView === 'boleta_extranjera';
+    const necesitaVentas = currentView.startsWith('ventas') || currentView === 'boleta_extranjera';
     if (!user || !necesitaVentas) return;
     if (unsubVentasRef.current) return; // ya suscrito
 
+    const ventasQuery = query(ventasRef, orderBy('fecha', 'desc'), limit(PAGE_SIZE));
     unsubVentasRef.current = onSnapshot(
-      collection(db, 'artifacts', appId, 'users', 'shared', 'ventas'),
+      ventasQuery,
       (snap) => {
         const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-        setVentas(data);
+        lastVentaDocRef.current = snap.docs.at(-1) || null;
+        setHayMasVentas(snap.size === PAGE_SIZE);
+        setVentas(prev => mergeByDateDesc(data, prev));
         setCargandoVentas(false);
       },
       (err) => { console.error('Error ventas:', err); setCargandoVentas(false); }
     );
 
     return () => {};
-  }, [user, currentView]);
+  }, [user, currentView, ventasRef]);
+
+  const cargarMasRegistros = async () => {
+    if (!lastRegistroDocRef.current || cargandoMasRegistros) return;
+    setCargandoMasRegistros(true);
+    try {
+      const snap = await getDocs(query(
+        registrosRef,
+        orderBy('fecha', 'desc'),
+        startAfter(lastRegistroDocRef.current),
+        limit(PAGE_SIZE),
+      ));
+      const data = snap.docs.map(d => ({id: d.id, ...d.data()}));
+      lastRegistroDocRef.current = snap.docs.at(-1) || lastRegistroDocRef.current;
+      setHayMasRegistros(snap.size === PAGE_SIZE);
+      setRegistros(prev => mergeByDateDesc(prev, data));
+    } catch (err) {
+      console.error('Error cargar mas registros:', err);
+      showToast('Error al cargar mas registros', 'error');
+    } finally {
+      setCargandoMasRegistros(false);
+    }
+  };
+
+  const cargarMasVentas = async () => {
+    if (!lastVentaDocRef.current || cargandoMasVentas) return;
+    setCargandoMasVentas(true);
+    try {
+      const snap = await getDocs(query(
+        ventasRef,
+        orderBy('fecha', 'desc'),
+        startAfter(lastVentaDocRef.current),
+        limit(PAGE_SIZE),
+      ));
+      const data = snap.docs.map(d => ({id: d.id, ...d.data()}));
+      lastVentaDocRef.current = snap.docs.at(-1) || lastVentaDocRef.current;
+      setHayMasVentas(snap.size === PAGE_SIZE);
+      setVentas(prev => mergeByDateDesc(prev, data));
+    } catch (err) {
+      console.error('Error cargar mas ventas:', err);
+      showToast('Error al cargar mas ventas', 'error');
+    } finally {
+      setCargandoMasVentas(false);
+    }
+  };
+
+  const quitarRegistroLocal = (id) => {
+    setRegistros(prev => prev.filter(item => item.id !== id));
+    setTotales(prev => ({...prev, registros: Math.max(prev.registros - 1, 0)}));
+  };
+
+  const quitarVentaLocal = (id) => {
+    setVentas(prev => prev.filter(item => item.id !== id));
+    setTotales(prev => ({...prev, ventas: Math.max(prev.ventas - 1, 0)}));
+  };
+
+  const cargarColeccionCompletaOrdenada = async (ref) => {
+    const pageSize = 500;
+    const items = [];
+    let cursor = null;
+    for (;;) {
+      const pageQuery = cursor
+        ? query(ref, orderBy('fecha', 'desc'), startAfter(cursor), limit(pageSize))
+        : query(ref, orderBy('fecha', 'desc'), limit(pageSize));
+      const snap = await getDocs(pageQuery);
+      items.push(...snap.docs.map(d => ({id: d.id, ...d.data()})));
+      if (snap.size < pageSize) break;
+      cursor = snap.docs.at(-1);
+    }
+    return items;
+  };
 
   // Cancelar todas las suscripciones al cerrar sesión
   useEffect(() => {
     if (!user) {
       if (unsubRegistrosRef.current) { unsubRegistrosRef.current(); unsubRegistrosRef.current = null; }
       if (unsubVentasRef.current)    { unsubVentasRef.current();    unsubVentasRef.current    = null; }
+      lastRegistroDocRef.current = null;
+      lastVentaDocRef.current = null;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setRegistros([]); setVentas([]); setClientes([]); setEquipos([]);
+      setHayMasRegistros(false); setHayMasVentas(false); setTotales({registros: 0, ventas: 0});
     }
   }, [user]);
 
   // ── RESPALDO MANUAL (botón en topbar) ──
+  // eslint-disable-next-line no-unused-vars
   const descargarRespaldo = () => {
     if (registros.length + ventas.length === 0) { showToast('No hay datos para respaldar', 'error'); return; }
     const hoy = new Date().toISOString().slice(0, 10);
@@ -204,6 +331,30 @@ function App() {
     a.click();
     URL.revokeObjectURL(url);
     showToast('Respaldo descargado ✓', 'success');
+  };
+
+  const descargarRespaldoCompleto = async () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    try {
+      const [registrosBackup, ventasBackup] = await Promise.all([
+        cargarColeccionCompletaOrdenada(registrosRef),
+        cargarColeccionCompletaOrdenada(ventasRef),
+      ]);
+      if (registrosBackup.length + ventasBackup.length === 0) { showToast('No hay datos para respaldar', 'error'); return; }
+      const backup = { fecha: new Date().toISOString(), clientes, equipos, registros: registrosBackup, ventas: ventasBackup };
+      const json = JSON.stringify(backup, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = `backup_comunicate_${hoy}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Respaldo descargado completo', 'success');
+    } catch (err) {
+      console.error('Error respaldo:', err);
+      showToast('Error al generar respaldo', 'error');
+    }
   };
 
   // ── BUSCADOR GLOBAL ──
@@ -330,7 +481,7 @@ function App() {
             )}
           </div>
           <span className="text-xs text-gray-400 truncate max-w-[160px]">{user.email}</span>
-          <button onClick={descargarRespaldo} title="Descargar respaldo"
+          <button onClick={descargarRespaldoCompleto} title="Descargar respaldo"
             className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 hover:bg-slate-800 px-2 py-1.5 rounded-lg transition-colors text-xs">
             <UploadCloud size={16} /> Respaldo
           </button>
@@ -390,13 +541,14 @@ function App() {
 
       {/* ── CONTENIDO ── */}
       <main className="flex-1 overflow-auto p-4 md:p-6 relative">
-          {currentView === 'dashboard' && <Dashboard stats={{registros: registros.length, ventas: ventas.length, clientes: clientes.length}} setCurrentView={navegarA} user={user} />}
+        <Suspense fallback={<div className="py-12 text-center text-sm text-gray-400">Cargando modulo...</div>}>
+          {currentView === 'dashboard' && <Dashboard stats={{registros: totales.registros, ventas: totales.ventas, clientes: clientes.length}} setCurrentView={navegarA} user={user} />}
 
-          {currentView === 'registros_list' && <RegistrosList data={registros} cargando={cargandoRegistros} ventas={ventas} clientes={clientes} equipos={equipos} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('registros_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('registros_edit'); }} showToast={showToast} db={db} auth={auth} appId={appId} />}
-          {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={currentView === 'registros_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('registros_list'); }} onSave={() => { setFormDirty(false); setCurrentView('registros_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} db={db} appId={appId} />}
+          {currentView === 'registros_list' && <RegistrosList data={registros} cargando={cargandoRegistros} clientes={clientes} equipos={equipos} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('registros_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('registros_edit'); }} showToast={showToast} onDeleted={quitarRegistroLocal} onLoadMore={cargarMasRegistros} hasMore={hayMasRegistros} loadingMore={cargandoMasRegistros} total={totales.registros} />}
+          {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={currentView === 'registros_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('registros_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('registros_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
-          {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} registros={registros} clientes={clientes} equipos={equipos} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} db={db} auth={auth} appId={appId} />}
-          {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} ventas={ventas} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} db={db} appId={appId} />}
+          {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} />}
+          {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
           {currentView === 'clientes_list' && <ClientesList clientes={clientes} equipos={equipos} registros={registros} />}
 
@@ -413,6 +565,7 @@ function App() {
               showToast={showToast}
             />
           )}
+        </Suspense>
 
         {toast.show && (
           <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-xl shadow-lg flex items-center text-white text-sm ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'} z-50`}>

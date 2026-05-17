@@ -8,7 +8,7 @@ export function ConfiguracionLogo({ logoVentas, onLogoChange, showToast }) {
     const file = e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { showToast('Solo se aceptan imágenes.', 'error'); return; }
-    if (file.size > 2 * 1024 * 1024) { showToast('La imagen no debe superar 2MB.', 'error'); return; }
+    if (file.size > 650 * 1024) { showToast('La imagen no debe superar 650KB.', 'error'); return; }
     const reader = new FileReader();
     reader.onload = async (ev) => {
       setGuardando(true);
@@ -76,7 +76,7 @@ export function ConfiguracionLogo({ logoVentas, onLogoChange, showToast }) {
           )}
         </div>
 
-        <p className="text-xs text-gray-400 mt-3">Formatos: PNG, JPG, WebP · Máximo 2MB · Se guarda en Firebase y aplica en todos los dispositivos.</p>
+        <p className="text-xs text-gray-400 mt-3">Formatos: PNG, JPG, WebP · Máximo 650KB · Se guarda en Firebase y aplica en todos los dispositivos.</p>
       </div>
     </div>
   );

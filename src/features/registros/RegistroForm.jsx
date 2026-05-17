@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
-import { collection, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
-import { consultarReniecDni } from '../../services/functionsClient.js';
+import { actualizarRegistro, consultarReniecDni, crearRegistro } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import { EscanerIA } from './EscanerIA.jsx';
-export function RegistroForm({ clientes, equipos, registros, initialData, onCancel, onSave, onDirty, showToast, db, appId }) {
+export function RegistroForm({ clientes, equipos, registros, initialData, onCancel, onSave, onDirty, showToast }) {
   const [loading, setLoading] = useState(false);
   const [showManualEqForm, setShowManualEqForm] = useState(true);
   const [equiposCliente, setEquiposCliente] = useState([]);
@@ -79,12 +78,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       console.error('RENIEC error:', e);
       const mensaje = e.message === 'RENIEC_TOKEN_MISSING'
         ? 'Falta configurar token RENIEC'
-        : e.message === 'BACKEND_NOT_DEPLOYED'
-          ? 'Backend no desplegado: abre la app desde el servidor Node'
         : e.message === 'BACKEND_INVALID_RESPONSE'
-          ? 'Respuesta invalida del backend'
-        : e.message === 'RENIEC_FUNCTION_NOT_DEPLOYED'
-          ? 'Función RENIEC no desplegada'
+          ? 'Respuesta invalida de Netlify Functions'
+        : e.message === 'BACKEND_NOT_DEPLOYED'
+          ? 'Funciones Netlify no desplegadas'
           : 'Error al consultar RENIEC';
       showToast(mensaje, 'error');
     } finally {
@@ -251,41 +248,41 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         fecha: new Date(formData.fecha).toISOString(),
       };
 
-      // Eliminar docs viejos si cambiaron DNI o IMEI (en paralelo)
-      const deleteOps = [];
-      if (initialData && initialData.dniCliente !== formData.dni)
-        deleteOps.push(deleteDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'clientes', initialData.dniCliente)));
-      if (initialData && initialData.imeiEquipo !== imei1Real)
-        deleteOps.push(deleteDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'equipos', initialData.imeiEquipo)));
-      if (deleteOps.length) await Promise.all(deleteOps);
+      const clienteData = {
+        dni: formData.dni,
+        nombre: formData.nombre,
+        celular: formData.celular,
+        celularRef: formData.celularRef || formData.celular,
+        correo: formData.correo,
+        direccion: formData.direccion,
+      };
+      const equipoData = {
+        idEquipo: imei1Real,
+        idDuenio: formData.dni,
+        imei2: imei2Real,
+        sn: formData.sn,
+        marca: formData.marca,
+        modelo: formData.modelo,
+        nombreComercial: formData.nombreComercial,
+        isRegistrado: true,
+        imei1Registrado: formData.imei === imei1Real ? true : (eqExistente.imei1Registrado || false),
+        imei2Registrado: formData.imei === imei2Real ? true : (eqExistente.imei2Registrado || false),
+      };
 
-      // Guardar cliente, equipo y registro en paralelo
       if (initialData) {
-        registroData.nRegistro = initialData.nRegistro;
-        await Promise.all([
-          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'clientes', formData.dni),
-            { dni: formData.dni, nombre: formData.nombre, celular: formData.celular, celularRef: formData.celularRef || formData.celular, correo: formData.correo, direccion: formData.direccion }, { merge: true }),
-          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'equipos', imei1Real),
-            { idEquipo: imei1Real, idDuenio: formData.dni, imei2: imei2Real, sn: formData.sn, marca: formData.marca, modelo: formData.modelo, nombreComercial: formData.nombreComercial, isRegistrado: true,
-              imei1Registrado: formData.imei === imei1Real ? true : (eqExistente.imei1Registrado || false),
-              imei2Registrado: formData.imei === imei2Real ? true : (eqExistente.imei2Registrado || false),
-            }, { merge: true }),
-          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'registros', initialData.id), registroData),
-        ]);
+        await actualizarRegistro({
+          id: initialData.id,
+          cliente: clienteData,
+          equipo: equipoData,
+          registro: registroData,
+        });
         showToast('Actualizado exitosamente');
       } else {
-        const siguiente = (registros.length + 1).toString().padStart(5, '0');
-        registroData.nRegistro = `RECO-${siguiente}`;
-        await Promise.all([
-          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'clientes', formData.dni),
-            { dni: formData.dni, nombre: formData.nombre, celular: formData.celular, celularRef: formData.celularRef || formData.celular, correo: formData.correo, direccion: formData.direccion }, { merge: true }),
-          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'equipos', imei1Real),
-            { idEquipo: imei1Real, idDuenio: formData.dni, imei2: imei2Real, sn: formData.sn, marca: formData.marca, modelo: formData.modelo, nombreComercial: formData.nombreComercial, isRegistrado: true,
-              imei1Registrado: formData.imei === imei1Real ? true : (eqExistente.imei1Registrado || false),
-              imei2Registrado: formData.imei === imei2Real ? true : (eqExistente.imei2Registrado || false),
-            }, { merge: true }),
-          addDoc(collection(db, 'artifacts', appId, 'users', 'shared', 'registros'), registroData),
-        ]);
+        await crearRegistro({
+          cliente: clienteData,
+          equipo: equipoData,
+          registro: registroData,
+        });
         showToast('Guardado exitosamente');
       }
       (onSave || onCancel)();

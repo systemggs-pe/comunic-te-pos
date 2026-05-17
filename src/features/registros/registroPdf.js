@@ -1,16 +1,8 @@
 /* eslint-disable no-unused-vars, no-empty */
+import {getPdfTools} from '../../utils/pdfLibraries.js';
 
 export async function generarTicketRegistroPDF(data) {
-  const cargar = (src) => new Promise((res, rej) => {
-    if (document.querySelector(`script[src="${src}"]`)) return res();
-    const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-  if (!window.jspdf)     await cargar('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  if (!window.JsBarcode) await cargar('https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js');
-
-  const { jsPDF } = window.jspdf;
+  const {jsPDF, JsBarcode} = getPdfTools();
   const mmW = 62;
   const FONT = 'courier'; // fuente monoespaciada tipo consola
 
@@ -20,7 +12,7 @@ export async function generarTicketRegistroPDF(data) {
   if (codigoBarras) {
     try {
       const c = document.createElement('canvas');
-      window.JsBarcode(c, codigoBarras, {
+      JsBarcode(c, codigoBarras, {
         format: 'CODE128', width: 3, height: 80,
         displayValue: true, fontSize: 20, margin: 8,
         background: '#ffffff', lineColor: '#000000'

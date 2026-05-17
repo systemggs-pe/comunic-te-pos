@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
-import { collection, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
-import { consultarReniecDni } from '../../services/functionsClient.js';
+import { actualizarVenta, consultarReniecDni, crearVenta } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import { EscanerIA } from '../registros/EscanerIA.jsx';
 import { generarTicketVentaPDF } from './ventaPdf.js';
-export function VentaForm({ clientes, equipos, ventas, logoVentas, initialData, onCancel, onSave, onDirty, showToast, db, appId }) {
+export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel, onSave, onDirty, showToast }) {
   const [loading, setLoading] = useState(false);
 
   const toLocalDatetimeValue = (isoString) => {
@@ -49,12 +48,10 @@ export function VentaForm({ clientes, equipos, ventas, logoVentas, initialData, 
       console.error('RENIEC error:', e);
       const mensaje = e.message === 'RENIEC_TOKEN_MISSING'
         ? 'Falta configurar token RENIEC'
-        : e.message === 'BACKEND_NOT_DEPLOYED'
-          ? 'Backend no desplegado: abre la app desde el servidor Node'
         : e.message === 'BACKEND_INVALID_RESPONSE'
-          ? 'Respuesta invalida del backend'
-        : e.message === 'RENIEC_FUNCTION_NOT_DEPLOYED'
-          ? 'Función RENIEC no desplegada'
+          ? 'Respuesta invalida de Netlify Functions'
+        : e.message === 'BACKEND_NOT_DEPLOYED'
+          ? 'Funciones Netlify no desplegadas'
           : 'Error al consultar RENIEC';
       showToast(mensaje, 'error');
     } finally {
@@ -139,38 +136,34 @@ export function VentaForm({ clientes, equipos, ventas, logoVentas, initialData, 
     if (!window.confirm(confirmMsg)) return;
     setLoading(true);
     try {
-      // Eliminar docs viejos si cambiaron (en paralelo)
-      const deleteOpsV = [];
-      if (initialData && initialData.dniCliente !== formData.dni)
-        deleteOpsV.push(deleteDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'clientes', initialData.dniCliente)));
-      if (initialData && initialData.imeiEquipo !== formData.imei1)
-        deleteOpsV.push(deleteDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'equipos', initialData.imeiEquipo)));
-      if (deleteOpsV.length) await Promise.all(deleteOpsV);
-
       const ventaData = {
         dniCliente: formData.dni, imeiEquipo: formData.imei1,
+        imei2Equipo: formData.imei2, sn: formData.sn,
         modeloEquipo: formData.modelo, marcaEquipo: formData.marca,
         nombreComercial: formData.nombreComercial, ram: formData.ram,
         memoria: formData.memoria, color: formData.color, precio: formData.precio,
         fecha: new Date(formData.fecha).toISOString(),
       };
-      const clienteDoc = setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'clientes', formData.dni),
-        { dni: formData.dni, nombre: formData.nombre, celular: formData.celular, correo: formData.correo }, { merge: true });
-      const equipoDoc = setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'equipos', formData.imei1),
-        { idEquipo: formData.imei1, idDuenio: formData.dni, imei2: formData.imei2, sn: formData.sn, nombreComercial: formData.nombreComercial, marca: formData.marca, modelo: formData.modelo, ram: formData.ram, memoria: formData.memoria, color: formData.color, isVendido: true }, { merge: true });
+      const clienteData = { dni: formData.dni, nombre: formData.nombre, celular: formData.celular, correo: formData.correo };
+      const equipoData = { idEquipo: formData.imei1, idDuenio: formData.dni, imei2: formData.imei2, sn: formData.sn, nombreComercial: formData.nombreComercial, marca: formData.marca, modelo: formData.modelo, ram: formData.ram, memoria: formData.memoria, color: formData.color, isVendido: true };
 
       if (initialData) {
-        ventaData.nVenta = initialData.nVenta;
-        await Promise.all([clienteDoc, equipoDoc,
-          setDoc(doc(db, 'artifacts', appId, 'users', 'shared', 'ventas', initialData.id), ventaData)]);
+        await actualizarVenta({
+          id: initialData.id,
+          cliente: clienteData,
+          equipo: equipoData,
+          venta: ventaData,
+        });
         showToast('Venta actualizada');
       } else {
-        const siguiente = (ventas.length + 1).toString().padStart(4, '0');
-        ventaData.nVenta = `VEN-${siguiente}`;
-        await Promise.all([clienteDoc, equipoDoc,
-          addDoc(collection(db, 'artifacts', appId, 'users', 'shared', 'ventas'), ventaData)]);
+        const resultado = await crearVenta({
+          cliente: clienteData,
+          equipo: equipoData,
+          venta: ventaData,
+        });
+        const ventaGuardada = resultado.venta || ventaData;
         showToast('Venta registrada — generando ticket...');
-        const tData = { ...ventaData, nombreCliente: formData.nombre, dniCliente: formData.dni, imei2Equipo: formData.imei2, sn: formData.sn };
+        const tData = { ...ventaGuardada, nombreCliente: formData.nombre, dniCliente: formData.dni, imei2Equipo: formData.imei2, sn: formData.sn };
         setTicketPendienteForm(tData);
         return; // no llamar onSave todavía, se llama desde el modal
       }

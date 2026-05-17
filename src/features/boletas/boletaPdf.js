@@ -1,17 +1,9 @@
 /* eslint-disable no-unused-vars, no-empty */
 import { penToClp } from '../../utils/currency.js';
+import {getPdf417Generator, getPdfTools} from '../../utils/pdfLibraries.js';
 
 export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, totalClp, fechaHora }) {
-  const cargar = (src) => new Promise((res, rej) => {
-    if (document.querySelector(`script[src="${src}"]`)) return res();
-    const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-  if (!window.jspdf)     await cargar('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  if (!window.JsBarcode) await cargar('https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js');
-
-  const { jsPDF } = window.jspdf;
+  const {jsPDF, JsBarcode} = getPdfTools();
   const mmW = 48;
   const FONT = 'courier';
   // Courier es ancho — sin escala, tamaños pequeños para que quepan en 48mm
@@ -24,7 +16,7 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
   if (codigoBarras) {
     try {
       const c = document.createElement('canvas');
-      window.JsBarcode(c, codigoBarras, { format: 'CODE128', width: 2, height: 60, displayValue: true, fontSize: 16, margin: 6, background: '#ffffff', lineColor: '#000000' });
+      JsBarcode(c, codigoBarras, { format: 'CODE128', width: 2, height: 60, displayValue: true, fontSize: 16, margin: 6, background: '#ffffff', lineColor: '#000000' });
       barcodeImg = c.toDataURL('image/png');
       barcodeH = (mmW - 6) * (c.height / c.width);
     } catch (_) {}
@@ -185,43 +177,8 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
 
 
 export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, totalClp, fechaHora }) {
-  const cargar = (src) => new Promise((res, rej) => {
-    if (document.querySelector(`script[src="${src}"]`)) return res();
-    const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-  if (!window.jspdf) await cargar('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  // PDF417: cargar desde /pdf417.js (archivo local en /public del proyecto)
-  // Siempre intentar — si ya está cargado __pdf417gen existe y no recarga
-  if (!window.__pdf417gen) {
-    await new Promise((res, rej) => {
-      const existing = document.querySelector('script[data-pdf417]');
-      if (existing) { res(); return; }
-      const s = document.createElement('script');
-      s.setAttribute('data-pdf417', '1');
-      s.src = '/pdf417.js';
-      s.onload = res;
-      s.onerror = () => {
-        // fallback: intentar jsdelivr si la ruta local falla
-        const s2 = document.createElement('script');
-        s2.setAttribute('data-pdf417', '1');
-        s2.src = 'https://cdn.jsdelivr.net/npm/pdf417@0.1.5/build/index.js';
-        s2.onload = res; s2.onerror = rej;
-        document.head.appendChild(s2);
-      };
-      document.head.appendChild(s);
-    });
-    // Exponer si la librería usa export default
-    if (!window.__pdf417gen && window.pdf417) {
-      window.__pdf417gen = window.pdf417.default || window.pdf417;
-    }
-  }
-  if (typeof window.__pdf417gen !== 'function') {
-    throw new Error('No se pudo cargar la librería PDF417. Asegúrate de colocar pdf417.js en la carpeta /public de tu proyecto.');
-  }
-
-  const { jsPDF } = window.jspdf;
+  const {jsPDF} = getPdfTools();
+  const gen417 = await getPdf417Generator();
   const mmW  = 80;
   const M    = 5;
   const FONT = 'courier';
@@ -249,7 +206,6 @@ export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, to
 
   // PDF417 real — obligatorio
   const pdf417W = mmW - M * 2;
-  const gen417 = window.__pdf417gen;
   const texto417 = [
     nBoleta, cliente.dni || '', cliente.nombre || '',
     imei1, imei2,

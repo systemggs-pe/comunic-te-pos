@@ -3,8 +3,32 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
   'http://localhost:3001',
   'http://127.0.0.1:3001',
+  'https://comunicate-tacna.web.app',
+  'https://comunicate-tacna.firebaseapp.com',
+  process.env.URL,
+  process.env.DEPLOY_PRIME_URL,
   ...(process.env.ALLOWED_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean),
+].filter(Boolean);
+const DEFAULT_ALLOWED_EMAILS = [
+  'brand050103@gmail.com',
+  'lauryruyz50@gmail.com',
 ];
+const rateLimits = new Map();
+
+function getAllowedEmails() {
+  const configured = (process.env.ALLOWED_EMAILS || '')
+    .split(',')
+    .map(email => email.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(configured.length ? configured : DEFAULT_ALLOWED_EMAILS);
+}
+
+function requireAllowedUser(user) {
+  const email = String(user.email || '').trim().toLowerCase();
+  if (!email || !user.emailVerified || !getAllowedEmails().has(email)) {
+    throw Object.assign(new Error('No autorizado'), {status: 403});
+  }
+}
 
 export function corsHeaders(event) {
   const origin = event.headers.origin || event.headers.Origin || '';
@@ -13,7 +37,7 @@ export function corsHeaders(event) {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 
-  if (allowedOrigins.includes(origin) || /^https:\/\/.+\.netlify\.app$/.test(origin)) {
+  if (allowedOrigins.includes(origin)) {
     headers['Access-Control-Allow-Origin'] = origin;
     headers.Vary = 'Origin';
   }
@@ -56,10 +80,36 @@ export async function requireFirebaseUser(event) {
   if (!response.ok || !user?.localId) {
     throw Object.assign(new Error('Sesion invalida'), {status: 401});
   }
+  requireAllowedUser(user);
   return {uid: user.localId, email: user.email || ''};
 }
 
-export async function handlePost(event, callback) {
+function enforceRateLimit(user, rateLimit = {}) {
+  if (!rateLimit.name || !rateLimit.max) return {};
+
+  const windowMs = rateLimit.windowMs || 60 * 1000;
+  const now = Date.now();
+  const bucket = Math.floor(now / windowMs);
+  const key = `${rateLimit.name}:${user.uid}:${bucket}`;
+  const current = rateLimits.get(key) || 0;
+  const resetSeconds = Math.ceil(((bucket + 1) * windowMs - now) / 1000);
+  const headers = {
+    'X-RateLimit-Limit': String(rateLimit.max),
+    'X-RateLimit-Remaining': String(Math.max(rateLimit.max - current - 1, 0)),
+    'X-RateLimit-Reset': String(resetSeconds),
+  };
+
+  if (current >= rateLimit.max) {
+    throw Object.assign(new Error('Demasiadas solicitudes. Intenta de nuevo en unos segundos.'), {
+      status: 429,
+      responseHeaders: headers,
+    });
+  }
+  rateLimits.set(key, current + 1);
+  return headers;
+}
+
+export async function handlePost(event, callback, options = {}) {
   const headers = corsHeaders(event);
   if (event.httpMethod === 'OPTIONS') {
     return {statusCode: 204, headers, body: ''};
@@ -69,14 +119,15 @@ export async function handlePost(event, callback) {
   }
 
   try {
-    await requireFirebaseUser(event);
+    const user = await requireFirebaseUser(event);
+    const rateLimitHeaders = enforceRateLimit(user, options.rateLimit);
     const body = parseBody(event);
-    return json(200, await callback(body), headers);
+    return json(200, await callback(body, user), {...headers, ...rateLimitHeaders});
   } catch (error) {
     return json(error.status || 500, {
       error: error.message || 'Error interno',
       ...(error.payload ? {details: error.payload} : {}),
-    }, headers);
+    }, {...headers, ...(error.responseHeaders || {})});
   }
 }
 

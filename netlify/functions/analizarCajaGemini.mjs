@@ -50,4 +50,6 @@ Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas
   return data;
 }
 
-export const handler = event => handlePost(event, analizarCajaGemini);
+export const handler = event => handlePost(event, analizarCajaGemini, {
+  rateLimit: {name: 'gemini', max: 15, windowMs: 60 * 1000},
+});

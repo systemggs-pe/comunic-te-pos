@@ -1,4 +1,5 @@
 import {handlePost, valueOrEmpty} from './_shared.mjs';
+import {parseDniPayload} from './_validators.mjs';
 
 const RENIEC_URL = 'https://api-codart.cgrt.org/api/v1/consultas/reniec/dni';
 
@@ -32,8 +33,7 @@ function normalizeReniecResponse(data, dni) {
 }
 
 async function consultarReniec(body) {
-  const dni = String(body?.dni || '').replace(/\D/g, '').slice(0, 8);
-  if (dni.length !== 8) throw Object.assign(new Error('DNI invalido'), {status: 400});
+  const {dni} = parseDniPayload(body);
   if (!process.env.RENIEC_TOKEN) throw Object.assign(new Error('RENIEC_TOKEN_MISSING'), {status: 500});
 
   const response = await fetch(`${RENIEC_URL}/${dni}`, {
@@ -50,4 +50,6 @@ async function consultarReniec(body) {
   return normalizeReniecResponse(data, dni);
 }
 
-export const handler = event => handlePost(event, consultarReniec);
+export const handler = event => handlePost(event, consultarReniec, {
+  rateLimit: {name: 'reniec', max: 60, windowMs: 60 * 1000},
+});

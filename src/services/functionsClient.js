@@ -46,3 +46,31 @@ export async function llamarFuncionSegura(nombre, payload) {
 export function consultarReniecDni(dni) {
   return llamarFuncionSegura('reniec', {dni: String(dni)});
 }
+
+export function crearRegistro(payload) {
+  return llamarFuncionSegura('registros', {action: 'create', ...payload});
+}
+
+export function actualizarRegistro(payload) {
+  return llamarFuncionSegura('registros', {action: 'update', ...payload});
+}
+
+export function eliminarRegistro(id) {
+  return llamarFuncionSegura('registros', {action: 'delete', id});
+}
+
+export function desbloquearRegistro(id) {
+  return llamarFuncionSegura('registros', {action: 'unlock', id});
+}
+
+export function crearVenta(payload) {
+  return llamarFuncionSegura('ventas', {action: 'create', ...payload});
+}
+
+export function actualizarVenta(payload) {
+  return llamarFuncionSegura('ventas', {action: 'update', ...payload});
+}
+
+export function eliminarVenta(id) {
+  return llamarFuncionSegura('ventas', {action: 'delete', id});
+}

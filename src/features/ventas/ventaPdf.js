@@ -1,16 +1,8 @@
 /* eslint-disable no-unused-vars, no-empty */
+import {getPdfTools} from '../../utils/pdfLibraries.js';
 
 export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
-  const cargar = (src) => new Promise((res, rej) => {
-    if (document.querySelector(`script[src="${src}"]`)) return res();
-    const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-  if (!window.jspdf)     await cargar('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  if (!window.JsBarcode) await cargar('https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js');
-
-  const { jsPDF } = window.jspdf;
+  const {jsPDF, JsBarcode} = getPdfTools();
   // mmW comes from parameter (58 or 80)
   const M   = 2;    // margen lateral mínimo
   const F   = 'courier';
@@ -21,7 +13,7 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
   if (cbVal) {
     try {
       const c = document.createElement('canvas');
-      window.JsBarcode(c, cbVal, {
+      JsBarcode(c, cbVal, {
         format: 'CODE128', width: 2.2, height: 60,
         displayValue: true, fontSize: 16, margin: 5
       });

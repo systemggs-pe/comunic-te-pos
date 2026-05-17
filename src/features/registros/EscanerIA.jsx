@@ -39,7 +39,7 @@ export function EscanerIA({ onResult, onClose }) {
     canvas.width = Math.round(video.videoWidth * scale);
     canvas.height = Math.round(video.videoHeight * scale);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    // Sin ningún preprocesamiento: enviamos la imagen tal cual a Gemini mediante Cloud Functions.
+    // Sin preprocesamiento: enviamos la imagen tal cual a Gemini mediante Netlify Functions.
     const base64 = canvas.toDataURL('image/jpeg', 0.82).split(',')[1];
     setFoto(base64);
     setFase('preview');
@@ -61,7 +61,7 @@ export function EscanerIA({ onResult, onClose }) {
         console.error('Gemini API error:', data.error);
         const mensaje = data.error.message || 'No se pudo analizar la imagen.';
         const keyFiltrada = /api key|leaked|key/i.test(mensaje);
-        setError(keyFiltrada ? 'La API key de Gemini fue bloqueada. Actualiza GEMINI_API_KEY en functions/.env.' : `Error API: ${mensaje}`);
+        setError(keyFiltrada ? 'La API key de Gemini fue bloqueada. Actualiza GEMINI_API_KEY en Netlify.' : `Error API: ${mensaje}`);
         setFase('preview'); setMsg('');
         return;
       }
@@ -104,8 +104,8 @@ export function EscanerIA({ onResult, onClose }) {
       console.error('Error escáner:', e);
       const mensaje = e.message === 'BACKEND_NOT_DEPLOYED'
         ? 'Backend no desplegado: abre la app desde el servidor Node'
-        : e.message === 'BACKEND_INVALID_RESPONSE'
-          ? 'Respuesta invalida del backend'
+          : e.message === 'BACKEND_INVALID_RESPONSE'
+            ? 'Respuesta invalida de Netlify Functions'
           : e.message;
       setError(`Error: ${mensaje}`);
       setFase('preview');
