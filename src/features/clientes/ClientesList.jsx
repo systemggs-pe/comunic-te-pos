@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 
-export function ClientesList({ clientes, equipos, registros }) {
+export function ClientesList({ clientes, equipos, registros, ventas = [] }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
@@ -55,15 +55,51 @@ export function ClientesList({ clientes, equipos, registros }) {
     return grupos;
   };
 
+  const clientesConVentas = useMemo(() => {
+    const mapa = new Map(clientes.map(cliente => [cliente.dni, cliente]));
+    ventas.forEach(venta => {
+      if (!venta.dniCliente || mapa.has(venta.dniCliente)) return;
+      mapa.set(venta.dniCliente, {
+        id: venta.dniCliente,
+        dni: venta.dniCliente,
+        nombre: venta.nombreCliente || '',
+        celular: venta.celularCliente || '',
+      });
+    });
+    return Array.from(mapa.values());
+  }, [clientes, ventas]);
+
+  const equiposDelCliente = (dni) => {
+    const porId = new Map(equipos.filter(e => e.idDuenio === dni).map(e => [e.idEquipo, e]));
+    ventas
+      .filter(v => v.dniCliente === dni && v.imeiEquipo)
+      .forEach(v => {
+        if (porId.has(v.imeiEquipo)) return;
+        porId.set(v.imeiEquipo, {
+          idEquipo: v.imeiEquipo,
+          idDuenio: dni,
+          imei2: v.imei2Equipo || '',
+          sn: v.sn || '',
+          marca: v.marcaEquipo || '',
+          modelo: v.modeloEquipo || '',
+          nombreComercial: v.nombreComercial || '',
+          memoria: v.memoria || '',
+          color: v.color || '',
+          isVendido: true,
+        });
+      });
+    return Array.from(porId.values());
+  };
+
   const filteredClientes = useMemo(() => {
-    return clientes.filter(c => {
-      // Solo mostrar clientes que tienen al menos 1 equipo activo
+    return clientesConVentas.filter(c => {
       const tieneEquipos = equipos.some(e => e.idDuenio === c.dni);
-      if (!tieneEquipos) return false;
+      const tieneVentas = ventas.some(v => v.dniCliente === c.dni);
+      if (!tieneEquipos && !tieneVentas) return false;
       if (!searchTerm) return true;
       return c.dni.includes(searchTerm) || (c.nombre && c.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
     });
-  }, [clientes, equipos, searchTerm]);
+  }, [clientesConVentas, equipos, ventas, searchTerm]);
 
   const initials = (nombre) => {
     if (!nombre) return '?';
@@ -72,35 +108,36 @@ export function ClientesList({ clientes, equipos, registros }) {
   };
 
   return (
-    <div className="min-h-full">
+    <div className="saas-clients-page min-h-full">
       <div className="mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="saas-page-header rounded-lg mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Directorio de Clientes</h2>
-            <p className="text-sm text-gray-400 mt-0.5">{filteredClientes.length} cliente{filteredClientes.length !== 1 ? 's' : ''} con equipos activos</p>
+            <p className="saas-page-kicker">Clientes</p>
+            <h2 className="saas-page-title">Directorio de clientes</h2>
+            <p className="saas-page-desc">{filteredClientes.length} cliente{filteredClientes.length !== 1 ? 's' : ''} con equipos activos</p>
           </div>
-          <div className="relative w-full md:w-80">
+          <div className="saas-searchbox">
             <input
               type="text"
               placeholder="Buscar por nombre o DNI..."
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-300 focus:outline-none bg-white shadow-sm text-sm"
+              className="saas-search-input"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+            <Search size={18} />
           </div>
         </div>
 
         {filteredClientes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24">
-            <Users size={56} strokeWidth={1} className="mb-4 text-gray-200" />
-            <p className="text-base font-medium text-gray-400">No se encontraron clientes</p>
-            <p className="text-sm text-gray-300 mt-1">Prueba con otro nombre o DNI</p>
+          <div className="saas-empty py-24">
+            <Users size={52} strokeWidth={1.4} />
+            <p className="text-base font-semibold">No se encontraron clientes</p>
+            <p className="text-sm">Prueba con otro nombre o DNI.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="saas-client-grid">
             {filteredClientes.map(cliente => {
-              const eqsRaw = equipos.filter(e => e.idDuenio === cliente.dni);
+              const eqsRaw = equiposDelCliente(cliente.dni);
               const eqs = agruparEquipos(eqsRaw);
               const isExpanded = expandedId === cliente.dni;
               const totalRegistrados = eqs.filter(eq => imeisRegistrados.has(eq.idEquipo) || (eq.imei2 && imeisRegistrados.has(eq.imei2))).length;
@@ -109,16 +146,16 @@ export function ClientesList({ clientes, equipos, registros }) {
               return (
                 <div
                   key={cliente.dni}
-                  className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100 overflow-hidden"
+                  className="saas-client-card"
                 >
                   <div className="p-5">
                     {/* Avatar + nombre */}
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-sm shrink-0 border border-gray-200">
+                      <div className="saas-avatar">
                         {initials(cliente.nombre)}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-bold text-gray-800 text-sm leading-tight truncate">{cliente.nombre}</p>
+                        <p className="font-bold text-gray-800 text-sm leading-tight truncate">{cliente.nombre || 'Cliente sin nombre'}</p>
                         <p className="text-xs text-gray-400 font-mono mt-0.5">DNI {cliente.dni}</p>
                         {cliente.celular && <p className="text-xs text-gray-400 mt-0.5">{cliente.celular}</p>}
                       </div>
@@ -126,18 +163,18 @@ export function ClientesList({ clientes, equipos, registros }) {
 
                     {/* Stats */}
                     <div className="flex gap-2 mb-4">
-                      <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-center border border-gray-100">
+                      <div className="saas-stat-pill">
                         <p className="text-base font-bold text-gray-700">{eqs.length}</p>
                         <p className="text-[10px] text-gray-400 uppercase tracking-wide">Equipo{eqs.length !== 1 ? 's' : ''}</p>
                       </div>
                       {totalRegistrados > 0 && (
-                        <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-center border border-gray-100">
+                        <div className="saas-stat-pill">
                           <p className="text-base font-bold text-gray-700">{totalRegistrados}</p>
                           <p className="text-[10px] text-gray-400 uppercase tracking-wide">Registrado{totalRegistrados !== 1 ? 's' : ''}</p>
                         </div>
                       )}
                       {totalVendidos > 0 && (
-                        <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-center border border-gray-100">
+                        <div className="saas-stat-pill">
                           <p className="text-base font-bold text-gray-700">{totalVendidos}</p>
                           <p className="text-[10px] text-gray-400 uppercase tracking-wide">Vendido{totalVendidos !== 1 ? 's' : ''}</p>
                         </div>
@@ -147,7 +184,7 @@ export function ClientesList({ clientes, equipos, registros }) {
                     {/* Botón ver equipos */}
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : cliente.dni)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors duration-150"
+                      className="saas-secondary w-full justify-between"
                     >
                       <span>{isExpanded ? 'Ocultar equipos' : `Ver ${eqs.length} equipo${eqs.length !== 1 ? 's' : ''}`}</span>
                       <ChevronDown size={15} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
@@ -161,17 +198,17 @@ export function ClientesList({ clientes, equipos, registros }) {
                           const imei2Reg = eq.imei2 && imeisRegistrados.has(eq.imei2);
                           const tieneRegistro = imei1Reg || imei2Reg;
                           return (
-                            <div key={eq.idEquipo} className="rounded-xl p-3 border border-gray-100 bg-gray-50">
+                            <div key={eq.idEquipo} className="saas-equipment-row">
                               <div className="flex items-start justify-between gap-2 mb-2">
                                 <p className="font-semibold text-gray-700 text-xs leading-tight">
                                   {eq.marca} {eq.nombreComercial || eq.modelo}
                                 </p>
                                 <div className="flex gap-1 shrink-0">
                                   {tieneRegistro && (
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-semibold uppercase tracking-wide">Lista Blanca</span>
+                                    <span className="saas-chip saas-chip-success text-[9px]">Lista Blanca</span>
                                   )}
                                   {eq.isVendido && (
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-semibold uppercase tracking-wide">Vendido</span>
+                                    <span className="saas-chip text-[9px]">Vendido</span>
                                   )}
                                 </div>
                               </div>

@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "animejs": "^4.4.1",
     "firebase": "^12.13.0",
     "firebase-admin": "^13.10.0",
     "jsbarcode": "^3.12.3",

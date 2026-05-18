@@ -182,11 +182,11 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 max-w-2xl mx-auto overflow-hidden">
+    <div className="saas-form-shell">
       {/* Modal tamaño papel */}
       {ticketPendienteForm && (
-        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center">
+        <div className="saas-modal-backdrop fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="saas-detail-modal w-full max-w-xs p-6 text-center">
             <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <Printer size={22} className="text-purple-600" />
             </div>
@@ -194,22 +194,26 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
             <p className="text-xs text-gray-400 mb-5">Elige el ancho del papel de tu impresora térmica</p>
             <div className="flex gap-3">
               <button onClick={() => { generarTicketVentaPDF(ticketPendienteForm, 58, logoVentas); setTicketPendienteForm(null); (onSave || onCancel)(); }}
-                className="flex-1 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm">58 mm</button>
+                className="saas-primary flex-1">58 mm</button>
               <button onClick={() => { generarTicketVentaPDF(ticketPendienteForm, 80, logoVentas); setTicketPendienteForm(null); (onSave || onCancel)(); }}
-                className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm">80 mm</button>
+                className="saas-secondary flex-1">80 mm</button>
             </div>
-            <button onClick={() => { setTicketPendienteForm(null); (onSave || onCancel)(); }} className="mt-3 text-xs text-gray-400 hover:text-gray-600 w-full py-1">Omitir ticket</button>
+            <button onClick={() => { setTicketPendienteForm(null); (onSave || onCancel)(); }} className="saas-secondary mt-3 w-full">Omitir ticket</button>
           </div>
         </div>
       )}
       {/* Header */}
-      <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-        <h3 className="font-semibold text-gray-700">{initialData ? 'Editar Venta' : 'Registrar Venta'}</h3>
-        <button onClick={onCancel} className="text-gray-400"><X size={20}/></button>
+      <div className="saas-form-header">
+        <div>
+          <p className="saas-page-kicker">Ventas</p>
+          <h3 className="saas-page-title">{initialData ? 'Editar venta' : 'Registrar venta'}</h3>
+          <p className="saas-page-desc">Registra cliente, equipo vendido y datos para el ticket.</p>
+        </div>
+        <button onClick={onCancel} className="saas-form-close"><X size={20}/></button>
       </div>
 
       {/* Indicador de pasos */}
-      <div className="flex items-center px-6 pt-5 pb-2 gap-2">
+      <div className="saas-stepper">
         {[1,2].map(n => (
           <React.Fragment key={n}>
             <div className={`flex items-center gap-2 ${paso === n ? 'text-green-600' : paso > n ? 'text-green-600' : 'text-gray-400'}`}>
@@ -224,12 +228,12 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6">
+      <form onSubmit={handleSubmit} className="saas-form">
 
         {/* PASO 1 — DATOS DEL CLIENTE */}
         {paso === 1 && (
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-green-600 uppercase border-b pb-2">Datos del Cliente</h4>
+            <h4 className="saas-form-section-title">Datos del Cliente</h4>
             {buscandoReniecV && (
               <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
                 <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
@@ -250,8 +254,8 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
               <div><label className="block text-xs text-gray-500 mb-1">Correo</label><input type="email" name="correo" value={formData.correo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
             </div>
             <div className="flex justify-between pt-4 border-t">
-              <button type="button" onClick={onCancel} className="px-5 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">Cancelar</button>
-              <button type="button" onClick={() => validarPaso1V() && setPaso(2)} className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Siguiente →</button>
+              <button type="button" onClick={onCancel} className="saas-secondary">Cancelar</button>
+              <button type="button" onClick={() => validarPaso1V() && setPaso(2)} className="saas-primary">Siguiente</button>
             </div>
           </div>
         )}
@@ -260,8 +264,8 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         {paso === 2 && (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b pb-2">
-              <h4 className="text-sm font-semibold text-green-600 uppercase">Equipo y Precio</h4>
-              <button type="button" onClick={() => setMostrarEscaner(true)} className="text-xs bg-gray-800 text-white px-3 py-1.5 rounded flex items-center gap-1"><ScanBarcode size={14}/> Escanear</button>
+              <h4 className="saas-form-section-title border-b-0 pb-0">Equipo y Precio</h4>
+              <button type="button" onClick={() => setMostrarEscaner(true)} className="saas-secondary"><ScanBarcode size={14}/> Escanear</button>
             </div>
             {mostrarEscaner && <EscanerIA onResult={onEscaneo} onClose={() => setMostrarEscaner(false)} />}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -297,8 +301,8 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
             </div>
 
             {/* Resumen completo para confirmar */}
-            <div className="bg-green-50 rounded-lg p-4 border border-green-100 space-y-2 text-sm">
-              <p className="font-semibold text-green-800 mb-1">📋 Verifica que los datos sean correctos:</p>
+            <div className="saas-summary space-y-2 text-sm">
+              <p className="font-semibold text-green-800 mb-1">Verifica que los datos sean correctos:</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
                 <span className="font-medium text-gray-700">Cliente:</span><span>{formData.nombre}</span>
                 <span className="font-medium text-gray-700">DNI:</span><span>{formData.dni}</span>
@@ -314,9 +318,9 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
             </div>
 
             <div className="flex justify-between pt-4 border-t">
-              <button type="button" onClick={() => setPaso(1)} className="px-5 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">← Atrás</button>
-              <button type="submit" disabled={loading} className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-semibold">
-                {loading ? 'Guardando...' : '✓ Confirmar y Guardar'}
+              <button type="button" onClick={() => setPaso(1)} className="saas-secondary">Atras</button>
+              <button type="submit" disabled={loading} className="saas-primary disabled:opacity-60">
+                {loading ? 'Guardando...' : 'Confirmar y guardar'}
               </button>
             </div>
           </div>

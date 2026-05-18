@@ -122,16 +122,16 @@ export function EscanerIA({ onResult, onClose }) {
 
   return (
     // Panel fijo en esquina inferior derecha — NO bloquea el formulario
-    <div className="fixed bottom-4 right-4 z-[200] w-72 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+    <div className="fixed bottom-4 right-4 z-[200] saas-scanner-panel overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-slate-900">
-        <div className="flex items-center gap-2 text-white text-xs font-medium">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
+        <div className="flex items-center gap-2 text-gray-700 text-xs font-semibold">
           <ScanBarcode size={15} />
           {fase === 'camara'     && 'Apunta a la caja del equipo'}
           {fase === 'preview'    && 'Revisar foto'}
           {fase === 'procesando' && (msg || 'Procesando...')}
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={16} /></button>
+        <button onClick={onClose} className="saas-form-close !h-7 !w-7"><X size={16} /></button>
       </div>
 
       {/* Visor compacto */}
@@ -155,18 +155,18 @@ export function EscanerIA({ onResult, onClose }) {
         {error && <p className="text-red-500 text-xs text-center">{error}</p>}
         {fase === 'camara' && (
           <button onClick={capturar}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded-lg flex items-center justify-center gap-2">
+            className="saas-primary w-full">
             <ScanBarcode size={16} /> Tomar foto
           </button>
         )}
         {(fase === 'preview' || (fase === 'procesando' && error)) && (
           <div className="flex gap-2">
             <button onClick={reintentar}
-              className="flex-1 border border-gray-300 text-gray-600 text-xs py-2 rounded-lg hover:bg-gray-50">
+              className="saas-secondary flex-1">
               Repetir
             </button>
             <button onClick={analizar} disabled={fase === 'procesando'}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium py-2 rounded-lg">
+              className="saas-primary flex-1 disabled:opacity-50">
               Analizar IA
             </button>
           </div>

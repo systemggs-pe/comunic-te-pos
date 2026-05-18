@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
-import { actualizarRegistro, consultarReniecDni, crearRegistro } from '../../services/functionsClient.js';
+import { actualizarRegistro, consultarReniecDni, crearRegistro, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import { EscanerIA } from './EscanerIA.jsx';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MONEY_RE = /^\d+(\.\d{1,2})?$/;
+const PHONE_RE = /^9\d{8}$/;
+const DNI_RE = /^\d{8}$/;
+const clean = value => String(value || '').trim();
+
 export function RegistroForm({ clientes, equipos, registros, initialData, onCancel, onSave, onDirty, showToast }) {
   const [loading, setLoading] = useState(false);
   const [showManualEqForm, setShowManualEqForm] = useState(true);
@@ -46,7 +53,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       });
       setShowManualEqForm(true);
     }
-  }, [initialData, clientes]);
+  }, [initialData, clientes, equipos]);
 
 
 
@@ -113,7 +120,14 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       const clienteExistente = clientes.find(c => c.dni === formData.dni);
       if (clienteExistente) {
         setDatosAnterioresReg({ celular: clienteExistente.celular || '', correo: clienteExistente.correo || '' });
-        setFormData(prev => ({ ...prev, nombre: clienteExistente.nombre, celular: clienteExistente.celular, celularRef: prev.celularRef || clienteExistente.celular, correo: clienteExistente.correo, direccion: clienteExistente.direccion || '' }));
+        setFormData(prev => ({
+          ...prev,
+          nombre: clienteExistente.nombre || '',
+          celular: clienteExistente.celular || '',
+          celularRef: prev.celularRef || clienteExistente.celular || '',
+          correo: clienteExistente.correo || '',
+          direccion: clienteExistente.direccion || '',
+        }));
       } else {
         setDatosAnterioresReg(null);
         buscarReniec(formData.dni);
@@ -190,9 +204,15 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     const { name, value } = e.target;
     let val = value;
     if (CAMPOS_SOLO_NUMEROS.includes(name)) val = val.replace(/\D/g, '');
+    if (name === 'dni') val = val.slice(0, 8);
     if (name === 'imei' || name === 'imei2') val = val.slice(0, 15);
     if (name === 'celular' || name === 'celularRef') val = val.slice(0, 9);
     if (CAMPOS_MAYUSCULAS.includes(name)) val = val.toUpperCase();
+    if (CAMPOS_CORREO.includes(name)) val = val.trim().toLowerCase();
+    if (name === 'precio') {
+      val = val.replace(',', '.');
+      if (val && !/^\d*\.?\d{0,2}$/.test(val)) return;
+    }
     onDirty?.();
     setFormData(prev => {
       const next = { ...prev, [name]: val };
@@ -201,8 +221,57 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     });
   };
 
+  const validarFormularioCompleto = () => {
+    if (!DNI_RE.test(clean(formData.dni))) {
+      showToast('El DNI debe tener 8 digitos', 'error'); return false;
+    }
+    if (!clean(formData.nombre)) {
+      showToast('Completa el nombre del cliente', 'error'); return false;
+    }
+    if (!PHONE_RE.test(clean(formData.celular))) {
+      showToast('El celular debe tener 9 digitos y empezar con 9', 'error'); return false;
+    }
+    if (clean(formData.celularRef) && !PHONE_RE.test(clean(formData.celularRef))) {
+      showToast('El celular de referencia debe tener 9 digitos y empezar con 9', 'error'); return false;
+    }
+    if (!clean(formData.direccion)) {
+      showToast('La direccion es obligatoria', 'error'); return false;
+    }
+    if (!EMAIL_RE.test(clean(formData.correo))) {
+      showToast('Ingresa un correo electronico valido', 'error'); return false;
+    }
+    if (!luhn(clean(formData.imei))) {
+      showToast('El IMEI ingresado no es valido; verifica los digitos', 'error'); return false;
+    }
+    if (clean(formData.imei2) && !luhn(clean(formData.imei2))) {
+      showToast('El IMEI 2 no es valido; verifica los digitos', 'error'); return false;
+    }
+    if (!clean(formData.marca) || !clean(formData.modelo)) {
+      showToast('Completa marca y modelo', 'error'); return false;
+    }
+    if (!clean(formData.nombreComercial)) {
+      showToast('El nombre comercial es obligatorio', 'error'); return false;
+    }
+    if (!initialData && imeiYaRegistrado(formData.imei)) {
+      showToast(`El IMEI ${formData.imei} ya tiene un registro activo`, 'error'); return false;
+    }
+    const precio = clean(formData.precio);
+    if (!MONEY_RE.test(precio) || Number(precio) <= 0) {
+      showToast('El precio debe ser mayor a 0 y tener maximo 2 decimales', 'error'); return false;
+    }
+    if (formData.estado === 'BLOQUEADO' && Number(precio) < 50) {
+      showToast('El precio minimo para un equipo BLOQUEADO es S/. 50.00', 'error'); return false;
+    }
+    if (!formData.fecha || Number.isNaN(new Date(formData.fecha).getTime())) {
+      showToast('La fecha no es valida', 'error'); return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!validarFormularioCompleto()) return;
 
     // Validar IMEI con algoritmo de Luhn
     if (!luhn(formData.imei)) {
@@ -286,17 +355,32 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         showToast('Guardado exitosamente');
       }
       (onSave || onCancel)();
-    } catch (error) { console.error(error); showToast('Error al guardar', 'error'); } finally { setLoading(false); }
+    } catch (error) {
+      console.error(error);
+      showToast(obtenerMensajeErrorFuncion(error, 'Error al guardar'), 'error');
+    } finally { setLoading(false); }
   };
 
   const [paso, setPaso] = useState(1);
 
   const validarPaso1 = () => {
-    if (!formData.dni || !formData.nombre || !formData.celular) {
-      showToast('Completa DNI, nombre y celular', 'error'); return false;
+    if (!DNI_RE.test(clean(formData.dni))) {
+      showToast('El DNI debe tener 8 digitos', 'error'); return false;
+    }
+    if (!clean(formData.nombre)) {
+      showToast('Completa el nombre del cliente', 'error'); return false;
+    }
+    if (!PHONE_RE.test(clean(formData.celular))) {
+      showToast('El celular debe tener 9 digitos y empezar con 9', 'error'); return false;
+    }
+    if (clean(formData.celularRef) && !PHONE_RE.test(clean(formData.celularRef))) {
+      showToast('El celular de referencia debe tener 9 digitos y empezar con 9', 'error'); return false;
     }
     if (!formData.direccion.trim()) {
       showToast('La dirección es obligatoria', 'error'); return false;
+    }
+    if (!EMAIL_RE.test(clean(formData.correo))) {
+      showToast('Ingresa un correo electronico valido', 'error'); return false;
     }
     if (!formData.correo.trim()) {
       showToast('El correo electrónico es obligatorio', 'error'); return false;
@@ -304,10 +388,16 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     return true;
   };
   const validarPaso2 = () => {
-    if (!formData.imei || !formData.marca || !formData.modelo) {
-      showToast('Completa IMEI, marca y modelo', 'error'); return false;
+    if (!luhn(clean(formData.imei))) {
+      showToast('El IMEI ingresado no es valido; verifica los digitos', 'error'); return false;
     }
-    if (!formData.nombreComercial) {
+    if (clean(formData.imei2) && !luhn(clean(formData.imei2))) {
+      showToast('El IMEI 2 no es valido; verifica los digitos', 'error'); return false;
+    }
+    if (!clean(formData.marca) || !clean(formData.modelo)) {
+      showToast('Completa marca y modelo', 'error'); return false;
+    }
+    if (!clean(formData.nombreComercial)) {
       showToast('El nombre comercial es obligatorio', 'error'); return false;
     }
     if (imeiYaRegistrado(formData.imei)) {
@@ -317,15 +407,19 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 max-w-2xl mx-auto overflow-hidden">
+    <div className="saas-form-shell">
       {/* Header */}
-      <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-        <h3 className="font-semibold text-gray-700">{initialData ? 'Editar Registro' : 'Nuevo Registro'}</h3>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+      <div className="saas-form-header">
+        <div>
+          <p className="saas-page-kicker">Registros</p>
+          <h3 className="saas-page-title">{initialData ? 'Editar registro' : 'Nuevo registro'}</h3>
+          <p className="saas-page-desc">Completa cliente, equipo y condiciones del registro.</p>
+        </div>
+        <button onClick={onCancel} className="saas-form-close"><X size={20}/></button>
       </div>
 
       {/* Indicador de pasos */}
-      <div className="flex items-center px-6 pt-5 pb-2 gap-2">
+      <div className="saas-stepper">
         {[1,2,3].map(n => (
           <React.Fragment key={n}>
             <div className={`flex items-center gap-2 ${paso === n ? 'text-blue-600' : paso > n ? 'text-green-600' : 'text-gray-400'}`}>
@@ -342,12 +436,12 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6">
+      <form onSubmit={handleSubmit} className="saas-form">
 
         {/* PASO 1 — DATOS DEL CLIENTE */}
         {paso === 1 && (
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-blue-600 uppercase border-b pb-2">Datos del Cliente</h4>
+            <h4 className="saas-form-section-title">Datos del Cliente</h4>
             {buscandoReniec && (
               <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
                 <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
@@ -370,8 +464,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
               <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Correo Electrónico *</label><input type="email" name="correo" value={formData.correo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
             </div>
             <div className="flex justify-between pt-4 border-t">
-              <button type="button" onClick={onCancel} className="px-5 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">Cancelar</button>
-              <button type="button" onClick={() => validarPaso1() && setPaso(2)} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Siguiente →</button>
+              <button type="button" onClick={onCancel} className="saas-secondary">Cancelar</button>
+              <button type="button" onClick={() => validarPaso1() && setPaso(2)} className="saas-primary">Siguiente</button>
             </div>
           </div>
         )}
@@ -382,8 +476,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         {paso === 2 && (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b pb-2">
-              <h4 className="text-sm font-semibold text-blue-600 uppercase">Datos del Equipo</h4>
-              {showManualEqForm && <button type="button" onClick={() => setMostrarEscaner(true)} className="flex items-center text-xs bg-gray-800 text-white px-3 py-1.5 rounded"><ScanBarcode size={14} className="mr-1"/> Escanear</button>}
+              <h4 className="saas-form-section-title border-b-0 pb-0">Datos del Equipo</h4>
+              {showManualEqForm && <button type="button" onClick={() => setMostrarEscaner(true)} className="saas-secondary"><ScanBarcode size={14}/> Escanear</button>}
             </div>
             {mostrarEscaner && <EscanerIA onResult={onEscaneo} onClose={() => setMostrarEscaner(false)} />}
 
@@ -453,8 +547,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             )}
 
             <div className="flex justify-between pt-4 border-t">
-              <button type="button" onClick={() => setPaso(1)} className="px-5 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">← Atrás</button>
-              <button type="button" onClick={() => validarPaso2() && setPaso(3)} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Siguiente →</button>
+              <button type="button" onClick={() => setPaso(1)} className="saas-secondary">Atras</button>
+              <button type="button" onClick={() => validarPaso2() && setPaso(3)} className="saas-primary">Siguiente</button>
             </div>
           </div>
         )}
@@ -462,7 +556,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         {/* PASO 3 — OPERADOR, ESTADO, TIPO, PRECIO */}
         {paso === 3 && (
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-blue-600 uppercase border-b pb-2">Detalle del Registro</h4>
+            <h4 className="saas-form-section-title">Detalle del Registro</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><label className="block text-xs text-gray-500 mb-1">Operador</label>
                 <select name="operador" value={formData.operador} onChange={handleChange} className="w-full border rounded p-2 text-sm">
@@ -508,8 +602,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             </div>
 
             {/* Resumen completo para confirmar */}
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 space-y-2 text-sm">
-              <p className="font-semibold text-blue-800 mb-1">📋 Verifica que los datos sean correctos:</p>
+            <div className="saas-summary space-y-2 text-sm">
+              <p className="font-semibold text-blue-800 mb-1">Verifica que los datos sean correctos:</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
                 <span className="font-medium text-gray-700">Cliente:</span><span>{formData.nombre}</span>
                 <span className="font-medium text-gray-700">DNI:</span><span>{formData.dni}</span>
@@ -527,9 +621,9 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             </div>
 
             <div className="flex justify-between pt-4 border-t">
-              <button type="button" onClick={() => setPaso(2)} className="px-5 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">← Atrás</button>
-              <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold">
-                {loading ? 'Guardando...' : '✓ Confirmar y Guardar'}
+              <button type="button" onClick={() => setPaso(2)} className="saas-secondary">Atras</button>
+              <button type="submit" disabled={loading} className="saas-primary disabled:opacity-60">
+                {loading ? 'Guardando...' : 'Confirmar y guardar'}
               </button>
             </div>
           </div>

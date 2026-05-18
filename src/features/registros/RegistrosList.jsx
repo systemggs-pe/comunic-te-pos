@@ -132,12 +132,12 @@ PDF Recibo: ${row.pdfReciboUrl}`;
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative">
+    <div className="saas-list-shell relative">
       {ticketData && null}
       {viewingRegistro && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
-            <button onClick={() => setViewingRegistro(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={20}/></button>
+        <div className="saas-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="saas-detail-modal p-6 relative">
+            <button onClick={() => setViewingRegistro(null)} className="saas-form-close absolute top-4 right-4"><X size={20}/></button>
             <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Detalles del Registro</h3>
             <div className="space-y-4 text-sm">
               {/* Equipo */}
@@ -189,35 +189,39 @@ PDF Recibo: ${row.pdfReciboUrl}`;
           </div>
         </div>
       )}
-      <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="relative w-full md:w-96">
-          <input type="text" placeholder="Buscar por DNI o IMEI..." className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-          <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
+      <div className="saas-list-toolbar">
+        <div>
+          <p className="saas-page-kicker">Registros</p>
+          <h2 className="saas-page-title">Registros de equipos</h2>
+          <p className="saas-page-desc">{filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} registro{(total || data.length) !== 1 ? 's' : ''}</p>
         </div>
-        <div className="w-full md:w-auto flex items-center gap-3">
-          <span className="hidden md:inline text-xs text-gray-400 whitespace-nowrap">{data.length} de {total || data.length}</span>
-          <button onClick={onNew} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center"><Plus className="mr-2" size={20} /> Nuevo Registro</button>
+        <div className="saas-toolbar-actions">
+          <div className="saas-searchbox">
+            <input type="text" placeholder="Buscar por DNI, cliente o IMEI" className="saas-search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Search size={18} />
+          </div>
+          <button onClick={onNew} className="saas-primary"><Plus size={18} /> Nuevo Registro</button>
         </div>
       </div>
 
       {/* ── MÓVIL: tarjetas ── */}
-      <div className="md:hidden divide-y divide-gray-100">
+      <div className="md:hidden saas-mobile-list">
         {cargando ? (
           <div className="py-12 flex flex-col items-center gap-3 text-gray-400">
             <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
             <span className="text-sm">Cargando registros...</span>
           </div>
         ) : filteredData.length === 0 ? (
-          <p className="px-4 py-8 text-center text-gray-400 text-sm">No se encontraron registros</p>
+          <div className="saas-empty px-4 py-8"><p className="text-sm font-semibold">No se encontraron registros</p><p className="text-xs">Prueba con otro DNI, cliente o IMEI.</p></div>
         ) : filteredData.map(row => (
-          <div key={row.id} className="p-4 hover:bg-gray-50">
+          <div key={row.id} className="saas-mobile-row">
             <div className="flex items-start justify-between mb-2">
               <div>
                 <p className="font-semibold text-gray-800 text-sm">{getCliente(row.dniCliente).nombre || row.dniCliente}</p>
                 <p className="text-xs text-gray-400">{row.nRegistro} · {new Date(row.fecha).toLocaleDateString()}</p>
               </div>
               <div className="flex flex-col items-end gap-1.5">
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${row.estado === 'BLOQUEADO' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{row.estado}</span>
+                <span className={`saas-chip ${row.estado === 'BLOQUEADO' ? 'saas-chip-danger' : 'saas-chip-success'}`}>{row.estado}</span>
                 {row.estado === 'BLOQUEADO' && (
                   <button
                     onClick={() => handleDesbloquear(row)}
@@ -234,11 +238,11 @@ PDF Recibo: ${row.pdfReciboUrl}`;
             <p className="text-xs font-mono text-blue-600 mb-1">{row.imeiEquipo}</p>
             <p className="text-xs text-gray-400 mb-3">{row.operador} · {row.tipo}</p>
             <div className="flex gap-2">
-              <button onClick={() => setViewingRegistro(row)} className="flex-1 flex items-center justify-center gap-1 py-1.5 border rounded-lg text-xs text-gray-600 hover:bg-gray-100"><Eye size={14}/> Ver</button>
-              <button onClick={() => onEdit(row)} className="flex-1 flex items-center justify-center gap-1 py-1.5 border rounded-lg text-xs text-yellow-600 hover:bg-yellow-50"><Edit size={14}/> Editar</button>
-              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: cl.celular || row.celularCliente || '', celularRef: cl.celularRef || row.celularRef || ''}); }} className="flex-1 flex items-center justify-center gap-1 py-1.5 border rounded-lg text-xs text-purple-600 hover:bg-purple-50"><Printer size={14}/> Ticket</button>
-              <button onClick={() => handleShare(row)} className="flex-1 flex items-center justify-center gap-1 py-1.5 border rounded-lg text-xs text-blue-600 hover:bg-blue-50"><Share2 size={14}/> Compartir</button>
-              <button onClick={() => handleDelete(row.id)} className="px-3 py-1.5 border rounded-lg text-xs text-red-500 hover:bg-red-50"><Trash2 size={14}/></button>
+              <button onClick={() => setViewingRegistro(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Ver registro" title="Ver"><Eye size={16}/><span className="sr-only">Ver</span></button>
+              <button onClick={() => onEdit(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Editar registro" title="Editar"><Edit size={16}/><span className="sr-only">Editar</span></button>
+              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: cl.celular || row.celularCliente || '', celularRef: cl.celularRef || row.celularRef || ''}); }} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
+              <button onClick={() => handleShare(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Compartir registro" title="Compartir"><Share2 size={16}/><span className="sr-only">Compartir</span></button>
+              <button onClick={() => handleDelete(row.id)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar registro" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
             </div>
           </div>
         ))}
@@ -246,8 +250,8 @@ PDF Recibo: ${row.pdfReciboUrl}`;
 
       {/* ── DESKTOP: tabla ── */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-sm text-gray-600">
-          <thead className="bg-gray-50 text-gray-700 uppercase text-xs font-semibold">
+        <table className="saas-table text-left">
+          <thead>
             <tr><th className="px-6 py-3">Fecha / ID</th><th className="px-6 py-3">Cliente</th><th className="px-6 py-3">Equipo (IMEI)</th><th className="px-6 py-3">Estado/Operador</th><th className="px-6 py-3 text-right">Acciones</th></tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -258,15 +262,15 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                   <span className="text-sm">Cargando registros...</span>
                 </div>
               </td></tr>
-            ) : filteredData.length === 0 ? (<tr><td colSpan="5" className="px-6 py-8 text-center text-gray-400">No se encontraron registros</td></tr>) : (
+            ) : filteredData.length === 0 ? (<tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">No se encontraron registros</p><p className="text-xs">Prueba con otro DNI, cliente o IMEI.</p></div></td></tr>) : (
               filteredData.map(row => (
-                <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={row.id}>
                   <td className="px-6 py-4"><div className="font-medium text-gray-800">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs text-gray-400">{row.nRegistro}</div></td>
                   <td className="px-6 py-4"><div className="font-medium">{getCliente(row.dniCliente).nombre || row.dniCliente}</div><div className="text-xs">{row.dniCliente}</div></td>
                   <td className="px-6 py-4"><div>{row.modeloEquipo}</div><div className="text-xs text-blue-600 font-mono">{row.imeiEquipo}</div></td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded-full text-xs ${row.estado === 'BLOQUEADO' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{row.estado}</span>
+                      <span className={`saas-chip ${row.estado === 'BLOQUEADO' ? 'saas-chip-danger' : 'saas-chip-success'}`}>{row.estado}</span>
                       {row.estado === 'BLOQUEADO' && (
                         <button
                           onClick={() => handleDesbloquear(row)}
@@ -282,11 +286,11 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1">
-                      <button onClick={() => setViewingRegistro(row)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"><Eye size={18} /></button>
-                      <button onClick={() => onEdit(row)} className="p-1.5 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded"><Edit size={18} /></button>
-                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: cl.celular || row.celularCliente || '', celularRef: cl.celularRef || row.celularRef || ''}); }} className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded" title="Descargar ticket PDF"><Printer size={18} /></button>
-                      <button onClick={() => handleShare(row)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded" title="Compartir registro"><Share2 size={18} /></button>
-                      <button onClick={() => handleDelete(row.id)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={18} /></button>
+                      <button onClick={() => setViewingRegistro(row)} className="saas-icon-button" title="Ver detalle"><Eye size={18} /></button>
+                      <button onClick={() => onEdit(row)} className="saas-icon-button" title="Editar"><Edit size={18} /></button>
+                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: cl.celular || row.celularCliente || '', celularRef: cl.celularRef || row.celularRef || ''}); }} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
+                      <button onClick={() => handleShare(row)} className="saas-icon-button" title="Compartir registro"><Share2 size={18} /></button>
+                      <button onClick={() => handleDelete(row.id)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
                     </div>
                   </td>
                 </tr>
@@ -300,7 +304,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
           <button
             onClick={onLoadMore}
             disabled={loadingMore}
-            className="px-4 py-2 rounded-lg border text-sm text-blue-700 border-blue-200 hover:bg-blue-50 disabled:opacity-50"
+            className="saas-secondary disabled:opacity-50"
           >
             {loadingMore ? 'Cargando...' : 'Cargar mas registros'}
           </button>

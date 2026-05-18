@@ -4,7 +4,7 @@ import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2,
 export function TopNavItem({ Icon, label, active, onClick }) {
   const NavIcon = Icon;
   return (
-    <button onClick={onClick} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}>
+    <button onClick={onClick} className={`flex items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${active ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
       <NavIcon size={17} /> {label}
     </button>
   );

@@ -47,12 +47,12 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative">
+    <div className="saas-list-shell relative">
       {ticketVentaData && null}
       {/* Modal tamaño de papel */}
       {ticketPendiente && (
-        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center">
+        <div className="saas-modal-backdrop fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="saas-detail-modal w-full max-w-xs p-6 text-center">
             <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <Printer size={22} className="text-purple-600" />
             </div>
@@ -60,22 +60,22 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
             <p className="text-xs text-gray-400 mb-5">Elige el ancho del papel de tu impresora térmica</p>
             <div className="flex gap-3">
               <button onClick={() => { generarTicketVentaPDF(ticketPendiente, 58, logoVentas); setTicketPendiente(null); }}
-                className="flex-1 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm transition-colors">
+                className="saas-primary flex-1">
                 58 mm
               </button>
               <button onClick={() => { generarTicketVentaPDF(ticketPendiente, 80, logoVentas); setTicketPendiente(null); }}
-                className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors">
+                className="saas-secondary flex-1">
                 80 mm
               </button>
             </div>
-            <button onClick={() => setTicketPendiente(null)} className="mt-3 text-xs text-gray-400 hover:text-gray-600 w-full py-1">Cancelar</button>
+            <button onClick={() => setTicketPendiente(null)} className="saas-secondary mt-3 w-full">Cancelar</button>
           </div>
         </div>
       )}
       {viewingVenta && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setViewingVenta(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={20}/></button>
+        <div className="saas-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="saas-detail-modal p-6 relative">
+            <button onClick={() => setViewingVenta(null)} className="saas-form-close absolute top-4 right-4"><X size={20}/></button>
             <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Detalles de la Venta</h3>
             <div className="space-y-4 text-sm">
               {/* Venta */}
@@ -115,25 +115,32 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
           </div>
         </div>
       )}
-      <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="relative w-full md:w-96"><input type="text" placeholder="Buscar venta..." className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /><Search className="absolute left-3 top-2.5 text-gray-400" size={20} /></div>
-        <div className="w-full md:w-auto flex items-center gap-3">
-          <span className="hidden md:inline text-xs text-gray-400 whitespace-nowrap">{data.length} de {total || data.length}</span>
-          <button onClick={onNew} className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center"><Plus className="mr-2" size={20} /> Nueva Venta</button>
+      <div className="saas-list-toolbar">
+        <div>
+          <p className="saas-page-kicker">Ventas</p>
+          <h2 className="saas-page-title">Ventas de equipos</h2>
+          <p className="saas-page-desc">{filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} venta{(total || data.length) !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="saas-toolbar-actions">
+          <div className="saas-searchbox">
+            <input type="text" placeholder="Buscar por DNI, cliente o IMEI" className="saas-search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Search size={18} />
+          </div>
+          <button onClick={onNew} className="saas-primary"><Plus size={18} /> Nueva Venta</button>
         </div>
       </div>
 
       {/* ── MÓVIL: tarjetas ── */}
-      <div className="md:hidden divide-y divide-gray-100">
+      <div className="md:hidden saas-mobile-list">
         {cargando ? (
           <div className="py-12 flex flex-col items-center gap-3 text-gray-400">
             <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
             <span className="text-sm">Cargando ventas...</span>
           </div>
         ) : filteredData.length === 0 ? (
-          <p className="px-4 py-8 text-center text-gray-400 text-sm">No se encontraron ventas</p>
+          <div className="saas-empty px-4 py-8"><p className="text-sm font-semibold">No se encontraron ventas</p><p className="text-xs">Prueba con otro DNI, cliente o IMEI.</p></div>
         ) : filteredData.map(row => (
-          <div key={row.id} className="p-4 hover:bg-gray-50">
+          <div key={row.id} className="saas-mobile-row">
             <div className="flex items-start justify-between mb-2">
               <div>
                 <p className="font-semibold text-gray-800 text-sm">{getCliente(row.dniCliente).nombre || row.dniCliente}</p>
@@ -165,10 +172,10 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
               })()}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setViewingVenta(row)} className="flex-1 flex items-center justify-center gap-1 py-1.5 border rounded-lg text-xs text-gray-600 hover:bg-gray-100"><Eye size={14}/> Ver</button>
-              <button onClick={() => onEdit(row)} className="flex-1 flex items-center justify-center gap-1 py-1.5 border rounded-lg text-xs text-yellow-600 hover:bg-yellow-50"><Edit size={14}/> Editar</button>
-              <button onClick={() => setTicketPendiente(ticketData(row))} className="flex-1 flex items-center justify-center gap-1 py-1.5 border rounded-lg text-xs text-purple-600 hover:bg-purple-50"><Printer size={14}/> Ticket</button>
-              <button onClick={() => handleDelete(row.id)} className="px-3 py-1.5 border rounded-lg text-xs text-red-500 hover:bg-red-50"><Trash2 size={14}/></button>
+              <button onClick={() => setViewingVenta(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Ver venta" title="Ver"><Eye size={16}/><span className="sr-only">Ver</span></button>
+              <button onClick={() => onEdit(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Editar venta" title="Editar"><Edit size={16}/><span className="sr-only">Editar</span></button>
+              <button onClick={() => setTicketPendiente(ticketData(row))} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
+              <button onClick={() => handleDelete(row.id)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar venta" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
             </div>
           </div>
         ))}
@@ -176,8 +183,8 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
 
       {/* ── DESKTOP: tabla ── */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-sm text-gray-600">
-          <thead className="bg-gray-50 text-gray-700 uppercase text-xs font-semibold">
+        <table className="saas-table text-left">
+          <thead>
             <tr><th className="px-6 py-3">Fecha / ID</th><th className="px-6 py-3">Cliente</th><th className="px-6 py-3">Equipo Vendido</th><th className="px-6 py-3 text-right">Monto</th><th className="px-6 py-3 text-right">Acciones</th></tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -189,9 +196,9 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                 </div>
               </td></tr>
             ) : filteredData.length === 0 ? (
-              <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-400">No se encontraron ventas</td></tr>
+              <tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">No se encontraron ventas</p><p className="text-xs">Prueba con otro DNI, cliente o IMEI.</p></div></td></tr>
             ) : filteredData.map(row => (
-              <tr key={row.id} className="hover:bg-gray-50">
+              <tr key={row.id}>
                 <td className="px-6 py-4"><div className="font-medium">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs">{row.nVenta}</div></td>
                 <td className="px-6 py-4"><div className="font-medium">{getCliente(row.dniCliente).nombre || row.dniCliente}</div><div className="text-xs">{row.dniCliente}</div></td>
                 <td className="px-6 py-4">
@@ -219,10 +226,10 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                 <td className="px-6 py-4 text-right font-bold text-green-600">S/ {parseFloat(row.precio).toFixed(2)}</td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-1">
-                    <button onClick={() => setViewingVenta(row)} className="p-1.5 text-gray-500 hover:text-green-600"><Eye size={18} /></button>
-                    <button onClick={() => onEdit(row)} className="p-1.5 text-gray-500 hover:text-yellow-600"><Edit size={18} /></button>
-                    <button onClick={() => setTicketPendiente(ticketData(row))} className="p-1.5 text-gray-500 hover:text-purple-600" title="Descargar ticket PDF"><Printer size={18} /></button>
-                    <button onClick={() => handleDelete(row.id)} className="p-1.5 text-gray-500 hover:text-red-600"><Trash2 size={18} /></button>
+                    <button onClick={() => setViewingVenta(row)} className="saas-icon-button" title="Ver detalle"><Eye size={18} /></button>
+                    <button onClick={() => onEdit(row)} className="saas-icon-button" title="Editar"><Edit size={18} /></button>
+                    <button onClick={() => setTicketPendiente(ticketData(row))} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
+                    <button onClick={() => handleDelete(row.id)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
                   </div>
                 </td>
               </tr>
@@ -235,7 +242,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
           <button
             onClick={onLoadMore}
             disabled={loadingMore}
-            className="px-4 py-2 rounded-lg border text-sm text-green-700 border-green-200 hover:bg-green-50 disabled:opacity-50"
+            className="saas-secondary disabled:opacity-50"
           >
             {loadingMore ? 'Cargando...' : 'Cargar mas ventas'}
           </button>

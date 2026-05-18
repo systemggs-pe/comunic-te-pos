@@ -141,11 +141,11 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="saas-boleta-page space-y-4">
       {/* Modal selección tipo de boleta */}
       {modalBoleta && (
-        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="saas-modal-backdrop fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="saas-detail-modal w-full max-w-sm p-6">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <FileText size={22} className="text-blue-600" />
             </div>
@@ -154,24 +154,31 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
             <div className="space-y-3">
               <button
                 onClick={async () => { setModalBoleta(null); await generarBoletaExtranjera(modalBoleta); }}
-                className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm flex flex-col items-center gap-0.5 transition-colors">
+                className="saas-primary w-full flex-col py-3.5">
                 <span>Boleta 1</span>
                 <span className="text-xs font-normal opacity-80">Formato térmico 48mm — Roberto Pizarro</span>
               </button>
               <button
                 onClick={async () => { setModalBoleta(null); await generarBoletaExtranjera2(modalBoleta); }}
-                className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm flex flex-col items-center gap-0.5 transition-colors">
+                className="saas-secondary w-full flex-col py-3.5">
                 <span>Boleta 2</span>
                 <span className="text-xs font-normal opacity-80">Formato 80mm — Álvaro Pizarro · PDF417</span>
               </button>
             </div>
-            <button onClick={() => setModalBoleta(null)} className="mt-4 text-xs text-gray-400 hover:text-gray-600 w-full py-1">Cancelar</button>
+            <button onClick={() => setModalBoleta(null)} className="saas-secondary mt-4 w-full">Cancelar</button>
           </div>
         </div>
       )}
       {/* Header + tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText size={20} className="text-blue-600"/> Boleta Extranjera (Chile)</h2>
+      <div className="saas-boleta-card">
+        <div className="saas-boleta-header">
+          <div>
+            <p className="saas-page-kicker">Boleta extranjera</p>
+            <h2 className="saas-page-title flex items-center gap-2"><FileText size={20} className="text-blue-600"/> Boleta Extranjera (Chile)</h2>
+            <p className="saas-page-desc">Genera boletas desde ventas existentes o con datos manuales.</p>
+          </div>
+        </div>
+        <div className="p-5">
 
         {/* Fecha y hora de emisión */}
         <div className="mb-4">
@@ -184,12 +191,12 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
           />
         </div>
 
-        <div className="flex gap-2 mb-5">
-          <button onClick={() => setModo('buscar')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${modo === 'buscar' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+        <div className="saas-segmented mb-5">
+          <button onClick={() => setModo('buscar')} data-active={modo === 'buscar'}>
             Buscar por DNI
           </button>
-          <button onClick={() => setModo('nueva')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${modo === 'nueva' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-            + Nueva Boleta
+          <button onClick={() => setModo('nueva')} data-active={modo === 'nueva'}>
+            Nueva Boleta
           </button>
         </div>
 
@@ -200,8 +207,8 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
               <input value={searchDni} onChange={e => setSearchDni(e.target.value.replace(/\D/g,''))}
                 onKeyDown={e => e.key === 'Enter' && buscar()}
                 placeholder="DNI del cliente..." inputMode="numeric"
-                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-              <button onClick={buscar} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-1">
+                className="flex-1 min-w-0" />
+              <button onClick={buscar} className="saas-primary">
                 <Search size={16}/> Buscar
               </button>
             </div>
@@ -243,7 +250,7 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
                       <p className="font-bold text-green-700">${formatClp(totalClp)} CLP</p>
                       <p className="text-xs text-gray-400">S/. {totalPen.toFixed(2)} PEN</p>
                     </div>
-                    <button onClick={emitirDesdeVentas} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2">
+                    <button onClick={emitirDesdeVentas} className="saas-primary">
                       <Printer size={16}/> Emitir Boleta
                     </button>
                   </div>
@@ -272,7 +279,7 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
             {/* Equipo */}
             <div className="flex justify-between items-center border-b pb-1">
               <p className="text-xs font-semibold text-gray-500 uppercase">Datos del Equipo</p>
-              <button type="button" onClick={() => setMostrarEscanerBoleta(true)} className="flex items-center text-xs bg-gray-800 text-white px-3 py-1.5 rounded gap-1">
+              <button type="button" onClick={() => setMostrarEscanerBoleta(true)} className="saas-secondary">
                 <ScanBarcode size={13}/> Escanear caja
               </button>
             </div>
@@ -314,13 +321,14 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
             </div>
 
             <div className="flex justify-between pt-2 border-t gap-3">
-              <button onClick={() => setForm(emptyForm)} className="px-4 py-2 border rounded text-gray-500 text-sm hover:bg-gray-50">Limpiar</button>
-              <button onClick={emitirNueva} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">
+              <button onClick={() => setForm(emptyForm)} className="saas-secondary">Limpiar</button>
+              <button onClick={emitirNueva} className="saas-primary flex-1">
                 <Printer size={16}/> Generar Boleta
               </button>
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

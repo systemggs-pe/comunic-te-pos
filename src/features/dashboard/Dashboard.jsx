@@ -1,94 +1,144 @@
 import React from 'react';
-import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import { ClipboardList, FileText, Plus, ShoppingCart, Users } from 'lucide-react';
 
 export function Dashboard({ stats, setCurrentView, user }) {
   const nombre = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuario';
   const hora = new Date().getHours();
-  const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const saludo = hora < 12 ? 'Buenos dias' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const fecha = new Intl.DateTimeFormat('es-PE', {weekday: 'long', day: '2-digit', month: 'short'}).format(new Date());
+
+  const kpis = [
+    {label: 'Registros', value: stats.registros, detail: 'Equipos en seguimiento', Icon: ClipboardList, view: 'registros_list'},
+    {label: 'Ventas', value: stats.ventas, detail: 'Operaciones de tienda', Icon: ShoppingCart, view: 'ventas_list'},
+    {label: 'Clientes', value: stats.clientes, detail: 'Base compartida', Icon: Users, view: 'clientes_list'},
+  ];
+
+  const modulos = [
+    {
+      title: 'Registros de equipos',
+      detail: 'IMEI, operador, estado y constancias',
+      action: 'Abrir registros',
+      Icon: ClipboardList,
+      view: 'registros_list',
+      tone: 'blue',
+    },
+    {
+      title: 'Ventas de tienda',
+      detail: 'Registro de equipos vendidos y tickets',
+      action: 'Abrir ventas',
+      Icon: ShoppingCart,
+      view: 'ventas_list',
+      tone: 'emerald',
+    },
+    {
+      title: 'Clientes',
+      detail: 'DNI, contacto e historial asociado',
+      action: 'Ver directorio',
+      Icon: Users,
+      view: 'clientes_list',
+      tone: 'slate',
+    },
+    {
+      title: 'Boleta extranjera',
+      detail: 'Documentos y ventas seleccionadas',
+      action: 'Preparar boleta',
+      Icon: FileText,
+      view: 'boleta_extranjera',
+      tone: 'amber',
+    },
+  ];
+
+  const toneClasses = {
+    amber: 'bg-amber-50 text-amber-700 border-amber-100',
+    blue: 'bg-blue-50 text-blue-700 border-blue-100',
+    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    slate: 'bg-slate-100 text-slate-700 border-slate-200',
+  };
 
   return (
-    <div className="min-h-full flex flex-col">
-      {/* Hero saludo */}
-      <div className="text-center py-10 px-4">
-        <p className="text-sm text-gray-400 uppercase tracking-widest mb-1">{saludo}</p>
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">{nombre}</h1>
-        <p className="text-gray-400 text-sm">Selecciona un módulo para comenzar</p>
-      </div>
+    <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-5">
+      <section className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm md:flex-row md:items-center md:justify-between md:px-5">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">{fecha}</p>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-900">{saludo}, {nombre}</h1>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button onClick={() => setCurrentView('registros_new')}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            <Plus size={16} /> Nuevo registro
+          </button>
+          <button onClick={() => setCurrentView('ventas_new')}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            <Plus size={16} /> Nueva venta
+          </button>
+        </div>
+      </section>
 
-      {/* Tarjetas de módulos */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-2 pb-8">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {kpis.map(({label, value, detail, Icon: KpiIcon, view}) => (
+          <button key={label} type="button" onClick={() => setCurrentView(view)}
+            className="group rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-slate-500">{label}</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-900">{value}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-600 transition-colors group-hover:border-blue-200 group-hover:text-blue-700">
+                {React.createElement(KpiIcon, {size: 18})}
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">{detail}</p>
+          </button>
+        ))}
+      </section>
 
-        {/* Ventas */}
-        <div onClick={() => setCurrentView('ventas_list')}
-          className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-purple-200 transition-all duration-200 cursor-pointer overflow-hidden">
-          <div className="p-8 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center mb-5 group-hover:bg-purple-100 transition-colors">
-              <ShoppingCart size={28} className="text-purple-500" />
-            </div>
-            <h2 className="text-lg font-bold text-gray-800 mb-1">Ventas (Tienda)</h2>
-            <p className="text-sm text-gray-400 mb-6">Punto de venta, accesorios y tickets.</p>
-            <div className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
-              Ingresar
-            </div>
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-900">Trabajo diario</h2>
+            <span className="text-xs font-medium text-slate-400">Acceso directo</span>
           </div>
-          <div className="border-t border-gray-50 px-8 py-3 bg-gray-50 flex items-center justify-between">
-            <span className="text-xs text-gray-400">Total registradas</span>
-            <span className="text-sm font-bold text-gray-700">{stats.ventas}</span>
+          <div className="divide-y divide-slate-100">
+            {modulos.map(({title, detail, action, Icon: ModuleIcon, view, tone}) => (
+              <button key={title} onClick={() => setCurrentView(view)}
+                className="group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-slate-50">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
+                  {React.createElement(ModuleIcon, {size: 18})}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-slate-900">{title}</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">{detail}</span>
+                </span>
+                <span className="hidden rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors group-hover:border-blue-200 group-hover:text-blue-700 sm:inline-flex">
+                  {action}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Registros — destacado */}
-        <div onClick={() => setCurrentView('registros_list')}
-          className="group bg-blue-600 rounded-2xl shadow-md hover:shadow-lg hover:bg-blue-700 transition-all duration-200 cursor-pointer overflow-hidden">
-          <div className="p-8 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mb-5 group-hover:bg-white/30 transition-colors">
-              <ClipboardList size={28} className="text-white" />
-            </div>
-            <h2 className="text-lg font-bold text-white mb-1">Registros (Equipos)</h2>
-            <p className="text-sm text-blue-100 mb-6">Gestión de IMEIs y constancias.</p>
-            <div className="w-full bg-white text-blue-600 text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-50 transition-colors">
-              Ingresar
-            </div>
+        <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">Atajos frecuentes</p>
+          <p className="mt-1 truncate text-xs text-slate-500">{user?.email}</p>
+          <div className="mt-4 grid gap-2">
+            <button onClick={() => setCurrentView('registros_new')}
+              className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-left text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100">
+              Registrar equipo
+              <Plus size={16} />
+            </button>
+            <button onClick={() => setCurrentView('ventas_new')}
+              className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-left text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100">
+              Registrar venta
+              <Plus size={16} />
+            </button>
+            <button onClick={() => setCurrentView('clientes_list')}
+              className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
+              Ver clientes
+              {React.createElement(Users, {size: 16})}
+            </button>
           </div>
-          <div className="border-t border-white/10 px-8 py-3 bg-blue-700/40 flex items-center justify-between">
-            <span className="text-xs text-blue-200">Total registrados</span>
-            <span className="text-sm font-bold text-white">{stats.registros}</span>
-          </div>
-        </div>
-
-        {/* Clientes */}
-        <div onClick={() => setCurrentView('clientes_list')}
-          className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-green-200 transition-all duration-200 cursor-pointer overflow-hidden">
-          <div className="p-8 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-5 group-hover:bg-green-100 transition-colors">
-              <Users size={28} className="text-green-500" />
-            </div>
-            <h2 className="text-lg font-bold text-gray-800 mb-1">Directorio Clientes</h2>
-            <p className="text-sm text-gray-400 mb-6">Historial unificado y base de datos.</p>
-            <div className="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
-              Ver Clientes
-            </div>
-          </div>
-          <div className="border-t border-gray-50 px-8 py-3 bg-gray-50 flex items-center justify-between">
-            <span className="text-xs text-gray-400">Total clientes</span>
-            <span className="text-sm font-bold text-gray-700">{stats.clientes}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Accesos rápidos */}
-      <div className="flex justify-center gap-4 pb-10">
-        <button onClick={() => setCurrentView('registros_new')}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-blue-200 text-blue-600 text-sm font-medium hover:bg-blue-50 transition-colors">
-          <Plus size={16} /> Nuevo Registro
-        </button>
-        <button onClick={() => setCurrentView('ventas_new')}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-purple-200 text-purple-600 text-sm font-medium hover:bg-purple-50 transition-colors">
-          <Plus size={16} /> Nueva Venta
-        </button>
-      </div>
+        </aside>
+      </section>
     </div>
   );
 }
-
-
