@@ -181,7 +181,7 @@ service cloud.firestore {
         && request.resource.data.totalPen is number
         && request.resource.data.totalClp is number
         && optionalString('fechaHora', 40)
-        && request.resource.data.formato in [1, 2]
+        && request.resource.data.formato in [1, 2, 3]
         && request.resource.data.origen in ['ventas', 'manual']
         && request.resource.data.boletaData is map
         && request.resource.data.createdAt is timestamp;

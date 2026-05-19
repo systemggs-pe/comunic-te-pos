@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import {addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp} from 'firebase/firestore';
 import { consultarReniecDni } from '../../services/functionsClient.js';
@@ -6,7 +6,7 @@ import { luhn } from '../../utils/imei.js';
 import { penToClp, formatClp } from '../../utils/currency.js';
 import { toLocalDatetimeValueBoleta } from '../../utils/dates.js';
 import { EscanerIA } from '../registros/EscanerIA.jsx';
-import { generarBoletaExtranjera, generarBoletaExtranjera2 } from './boletaPdf.js';
+import { generarBoletaExtranjera, generarBoletaExtranjera2, generarBoletaExtranjera3 } from './boletaPdf.js';
 import {appId, db} from '../../lib/firebase.js';
 
 const boletasRef = collection(db, 'artifacts', appId, 'users', 'shared', 'boletasExtranjeras');
@@ -19,6 +19,8 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   const [modalBoleta, setModalBoleta] = useState(null);
   const [historialBoletas, setHistorialBoletas] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(true);
+  const [imprimiendoBoleta, setImprimiendoBoleta] = useState(false);
+  const imprimiendoBoletaRef = useRef(false);
 
   useEffect(() => {
     const q = query(boletasRef, orderBy('createdAt', 'desc'));
@@ -73,6 +75,10 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   });
 
   const imprimirBoleta = async (data, formato) => {
+    if (imprimiendoBoletaRef.current) return;
+    imprimiendoBoletaRef.current = true;
+    setImprimiendoBoleta(true);
+
     const boletaData = {
       cliente: data.cliente,
       ventas: data.ventas,
@@ -104,11 +110,15 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
 
       setModalBoleta(null);
       if (formato === 1) await generarBoletaExtranjera(boletaData);
-      else await generarBoletaExtranjera2(boletaData);
+      else if (formato === 2) await generarBoletaExtranjera2(boletaData);
+      else await generarBoletaExtranjera3(boletaData);
       showToast(data.guardarHistorial ? 'Boleta guardada e impresa' : 'Boleta reimpresa', 'success');
     } catch (error) {
       console.error(error);
       showToast('No se pudo guardar o imprimir la boleta', 'error');
+    } finally {
+      imprimiendoBoletaRef.current = false;
+      setImprimiendoBoleta(false);
     }
   };
 
@@ -230,19 +240,31 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
             <p className="text-xs text-gray-400 text-center mb-5">Selecciona el formato según tu impresora</p>
             <div className="space-y-3">
               <button
+                type="button"
+                disabled={imprimiendoBoleta}
                 onClick={() => imprimirBoleta(modalBoleta, 1)}
-                className="saas-primary w-full flex-col py-3.5">
+                className="saas-primary w-full flex-col py-3.5 disabled:cursor-not-allowed disabled:opacity-60">
                 <span>Boleta 1</span>
                 <span className="text-xs font-normal opacity-80">Formato térmico 48mm — Roberto Pizarro</span>
               </button>
               <button
+                type="button"
+                disabled={imprimiendoBoleta}
                 onClick={() => imprimirBoleta(modalBoleta, 2)}
-                className="saas-secondary w-full flex-col py-3.5">
+                className="saas-secondary w-full flex-col py-3.5 disabled:cursor-not-allowed disabled:opacity-60">
                 <span>Boleta 2</span>
                 <span className="text-xs font-normal opacity-80">Formato 80mm — Álvaro Pizarro · PDF417</span>
               </button>
+              <button
+                type="button"
+                disabled={imprimiendoBoleta}
+                onClick={() => imprimirBoleta(modalBoleta, 3)}
+                className="saas-secondary w-full flex-col py-3.5 disabled:cursor-not-allowed disabled:opacity-60">
+                <span>Boleta 3</span>
+                <span className="text-xs font-normal opacity-80">BOLETA PIZARRO VILLARROEL #3</span>
+              </button>
             </div>
-            <button onClick={() => setModalBoleta(null)} className="saas-secondary mt-4 w-full">Cancelar</button>
+            <button type="button" disabled={imprimiendoBoleta} onClick={() => setModalBoleta(null)} className="saas-secondary mt-4 w-full disabled:cursor-not-allowed disabled:opacity-60">Cancelar</button>
           </div>
         </div>
       )}

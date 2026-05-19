@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, no-empty */
+/* eslint-disable no-empty */
 import {getPdfTools} from '../../utils/pdfLibraries.js';
 
 function normalizarItems(data) {
@@ -19,177 +19,191 @@ function recortar(text, max) {
 
 export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
   const {jsPDF, JsBarcode} = getPdfTools();
-  // mmW comes from parameter (58 or 80)
-  const M   = 2;    // margen lateral mínimo
-  const F   = 'courier';
-
-  // Código de barras = número de serie (SN)
+  const M = mmW <= 58 ? 3 : 5;
+  const FONT = 'helvetica';
   const cbVal = data.sn || data.imeiEquipo || '';
-  let barcodeImg = null, barcodeH = 0;
+  let barcodeImg = null;
+  let barcodeH = 0;
+
   if (cbVal) {
     try {
       const c = document.createElement('canvas');
       JsBarcode(c, cbVal, {
-        format: 'CODE128', width: 2.2, height: 60,
-        displayValue: true, fontSize: 16, margin: 5
+        format: 'CODE128',
+        width: 2.2,
+        height: 60,
+        displayValue: true,
+        fontSize: 16,
+        margin: 5,
       });
       barcodeImg = c.toDataURL('image/png');
-      barcodeH   = (mmW - M*2) * (c.height / c.width);
-    } catch(_) {}
+      barcodeH = (mmW - M * 2) * (c.height / c.width);
+    } catch {}
   }
 
   const render = (doc, draw) => {
-    const cx  = mmW / 2;
-    const pad = n => String(n).padStart(2,'0');
-    const dt  = new Date(data.fecha);
-    const fechaStr = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`;
-    const horaStr  = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    const cx = mmW / 2;
+    const pad = n => String(n).padStart(2, '0');
+    const dt = new Date(data.fecha);
+    const fechaStr = `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()}`;
+    const horaStr = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
     const itemsAdicionales = normalizarItems(data);
     const totalItems = itemsAdicionales.reduce((total, item) => total + (item.cantidad * item.precio), 0);
     const totalVenta = Number(data.precio || 0);
     const precioEquipo = Number(data.precioEquipo || (totalItems ? Math.max(totalVenta - totalItems, 0) : totalVenta));
     const totalTicket = Number(data.precio || (precioEquipo + totalItems));
-
+    const SZ = mmW <= 58
+      ? {xs: 6.6, sm: 7.4, md: 8.3, lg: 9.4, xl: 13.2}
+      : {xs: 7.0, sm: 7.8, md: 8.8, lg: 10.0, xl: 14.0};
+    const ink = 18;
+    const muted = 88;
+    const ruleColor = 176;
+    const sectionFill = 244;
+    const lh = size => size * 0.36 + 1.15;
     let y = 5;
 
-    // Tamaños optimizados para impresora térmica 58mm — legibles
-    const SZ = { xs:7.5, sm:8.5, md:9.5, lg:11.5, xl:14 };
-    const LH = { xs:4.0, sm:4.6, md:5.2, lg:6.0, xl:7.2 };
+    const text = (value, x, yy, size, opts = {}) => {
+      doc.setFont(FONT, opts.bold ? 'bold' : 'normal');
+      doc.setFontSize(size);
+      doc.setTextColor(opts.muted ? muted : ink);
+      if (!draw) return;
+      if (opts.align) doc.text(String(value ?? ''), x, yy, {align: opts.align});
+      else doc.text(String(value ?? ''), x, yy);
+    };
 
-    // Medir cuántos chars entran en el ancho útil
-    doc.setFont(F, 'normal');
-    doc.setFontSize(SZ.xs);
-    const charW = doc.getTextWidth('A');
-    const totalCols = Math.floor((mmW - M*2) / charW);
+    const center = (value, size, opts = {}) => {
+      doc.setFont(FONT, opts.bold ? 'bold' : 'normal');
+      doc.setFontSize(size);
+      doc.setTextColor(opts.muted ? muted : ink);
+      const lines = doc.splitTextToSize(String(value ?? ''), mmW - M * 2);
+      if (draw) lines.forEach((line, i) => doc.text(line, cx, y + i * lh(size), {align: 'center'}));
+      y += lh(size) * Math.max(lines.length, 1);
+    };
 
-    const line = (text, sz, bold=false) => {
+    const rule = (gap = 2.8) => {
       if (draw) {
-        doc.setFont(F, bold ? 'bold' : 'normal');
-        doc.setFontSize(sz);
-        doc.text(String(text??''), cx, y, { align:'center' });
+        doc.setDrawColor(ruleColor);
+        doc.setLineWidth(0.18);
+        doc.line(M, y, mmW - M, y);
       }
-      y += LH[Object.keys(SZ).find(k => SZ[k]===sz)] ?? 5;
+      y += gap;
     };
 
-    // Separador — solo guiones, tamaño md para que se vean más grandes y menos densos
-    const rule = () => {
-      doc.setFont(F, 'normal');
-      doc.setFontSize(SZ.md);
-      const cw = doc.getTextWidth('-');
-      const n  = Math.floor((mmW - M*2) / cw);
-      if (draw) doc.text('-'.repeat(n), M, y);
-      y += LH.md;
-    };
-
-    const row = (left, right, sz=SZ.sm, bold=false) => {
+    const section = title => {
+      rule(2.2);
       if (draw) {
-        doc.setFont(F, bold ? 'bold' : 'normal');
-        doc.setFontSize(sz);
-        doc.text(String(left??''), M, y);
-        doc.text(String(right??''), mmW-M, y, { align:'right' });
+        doc.setFillColor(sectionFill);
+        doc.rect(M, y - 1.1, mmW - M * 2, 4.8, 'F');
       }
-      y += LH[Object.keys(SZ).find(k=>SZ[k]===sz)] ?? 5;
+      text(title, M + 1.4, y + 2.2, SZ.xs, {bold: true, muted: true});
+      y += 6.1;
     };
 
-    const wrap = (label, value, sz=SZ.sm) => {
+    const row = (left, right, size = SZ.sm, opts = {}) => {
+      text(left, M, y, size, {bold: opts.bold, muted: opts.muted});
+      text(right, mmW - M, y, size, {align: 'right', bold: opts.bold});
+      y += lh(size);
+    };
+
+    const wrap = (label, value, size = SZ.sm) => {
       if (!value) return;
-      doc.setFont(F, 'normal');
-      doc.setFontSize(sz);
-      const lw    = doc.getTextWidth(label);
-      const lines = doc.splitTextToSize(String(value), mmW - M - lw - 1);
+      doc.setFont(FONT, 'normal');
+      doc.setFontSize(size);
+      const labelWidth = doc.getTextWidth(label);
+      const lines = doc.splitTextToSize(String(value), mmW - M * 2 - labelWidth - 1);
       if (draw) {
-        doc.setFont(F, 'bold');   doc.text(label, M, y);
-        doc.setFont(F, 'normal'); doc.text(lines, M + lw, y);
+        doc.setTextColor(muted);
+        doc.setFont(FONT, 'bold');
+        doc.text(label, M, y);
+        doc.setTextColor(ink);
+        doc.setFont(FONT, 'normal');
+        doc.text(lines, M + labelWidth, y);
       }
-      y += (LH[Object.keys(SZ).find(k=>SZ[k]===sz)] ?? 5) * lines.length;
+      y += lh(size) * Math.max(lines.length, 1);
     };
 
-    // ── LOGO (si está configurado) ──
+    const totalBand = (label, value) => {
+      if (draw) {
+        doc.setFillColor(235);
+        doc.rect(M, y - 4.2, mmW - M * 2, 7.4, 'F');
+      }
+      text(label, M + 2, y, SZ.lg, {bold: true});
+      text(value, mmW - M - 2, y, SZ.lg + 0.4, {align: 'right', bold: true});
+      y += 8.2;
+    };
+
     if (logoVentas) {
       const logoMaxW = mmW - M * 2;
-      const logoH = 18; // alto fijo en mm
-      const logoX = M;
-      if (draw) doc.addImage(logoVentas, 'PNG', logoX, y, logoMaxW, logoH, undefined, 'FAST');
-      y += logoH + 3;
-      rule();
+      const logoH = mmW <= 58 ? 15 : 18;
+      if (draw) doc.addImage(logoVentas, 'PNG', M, y, logoMaxW, logoH, undefined, 'FAST');
+      y += logoH + 4;
     }
 
-    // ── ENCABEZADO ──
-    line('COMUNIC@TE', SZ.xl + 3);
-    line('RECIBO DE VENTA', SZ.md);
-    line(data.nVenta || '', SZ.sm);
-    rule();
-    line('VENTA DE CELULARES Y ACCESORIOS', SZ.xs);
-    line('Av. Patricio Melendez 234', SZ.xs);
-    line('Galerias Gamarra Int. 1B - Tacna', SZ.xs);
-    line('Tel. 052 607 065', SZ.xs);
-    rule();
+    center('COMUNIC@TE', SZ.xl, {bold: true});
+    center('RECIBO DE VENTA', SZ.md, {bold: true});
+    if (data.nVenta) center(data.nVenta, SZ.sm, {muted: true});
+    y += 1;
+    center('VENTA DE CELULARES Y ACCESORIOS', SZ.xs, {muted: true});
+    center('Av. Patricio Melendez 234', SZ.xs, {muted: true});
+    center('Galerias Gamarra Int. 1B, Tacna', SZ.xs, {muted: true});
+    center('Tel. 052 607 065', SZ.xs, {muted: true});
 
-    // ── CLIENTE ──
+    section('CLIENTE');
     wrap('Nombre: ', data.nombreCliente || '');
     wrap(`${data.tipoDocumentoCliente || 'DNI'}:    `, data.dniCliente || '');
-    rule();
 
-    // ── EQUIPO ──
+    section('EQUIPO');
     wrap('Marca:   ', data.marcaEquipo || '');
     wrap('Modelo:  ', data.nombreComercial || data.modeloEquipo || '');
-    if (data.color)   wrap('Color:   ', data.color);
-    if (data.ram)     wrap('RAM:     ', data.ram + ' GB');
+    if (data.color) wrap('Color:   ', data.color);
+    if (data.ram) wrap('RAM:     ', data.ram + ' GB');
     if (data.memoria) wrap('Memoria: ', data.memoria + ' GB');
-    rule();
     wrap('IMEI 1:  ', data.imeiEquipo || '');
     if (data.imei2Equipo) wrap('IMEI 2:  ', data.imei2Equipo);
-    if (data.sn)          wrap('S/N:     ', data.sn);
-    rule();
+    if (data.sn) wrap('S/N:     ', data.sn);
 
-    // ── PAGO ──
+    section('PAGO');
     wrap('Pago:    ', String(data.medioPago || 'EFECTIVO').replace('_', ' '));
-    rule();
-    row('Equipo:', `S/. ${precioEquipo.toFixed(2)}`, SZ.sm);
+    y += 1;
+    row('Equipo', `S/. ${precioEquipo.toFixed(2)}`, SZ.sm);
     itemsAdicionales.forEach(item => {
       const subtotal = item.cantidad * item.precio;
-      const maxLabel = mmW <= 58 ? 17 : 28;
-      row(recortar(`${item.cantidad}x ${item.nombre}`, maxLabel), `S/. ${subtotal.toFixed(2)}`, SZ.xs);
+      const maxLabel = mmW <= 58 ? 22 : 34;
+      row(recortar(`${item.cantidad}x ${item.nombre}`, maxLabel), `S/. ${subtotal.toFixed(2)}`, SZ.xs, {muted: true});
     });
     rule();
-    row('TOTAL:   ', `S/. ${totalTicket.toFixed(2)}`, SZ.lg);
-    rule();
+    totalBand('TOTAL', `S/. ${totalTicket.toFixed(2)}`);
     y += 2;
 
-    // ── CÓDIGO DE BARRAS (S/N) ──
     if (barcodeImg) {
-      if (draw) doc.addImage(barcodeImg, 'PNG', M, y, mmW - M*2, barcodeH);
-      y += barcodeH + 2;
+      if (draw) doc.addImage(barcodeImg, 'PNG', M, y, mmW - M * 2, barcodeH);
+      y += barcodeH + 2.5;
     }
-    rule();
-    row('Fecha:', fechaStr);
-    row('Hora: ', horaStr);
-    rule();
+    rule(3.4);
+    row('Fecha', fechaStr, SZ.xs, {muted: true});
+    row('Hora', horaStr, SZ.xs, {muted: true});
 
-    // ── PIE ──
-    line('No se aceptan cambios', SZ.xs);
-    line('ni devoluciones.', SZ.xs);
-    line('El cliente estuvo conforme', SZ.xs);
-    line('con el producto adquirido.', SZ.xs);
-    rule();
-    line('Consultas solo con caja', SZ.xs);
-    line('y recibo otorgado.', SZ.xs);
+    rule(3.2);
+    center('No se aceptan cambios ni devoluciones.', SZ.xs, {muted: true});
+    center('El cliente estuvo conforme con el producto adquirido.', SZ.xs, {muted: true});
+    center('Consultas solo con caja y recibo otorgado.', SZ.xs, {muted: true});
     y += 5;
 
     return y;
   };
 
-  const docM = new jsPDF({ unit:'mm', format:[mmW,300], orientation:'portrait' });
+  const docM = new jsPDF({unit: 'mm', format: [mmW, 300], orientation: 'portrait'});
   const alto = render(docM, false);
-  const docF = new jsPDF({ unit:'mm', format:[mmW, alto], orientation:'portrait' });
+  const docF = new jsPDF({unit: 'mm', format: [mmW, alto], orientation: 'portrait'});
   render(docF, true);
 
-  const nombre = `VENTA-${data.nVenta||'ticket'}.pdf`;
+  const nombre = `VENTA-${data.nVenta || 'ticket'}.pdf`;
   const blob = docF.output('blob');
-  const url  = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
   const a = document.createElement('a');
-  a.href = url; a.download = nombre; a.click();
+  a.href = url;
+  a.download = nombre;
+  a.click();
   setTimeout(() => URL.revokeObjectURL(url), 15000);
 }
-
