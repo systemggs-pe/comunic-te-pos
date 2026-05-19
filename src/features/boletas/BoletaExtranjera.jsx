@@ -1,15 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import {addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp} from 'firebase/firestore';
 import { consultarReniecDni } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import { penToClp, formatClp } from '../../utils/currency.js';
 import { toLocalDatetimeValueBoleta } from '../../utils/dates.js';
 import { EscanerIA } from '../registros/EscanerIA.jsx';
 import { generarBoletaExtranjera, generarBoletaExtranjera2 } from './boletaPdf.js';
+import {appId, db} from '../../lib/firebase.js';
+
+const boletasRef = collection(db, 'artifacts', appId, 'users', 'shared', 'boletasExtranjeras');
+const contadorBoletasRef = doc(db, 'artifacts', appId, 'users', 'shared', 'configuracion', 'contadorBoletas');
+const limpiarParaFirestore = data => JSON.parse(JSON.stringify(data));
+
 export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   const [modo, setModo] = useState('buscar');
   const [fechaHora, setFechaHora] = useState(toLocalDatetimeValueBoleta(new Date()));
   const [modalBoleta, setModalBoleta] = useState(null);
+  const [historialBoletas, setHistorialBoletas] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(true);
+
+  useEffect(() => {
+    const q = query(boletasRef, orderBy('createdAt', 'desc'));
+    return onSnapshot(q, snap => {
+      setHistorialBoletas(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
+      setCargandoHistorial(false);
+    }, error => {
+      console.error('Error historial boletas:', error);
+      setCargandoHistorial(false);
+      showToast('No se pudo cargar historial de boletas', 'error');
+    });
+  }, [showToast]);
 
   // ── MODO BUSCAR ──
   const [searchDni, setSearchDni] = useState('');
@@ -35,11 +56,67 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   const totalPen  = ventasSel.reduce((s, v) => s + parseFloat(v.precio || 0), 0);
   const totalClp  = penToClp(totalPen);
 
+  const abrirSelectorFormato = (boletaData, opciones = {}) => {
+    setModalBoleta({
+      ...boletaData,
+      historialId: opciones.historialId || null,
+      guardarHistorial: opciones.guardarHistorial !== false,
+    });
+  };
+
+  const obtenerNumeroBoleta = async () => runTransaction(db, async transaction => {
+    const snap = await transaction.get(contadorBoletasRef);
+    const last = Number(snap.data()?.last || 999);
+    const next = Math.max(last + 1, 1000);
+    transaction.set(contadorBoletasRef, {last: next, updatedAt: serverTimestamp()}, {merge: true});
+    return next;
+  });
+
+  const imprimirBoleta = async (data, formato) => {
+    const boletaData = {
+      cliente: data.cliente,
+      ventas: data.ventas,
+      equiposMap: data.equiposMap,
+      totalClp: data.totalClp,
+      fechaHora: data.fechaHora,
+      nBoleta: data.nBoleta || data.boletaData?.nBoleta || null,
+    };
+
+    try {
+      if (data.guardarHistorial) {
+        boletaData.nBoleta = await obtenerNumeroBoleta();
+        const totalPenBoleta = boletaData.ventas.reduce((s, v) => s + parseFloat(v.precio || 0), 0);
+        await addDoc(boletasRef, {
+          nBoleta: boletaData.nBoleta,
+          clienteDni: boletaData.cliente?.dni || '',
+          clienteNombre: boletaData.cliente?.nombre || '',
+          totalPen: totalPenBoleta,
+          totalClp: Number(boletaData.totalClp || 0),
+          fechaHora: boletaData.fechaHora || '',
+          formato,
+          origen: boletaData.ventas.some(v => v.id) ? 'ventas' : 'manual',
+          boletaData: limpiarParaFirestore(boletaData),
+          createdAt: serverTimestamp(),
+        });
+      } else if (!boletaData.nBoleta && data.nBoleta) {
+        boletaData.nBoleta = data.nBoleta;
+      }
+
+      setModalBoleta(null);
+      if (formato === 1) await generarBoletaExtranjera(boletaData);
+      else await generarBoletaExtranjera2(boletaData);
+      showToast(data.guardarHistorial ? 'Boleta guardada e impresa' : 'Boleta reimpresa', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('No se pudo guardar o imprimir la boleta', 'error');
+    }
+  };
+
   const emitirDesdeVentas = () => {
     if (!clienteEncontrado || ventasSel.length === 0) { showToast('Selecciona al menos una venta', 'error'); return; }
     const equiposMap = {};
     equipos.forEach(e => { equiposMap[e.idEquipo] = e; });
-    setModalBoleta({ cliente: clienteEncontrado, ventas: ventasSel, equiposMap, totalClp, fechaHora });
+    abrirSelectorFormato({ cliente: clienteEncontrado, ventas: ventasSel, equiposMap, totalClp, fechaHora });
   };
 
   // ── MODO NUEVA BOLETA MANUAL ──
@@ -127,7 +204,7 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
       showToast('El IMEI 2 no es válido — verifica los dígitos', 'error'); return;
     }
     const clpVal = penToClp(form.precio);
-    setModalBoleta({
+    abrirSelectorFormato({
       cliente: { nombre: form.nombre, dni: form.rut },
       ventas: [{
         imeiEquipo: form.imei1, marcaEquipo: form.marca,
@@ -153,13 +230,13 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
             <p className="text-xs text-gray-400 text-center mb-5">Selecciona el formato según tu impresora</p>
             <div className="space-y-3">
               <button
-                onClick={async () => { setModalBoleta(null); await generarBoletaExtranjera(modalBoleta); }}
+                onClick={() => imprimirBoleta(modalBoleta, 1)}
                 className="saas-primary w-full flex-col py-3.5">
                 <span>Boleta 1</span>
                 <span className="text-xs font-normal opacity-80">Formato térmico 48mm — Roberto Pizarro</span>
               </button>
               <button
-                onClick={async () => { setModalBoleta(null); await generarBoletaExtranjera2(modalBoleta); }}
+                onClick={() => imprimirBoleta(modalBoleta, 2)}
                 className="saas-secondary w-full flex-col py-3.5">
                 <span>Boleta 2</span>
                 <span className="text-xs font-normal opacity-80">Formato 80mm — Álvaro Pizarro · PDF417</span>
@@ -197,6 +274,9 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
           </button>
           <button onClick={() => setModo('nueva')} data-active={modo === 'nueva'}>
             Nueva Boleta
+          </button>
+          <button onClick={() => setModo('historial')} data-active={modo === 'historial'}>
+            Historial
           </button>
         </div>
 
@@ -326,6 +406,45 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
                 <Printer size={16}/> Generar Boleta
               </button>
             </div>
+          </div>
+        )}
+
+        {modo === 'historial' && (
+          <div className="space-y-3">
+            {cargandoHistorial ? (
+              <div className="saas-empty py-10">
+                <p className="text-sm">Cargando historial...</p>
+              </div>
+            ) : historialBoletas.length === 0 ? (
+              <div className="saas-empty py-10">
+                <FileText size={40} strokeWidth={1.4} />
+                <p className="text-sm font-semibold">Sin boletas guardadas</p>
+                <p className="text-xs">Las boletas apareceran aqui despues de imprimirlas.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+                {historialBoletas.map(boleta => (
+                  <div key={boleta.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{boleta.clienteNombre || 'Cliente sin nombre'}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Nro {boleta.nBoleta || '-'} · DNI {boleta.clienteDni || '-'} · {boleta.fechaHora ? new Date(boleta.fechaHora).toLocaleString('es-PE') : 'Sin fecha'}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-emerald-700">
+                        ${formatClp(Number(boleta.totalClp || 0))} CLP · S/. {Number(boleta.totalPen || 0).toFixed(2)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => abrirSelectorFormato({...boleta.boletaData, nBoleta: boleta.nBoleta || boleta.boletaData?.nBoleta}, {historialId: boleta.id, guardarHistorial: false})}
+                      className="saas-secondary shrink-0"
+                    >
+                      <Printer size={15}/> Reimprimir
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
         </div>

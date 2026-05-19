@@ -28,4 +28,3 @@ export function getAdminDb() {
   }
   return admin.firestore();
 }
-

@@ -1,5 +1,6 @@
 import {handlePost} from './_shared.mjs';
 import {getAdminDb} from './_firebaseAdmin.mjs';
+import {setClienteWithHistory} from './_clientesShared.mjs';
 import {parseIdPayload, parseVentaPayload} from './_validators.mjs';
 
 const APP_ID = 'comunicate-pos';
@@ -42,8 +43,8 @@ async function createVenta(db, payload) {
     const nVenta = `VEN-${String(next).padStart(4, '0')}`;
     const ventaData = {...venta, nVenta};
 
+    await setClienteWithHistory(transaction, clienteRef, cliente);
     transaction.set(counterRef, {last: next, updatedAt: new Date().toISOString()}, {merge: true});
-    transaction.set(clienteRef, cliente, {merge: true});
     transaction.set(equipoRef, equipo, {merge: true});
     transaction.set(ventaRef, ventaData);
 
@@ -84,13 +85,13 @@ async function updateVenta(db, payload) {
     }
     const ventaData = {...venta, nVenta: current.nVenta || venta.nVenta || ''};
 
+    await setClienteWithHistory(transaction, clienteRef, cliente);
     if (oldImeiChanged && !oldOtherVenta && !oldHasRegistro) {
       transaction.delete(equiposRef.doc(oldImei));
     }
     if (oldDniChanged && !oldOtherEquipo) {
       transaction.delete(clientesRef.doc(oldDni));
     }
-    transaction.set(clienteRef, cliente, {merge: true});
     transaction.set(equipoRef, equipo, {merge: true});
     transaction.set(ventaRef, ventaData);
 
@@ -116,19 +117,25 @@ async function deleteVenta(db, payload) {
 
     let otherVenta = false;
     let hasRegistro = false;
-    let otherEquipo = false;
+    let otherDniVenta = false;
+    let otherDniRegistro = false;
+    let equiposClienteSnap = null;
     if (imei1) {
       otherVenta = await hasOther(ventasRef, 'imeiEquipo', imei1, id, transaction);
       hasRegistro = await hasOther(registrosRef, 'imeiEquipo', imei1, '', transaction);
     }
     if (dni) {
-      otherEquipo = await hasOther(equiposRef, 'idDuenio', dni, imei1, transaction);
+      otherDniVenta = await hasOther(ventasRef, 'dniCliente', dni, id, transaction);
+      otherDniRegistro = await hasOther(registrosRef, 'dniCliente', dni, '', transaction);
+      equiposClienteSnap = await transaction.get(equiposRef.where('idDuenio', '==', dni).limit(100));
     }
 
     transaction.delete(ventaRef);
-    if (imei1 && !otherVenta && !hasRegistro) {
+    if (dni && !otherDniVenta && !otherDniRegistro) {
+      equiposClienteSnap?.docs.forEach(doc => transaction.delete(doc.ref));
+      transaction.delete(clientesRef.doc(dni));
+    } else if (imei1 && !otherVenta && !hasRegistro) {
       transaction.delete(equiposRef.doc(imei1));
-      if (dni && !otherEquipo) transaction.delete(clientesRef.doc(dni));
     } else if (imei1) {
       transaction.set(equiposRef.doc(imei1), {isVendido: otherVenta}, {merge: true});
     }

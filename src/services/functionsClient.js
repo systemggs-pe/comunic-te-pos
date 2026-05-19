@@ -1,6 +1,7 @@
 import { auth } from '../lib/firebase.js';
 
 const BACKEND_BASE_URL = (import.meta.env.VITE_BACKEND_BASE_URL || '').replace(/\/$/, '');
+const IS_LOCAL_API_PROXY = import.meta.env.DEV && !BACKEND_BASE_URL;
 
 function looksLikeHtml(text) {
   return /^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text);
@@ -32,10 +33,16 @@ export async function llamarFuncionSegura(nombre, payload) {
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
+    if (IS_LOCAL_API_PROXY && resp.status >= 500) {
+      const error = new Error('API_LOCAL_NO_DISPONIBLE');
+      error.status = resp.status;
+      throw error;
+    }
     throw new Error('BACKEND_INVALID_RESPONSE');
   }
   if (!resp.ok) {
-    const error = new Error(data.error || 'BACKEND_ERROR');
+    const message = data.error || (IS_LOCAL_API_PROXY ? 'API_LOCAL_ERROR' : 'BACKEND_ERROR');
+    const error = new Error(message);
     error.status = resp.status;
     error.payload = data;
     throw error;
@@ -46,8 +53,9 @@ export async function llamarFuncionSegura(nombre, payload) {
 const VALIDATION_MESSAGES = {
   CELULAR_INVALIDO: 'el celular debe tener 9 digitos y empezar con 9',
   DIRECCION_REQUERIDA: 'la direccion es obligatoria',
+  DOCUMENTO_INVALIDO: 'el numero de documento no es valido para el tipo elegido',
   DNI_INVALIDO: 'el DNI debe tener 8 digitos',
-  DNI_NO_COINCIDE: 'el DNI del cliente no coincide con el equipo o registro',
+  DNI_NO_COINCIDE: 'el documento del cliente no coincide con el equipo o registro',
   EMAIL_INVALIDO: 'el correo electronico no es valido',
   EMAIL_MUY_LARGO: 'el correo electronico es demasiado largo',
   ESTADO_INVALIDO: 'el estado no es valido',
@@ -56,6 +64,10 @@ const VALIDATION_MESSAGES = {
   IMEI_INVALIDO: 'el IMEI debe tener 15 digitos',
   IMEI_LUHN_INVALIDO: 'el IMEI no pasa la validacion',
   IMEI_NO_COINCIDE: 'el IMEI del equipo no coincide con el registro',
+  ITEM_CANTIDAD_INVALIDA: 'la cantidad del item debe ser mayor a 0',
+  ITEM_NOMBRE_REQUERIDO: 'el nombre del item es obligatorio',
+  ITEMS_MUY_LARGOS: 'hay demasiados items adicionales',
+  CONTACTOS_MUY_LARGOS: 'hay demasiados contactos registrados',
   MARCA_REQUERIDA: 'la marca es obligatoria',
   MODELO_REQUERIDO: 'el modelo es obligatorio',
   NOMBRE_COMERCIAL_REQUERIDO: 'el nombre comercial es obligatorio',
@@ -66,15 +78,20 @@ const VALIDATION_MESSAGES = {
   PRECIO_MINIMO_BLOQUEADO: 'el precio minimo para un equipo bloqueado es S/. 50.00',
   PRECIO_MUY_LARGO: 'el precio es demasiado largo',
   TIPO_INVALIDO: 'el tipo de registro no es valido',
+  TIPO_DOCUMENTO_INVALIDO: 'el tipo de documento no es valido',
+  MEDIO_PAGO_INVALIDO: 'el medio de pago no es valido',
 };
 
 const FIELD_LABELS = {
   'cliente.celular': 'Celular',
   'cliente.celularRef': 'Celular de referencia',
   'cliente.correo': 'Correo',
+  'cliente.correos': 'Correos',
   'cliente.direccion': 'Direccion',
-  'cliente.dni': 'DNI',
+  'cliente.dni': 'Documento',
   'cliente.nombre': 'Nombre',
+  'cliente.celulares': 'Celulares',
+  'cliente.tipoDocumento': 'Tipo de documento',
   'equipo.idDuenio': 'DNI del equipo',
   'equipo.idEquipo': 'IMEI del equipo',
   'equipo.imei2': 'IMEI 2',
@@ -83,7 +100,8 @@ const FIELD_LABELS = {
   'equipo.nombreComercial': 'Nombre comercial',
   'registro.celularCliente': 'Celular',
   'registro.celularRef': 'Celular de referencia',
-  'registro.dniCliente': 'DNI',
+  'registro.dniCliente': 'Documento',
+  'registro.tipoDocumentoCliente': 'Tipo de documento',
   'registro.estado': 'Estado',
   'registro.fecha': 'Fecha',
   'registro.imeiEquipo': 'IMEI del equipo',
@@ -96,10 +114,13 @@ const FIELD_LABELS = {
   'registro.precio': 'Precio',
   'registro.tipo': 'Tipo',
   'venta.precio': 'Precio',
+  'venta.precioEquipo': 'Precio del equipo',
+  'venta.medioPago': 'Medio de pago',
+  'venta.tipoDocumentoCliente': 'Tipo de documento',
 };
 
 function prettifyValidationIssue(issue = {}) {
-  const label = FIELD_LABELS[issue.path] || issue.path || 'Dato';
+  const label = FIELD_LABELS[issue.path] || issue.path?.replace(/venta\.itemsAdicionales\.\d+\./, 'Item ') || issue.path || 'Dato';
   const message = VALIDATION_MESSAGES[issue.message] || issue.message || 'valor invalido';
   return `${label}: ${message}`;
 }
@@ -110,8 +131,15 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
     return prettifyValidationIssue(issues[0]);
   }
   if (error?.message === 'AUTH_REQUIRED') return 'Debes iniciar sesion nuevamente';
+  if (error?.message === 'API_LOCAL_ERROR') return 'La API local devolvio un error. Revisa la terminal de npm run dev';
+  if (error?.message === 'API_LOCAL_NO_DISPONIBLE') return 'La API local no esta disponible. Ejecuta npm run dev';
+  if (error?.message === 'BACKEND_ERROR') return fallback;
   if (error?.message === 'BACKEND_INVALID_RESPONSE') return 'Respuesta invalida de Netlify Functions';
   if (error?.message === 'BACKEND_NOT_DEPLOYED') return 'Funciones Netlify no desplegadas';
+  if (error?.message === 'FIREBASE_ADMIN_CONFIG_MISSING') return 'Falta configurar Firebase Admin en .env local';
+  if (error?.message === 'FIREBASE_SERVICE_ACCOUNT_INVALID') return 'FIREBASE_SERVICE_ACCOUNT no es un JSON valido';
+  if (error?.message === 'RENIEC_TOKEN_MISSING') return 'Falta configurar RENIEC_TOKEN en .env local';
+  if (error?.message === 'fetch failed') return 'No se pudo conectar con el servicio externo';
   return error?.message || fallback;
 }
 
@@ -145,4 +173,12 @@ export function actualizarVenta(payload) {
 
 export function eliminarVenta(id) {
   return llamarFuncionSegura('ventas', {action: 'delete', id});
+}
+
+export function actualizarCliente(payload) {
+  return llamarFuncionSegura('clientes', {action: 'update', ...payload});
+}
+
+export function eliminarCliente(dni) {
+  return llamarFuncionSegura('clientes', {action: 'delete', dni});
 }

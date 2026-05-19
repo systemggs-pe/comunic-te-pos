@@ -34,8 +34,18 @@ service cloud.firestore {
         || request.resource.data[field] is bool;
     }
 
-    function validDni(value) {
-      return value is string && value.matches('^\\d{8}$');
+    function validDocumento(value) {
+      return value is string && value.matches('^[A-Z0-9-]{6,15}$');
+    }
+
+    function validTipoDocumento(field) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] in ['DNI', 'CE', 'PASAPORTE', 'RUC'];
+    }
+
+    function validMedioPago(field) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] in ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA'];
     }
 
     function validImei(value) {
@@ -67,9 +77,10 @@ service cloud.firestore {
     }
 
     function validCliente(clienteId) {
-      return hasOnly(['dni', 'nombre', 'celular', 'celularRef', 'correo', 'direccion'])
+      return hasOnly(['tipoDocumento', 'dni', 'nombre', 'celular', 'celularRef', 'correo', 'direccion', 'celulares', 'correos'])
         && request.resource.data.dni == clienteId
-        && validDni(request.resource.data.dni)
+        && validDocumento(request.resource.data.dni)
+        && validTipoDocumento('tipoDocumento')
         && optionalString('nombre', 160)
         && validPhone('celular')
         && validPhone('celularRef')
@@ -85,7 +96,7 @@ service cloud.firestore {
         ])
         && request.resource.data.idEquipo == equipoId
         && validImei(request.resource.data.idEquipo)
-        && validDni(request.resource.data.idDuenio)
+        && validDocumento(request.resource.data.idDuenio)
         && validOptionalImei('imei2')
         && optionalString('sn', 80)
         && optionalString('marca', 80)
@@ -102,12 +113,13 @@ service cloud.firestore {
 
     function validRegistro() {
       return hasOnly([
-          'dniCliente', 'celularCliente', 'celularRef', 'imeiEquipo',
+          'tipoDocumentoCliente', 'dniCliente', 'celularCliente', 'celularRef', 'imeiEquipo',
           'imeiRegistrado', 'imei2Equipo', 'modeloEquipo', 'marcaEquipo',
           'nombreComercialEquipo', 'estado', 'operador', 'tipo', 'precio',
           'fecha', 'nRegistro', 'pdfDniUrl', 'pdfCajaUrl', 'pdfReciboUrl'
         ])
-        && validDni(request.resource.data.dniCliente)
+        && validDocumento(request.resource.data.dniCliente)
+        && validTipoDocumento('tipoDocumentoCliente')
         && validImei(request.resource.data.imeiEquipo)
         && validImei(request.resource.data.imeiRegistrado)
         && validOptionalImei('imei2Equipo')
@@ -129,11 +141,13 @@ service cloud.firestore {
 
     function validVenta() {
       return hasOnly([
-          'dniCliente', 'imeiEquipo', 'imei2Equipo', 'sn', 'modeloEquipo',
+          'tipoDocumentoCliente', 'dniCliente', 'imeiEquipo', 'imei2Equipo', 'sn', 'modeloEquipo',
           'marcaEquipo', 'nombreComercial', 'ram', 'memoria', 'color',
-          'precio', 'fecha', 'nVenta'
+          'precio', 'medioPago', 'fecha', 'nVenta'
         ])
-        && validDni(request.resource.data.dniCliente)
+        && validDocumento(request.resource.data.dniCliente)
+        && validTipoDocumento('tipoDocumentoCliente')
+        && validMedioPago('medioPago')
         && validImei(request.resource.data.imeiEquipo)
         && validOptionalImei('imei2Equipo')
         && validMoney('precio')
@@ -153,6 +167,31 @@ service cloud.firestore {
         && request.resource.data.dataUrl is string
         && request.resource.data.dataUrl.matches('^data:image/(png|jpeg|jpg|webp);base64,.*')
         && request.resource.data.dataUrl.size() <= 900000;
+    }
+
+    function validBoletaExtranjera() {
+      return hasOnly([
+          'nBoleta', 'clienteDni', 'clienteNombre', 'totalPen', 'totalClp',
+          'fechaHora', 'formato', 'origen', 'boletaData', 'createdAt'
+        ])
+        && request.resource.data.nBoleta is int
+        && request.resource.data.nBoleta >= 1000
+        && optionalString('clienteDni', 20)
+        && optionalString('clienteNombre', 180)
+        && request.resource.data.totalPen is number
+        && request.resource.data.totalClp is number
+        && optionalString('fechaHora', 40)
+        && request.resource.data.formato in [1, 2]
+        && request.resource.data.origen in ['ventas', 'manual']
+        && request.resource.data.boletaData is map
+        && request.resource.data.createdAt is timestamp;
+    }
+
+    function validContadorBoletas() {
+      return hasOnly(['last', 'updatedAt'])
+        && request.resource.data.last is int
+        && request.resource.data.last >= 999
+        && request.resource.data.updatedAt is timestamp;
     }
 
     match /artifacts/{appId}/users/{scope}/clientes/{clienteId} {
@@ -179,6 +218,18 @@ service cloud.firestore {
       allow read: if canUseSharedData(appId, scope);
       allow create, update: if canUseSharedData(appId, scope) && validLogo();
       allow delete: if canUseSharedData(appId, scope);
+    }
+
+    match /artifacts/{appId}/users/{scope}/configuracion/contadorBoletas {
+      allow read: if canUseSharedData(appId, scope);
+      allow create, update: if canUseSharedData(appId, scope) && validContadorBoletas();
+      allow delete: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/boletasExtranjeras/{boletaId} {
+      allow read: if canUseSharedData(appId, scope);
+      allow create: if canUseSharedData(appId, scope) && validBoletaExtranjera();
+      allow update, delete: if false;
     }
 
     match /{document=**} {

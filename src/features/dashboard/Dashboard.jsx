@@ -8,9 +8,9 @@ export function Dashboard({ stats, setCurrentView, user }) {
   const fecha = new Intl.DateTimeFormat('es-PE', {weekday: 'long', day: '2-digit', month: 'short'}).format(new Date());
 
   const kpis = [
-    {label: 'Registros', value: stats.registros, detail: 'Equipos en seguimiento', Icon: ClipboardList, view: 'registros_list'},
-    {label: 'Ventas', value: stats.ventas, detail: 'Operaciones de tienda', Icon: ShoppingCart, view: 'ventas_list'},
-    {label: 'Clientes', value: stats.clientes, detail: 'Base compartida', Icon: Users, view: 'clientes_list'},
+    {label: 'Registros', value: stats.registros, detail: 'Equipos en seguimiento', Icon: ClipboardList, view: 'registros_list', tone: 'blue'},
+    {label: 'Ventas', value: stats.ventas, detail: 'Operaciones de tienda', Icon: ShoppingCart, view: 'ventas_list', tone: 'emerald'},
+    {label: 'Clientes', value: stats.clientes, detail: 'Base compartida', Icon: Users, view: 'clientes_list', tone: 'slate'},
   ];
 
   const modulos = [
@@ -55,6 +55,12 @@ export function Dashboard({ stats, setCurrentView, user }) {
     slate: 'bg-slate-100 text-slate-700 border-slate-200',
   };
 
+  const kpiToneClasses = {
+    blue: 'border-blue-100 bg-blue-50 text-blue-700 group-hover:border-blue-200',
+    emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700 group-hover:border-emerald-200',
+    slate: 'border-slate-200 bg-slate-50 text-slate-600 group-hover:border-slate-300',
+  };
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-5">
       <section className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm md:flex-row md:items-center md:justify-between md:px-5">
@@ -68,14 +74,14 @@ export function Dashboard({ stats, setCurrentView, user }) {
             <Plus size={16} /> Nuevo registro
           </button>
           <button onClick={() => setCurrentView('ventas_new')}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
             <Plus size={16} /> Nueva venta
           </button>
         </div>
       </section>
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {kpis.map(({label, value, detail, Icon: KpiIcon, view}) => (
+        {kpis.map(({label, value, detail, Icon: KpiIcon, view, tone}) => (
           <button key={label} type="button" onClick={() => setCurrentView(view)}
             className="group rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
             <div className="flex items-start justify-between gap-3">
@@ -83,7 +89,7 @@ export function Dashboard({ stats, setCurrentView, user }) {
                 <p className="text-sm font-medium text-slate-500">{label}</p>
                 <p className="mt-2 text-3xl font-semibold text-slate-900">{value}</p>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-600 transition-colors group-hover:border-blue-200 group-hover:text-blue-700">
+              <div className={`rounded-lg border p-2 transition-colors ${kpiToneClasses[tone] || kpiToneClasses.blue}`}>
                 {React.createElement(KpiIcon, {size: 18})}
               </div>
             </div>

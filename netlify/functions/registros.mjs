@@ -1,5 +1,6 @@
 import {handlePost} from './_shared.mjs';
 import {getAdminDb} from './_firebaseAdmin.mjs';
+import {setClienteWithHistory} from './_clientesShared.mjs';
 import {parseIdPayload, parseRegistroPayload} from './_validators.mjs';
 
 const APP_ID = 'comunicate-pos';
@@ -42,8 +43,8 @@ async function createRegistro(db, payload) {
     const nRegistro = `RECO-${String(next).padStart(5, '0')}`;
     const registroData = {...registro, nRegistro};
 
+    await setClienteWithHistory(transaction, clienteRef, cliente);
     transaction.set(counterRef, {last: next, updatedAt: new Date().toISOString()}, {merge: true});
-    transaction.set(clienteRef, cliente, {merge: true});
     transaction.set(equipoRef, equipo, {merge: true});
     transaction.set(registroRef, registroData);
 
@@ -84,13 +85,13 @@ async function updateRegistro(db, payload) {
     }
     const registroData = {...registro, nRegistro: current.nRegistro || registro.nRegistro || ''};
 
+    await setClienteWithHistory(transaction, clienteRef, cliente);
     if (oldImeiChanged && !oldOtherRegistro && !oldHasVenta) {
       transaction.delete(equiposRef.doc(oldImei));
     }
     if (oldDniChanged && !oldOtherEquipo) {
       transaction.delete(clientesRef.doc(oldDni));
     }
-    transaction.set(clienteRef, cliente, {merge: true});
     transaction.set(equipoRef, equipo, {merge: true});
     transaction.set(registroRef, registroData);
 
@@ -116,7 +117,9 @@ async function deleteRegistro(db, payload) {
 
     let otherRegistro = false;
     let hasVenta = false;
-    let otherEquipo = false;
+    let otherDniRegistro = false;
+    let otherDniVenta = false;
+    let equiposClienteSnap = null;
     let imei1Reg = false;
     let imei2Reg = false;
     if (imei1) {
@@ -127,13 +130,17 @@ async function deleteRegistro(db, payload) {
       imei2Reg = imei2 ? await hasOther(registrosRef, 'imeiRegistrado', imei2, id, transaction) : false;
     }
     if (dni) {
-      otherEquipo = await hasOther(equiposRef, 'idDuenio', dni, imei1, transaction);
+      otherDniRegistro = await hasOther(registrosRef, 'dniCliente', dni, id, transaction);
+      otherDniVenta = await hasOther(ventasRef, 'dniCliente', dni, '', transaction);
+      equiposClienteSnap = await transaction.get(equiposRef.where('idDuenio', '==', dni).limit(100));
     }
 
     transaction.delete(registroRef);
-    if (imei1 && !otherRegistro && !hasVenta) {
+    if (dni && !otherDniRegistro && !otherDniVenta) {
+      equiposClienteSnap?.docs.forEach(doc => transaction.delete(doc.ref));
+      transaction.delete(clientesRef.doc(dni));
+    } else if (imei1 && !otherRegistro && !hasVenta) {
       transaction.delete(equiposRef.doc(imei1));
-      if (dni && !otherEquipo) transaction.delete(clientesRef.doc(dni));
     } else if (imei1) {
       transaction.set(equiposRef.doc(imei1), {
         isRegistrado: imei1Reg || imei2Reg,

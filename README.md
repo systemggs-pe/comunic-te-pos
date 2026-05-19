@@ -33,10 +33,24 @@ Si el frontend se despliega en Netlify junto con las funciones, `VITE_BACKEND_BA
 
 ## Desarrollo local
 
-Para revisar solo frontend:
+Para probar frontend consumiendo las mismas APIs sin hacer hosting:
 
 ```bash
 npm run dev
+```
+
+Ese comando levanta la API local en `http://127.0.0.1:3001` y Vite redirige `/api` hacia ese servidor local. Mantén `VITE_BACKEND_BASE_URL` vacio en `.env` para usar ese proxy.
+
+Para revisar solo frontend sin API local:
+
+```bash
+npm run dev:vite
+```
+
+Para levantar solo la API local:
+
+```bash
+npm run dev:api
 ```
 
 Para probar frontend y Netlify Functions localmente:

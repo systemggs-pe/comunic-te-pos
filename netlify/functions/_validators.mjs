@@ -1,21 +1,30 @@
 import {z} from 'zod';
 
-const dniSchema = z.string().trim().regex(/^\d{8}$/, 'DNI_INVALIDO');
+const tipoDocumentoSchema = z.enum(['DNI', 'CE', 'PASAPORTE', 'RUC'], {message: 'TIPO_DOCUMENTO_INVALIDO'}).default('DNI');
+const documentoSchema = z.string().trim().toUpperCase()
+  .regex(/^[A-Z0-9-]{6,15}$/, 'DOCUMENTO_INVALIDO');
 
 const phoneRequiredSchema = z.string().trim().regex(/^9\d{8}$/, 'CELULAR_INVALIDO');
 const phoneOptionalSchema = z.string().trim()
   .refine(value => value === '' || /^9\d{8}$/.test(value), 'CELULAR_INVALIDO')
   .default('');
+const phoneListSchema = z.array(phoneRequiredSchema).max(20, 'CONTACTOS_MUY_LARGOS').default([]);
 
 const emailRequiredSchema = z.string().trim().toLowerCase().email('EMAIL_INVALIDO').max(180, 'EMAIL_MUY_LARGO');
 const emailOptionalSchema = z.string().trim().toLowerCase()
   .refine(value => value === '' || z.string().email().safeParse(value).success, 'EMAIL_INVALIDO')
   .default('');
+const emailListSchema = z.array(emailRequiredSchema).max(20, 'CONTACTOS_MUY_LARGOS').default([]);
 
 const moneySchema = z.string().trim()
   .regex(/^\d+(\.\d{1,2})?$/, 'PRECIO_INVALIDO')
   .max(20, 'PRECIO_MUY_LARGO')
   .refine(value => Number(value) > 0, 'PRECIO_DEBE_SER_MAYOR_A_CERO');
+
+const optionalMoneySchema = z.string().trim()
+  .refine(value => value === '' || /^\d+(\.\d{1,2})?$/.test(value), 'PRECIO_INVALIDO')
+  .refine(value => value === '' || Number(value) > 0, 'PRECIO_DEBE_SER_MAYOR_A_CERO')
+  .default('');
 
 const dateSchema = z.string().trim()
   .refine(value => !Number.isNaN(Date.parse(value)), 'FECHA_INVALIDA')
@@ -37,24 +46,42 @@ const optionalImeiSchema = z.string().trim()
 const idSchema = z.string().trim().min(1, 'ID_INVALIDO').max(160, 'ID_INVALIDO').regex(/^[A-Za-z0-9_-]+$/, 'ID_INVALIDO');
 
 const registroClienteSchema = z.object({
-  dni: dniSchema,
+  tipoDocumento: tipoDocumentoSchema,
+  dni: documentoSchema,
   nombre: requiredText('NOMBRE_REQUERIDO', 160),
   celular: phoneRequiredSchema,
   celularRef: phoneOptionalSchema,
   correo: emailRequiredSchema,
   direccion: requiredText('DIRECCION_REQUERIDA', 300),
-}).strict();
+  celulares: phoneListSchema,
+  correos: emailListSchema,
+}).strict().superRefine(validarDocumentoCliente);
 
 const ventaClienteSchema = z.object({
-  dni: dniSchema,
+  tipoDocumento: tipoDocumentoSchema,
+  dni: documentoSchema,
   nombre: requiredText('NOMBRE_REQUERIDO', 160),
   celular: phoneOptionalSchema,
   correo: emailOptionalSchema,
-}).strict();
+  celulares: phoneListSchema,
+  correos: emailListSchema,
+}).strict().superRefine(validarDocumentoCliente);
+
+const clienteUpdateSchema = z.object({
+  tipoDocumento: tipoDocumentoSchema,
+  dni: documentoSchema,
+  nombre: requiredText('NOMBRE_REQUERIDO', 160),
+  celular: phoneOptionalSchema,
+  celularRef: phoneOptionalSchema,
+  correo: emailOptionalSchema,
+  direccion: optionalText(300),
+  celulares: phoneListSchema,
+  correos: emailListSchema,
+}).strict().superRefine(validarDocumentoCliente);
 
 const registroEquipoSchema = z.object({
   idEquipo: imeiSchema,
-  idDuenio: dniSchema,
+  idDuenio: documentoSchema,
   imei2: optionalImeiSchema,
   sn: optionalText(80),
   marca: requiredText('MARCA_REQUERIDA', 80),
@@ -67,7 +94,7 @@ const registroEquipoSchema = z.object({
 
 const ventaEquipoSchema = z.object({
   idEquipo: imeiSchema,
-  idDuenio: dniSchema,
+  idDuenio: documentoSchema,
   imei2: optionalImeiSchema,
   sn: optionalText(80),
   nombreComercial: requiredText('NOMBRE_COMERCIAL_REQUERIDO', 140),
@@ -80,7 +107,8 @@ const ventaEquipoSchema = z.object({
 }).strict();
 
 const registroSchema = z.object({
-  dniCliente: dniSchema,
+  tipoDocumentoCliente: tipoDocumentoSchema,
+  dniCliente: documentoSchema,
   celularCliente: phoneRequiredSchema,
   celularRef: phoneOptionalSchema,
   imeiEquipo: imeiSchema,
@@ -98,6 +126,7 @@ const registroSchema = z.object({
   pdfCajaUrl: optionalText(1200),
   pdfReciboUrl: optionalText(1200),
 }).strict().superRefine((registro, ctx) => {
+  validarDocumentoMovimiento(registro.tipoDocumentoCliente, registro.dniCliente, ctx);
   if (registro.estado === 'BLOQUEADO' && Number(registro.precio) < 50) {
     ctx.addIssue({
       code: 'custom',
@@ -108,7 +137,8 @@ const registroSchema = z.object({
 });
 
 const ventaSchema = z.object({
-  dniCliente: dniSchema,
+  tipoDocumentoCliente: tipoDocumentoSchema,
+  dniCliente: documentoSchema,
   imeiEquipo: imeiSchema,
   imei2Equipo: optionalImeiSchema,
   sn: optionalText(80),
@@ -119,8 +149,20 @@ const ventaSchema = z.object({
   memoria: optionalText(12),
   color: optionalText(80),
   precio: moneySchema,
+  medioPago: z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA'], {message: 'MEDIO_PAGO_INVALIDO'}).default('EFECTIVO'),
+  precioEquipo: optionalMoneySchema,
+  itemsAdicionales: z.array(z.object({
+    nombre: requiredText('ITEM_NOMBRE_REQUERIDO', 140),
+    cantidad: z.string().trim()
+      .regex(/^\d+$/, 'ITEM_CANTIDAD_INVALIDA')
+      .refine(value => Number(value) > 0, 'ITEM_CANTIDAD_INVALIDA')
+      .refine(value => Number(value) <= 999, 'ITEM_CANTIDAD_INVALIDA'),
+    precio: moneySchema,
+  }).strict()).max(20, 'ITEMS_MUY_LARGOS').default([]),
   fecha: dateSchema,
-}).strict();
+}).strict().superRefine((venta, ctx) => {
+  validarDocumentoMovimiento(venta.tipoDocumentoCliente, venta.dniCliente, ctx);
+});
 
 const registroPayloadSchema = z.object({
   cliente: registroClienteSchema,
@@ -143,7 +185,8 @@ const ventaPayloadSchema = z.object({
 });
 
 const idPayloadSchema = z.object({id: idSchema}).passthrough();
-const dniPayloadSchema = z.object({dni: dniSchema}).passthrough();
+const dniPayloadSchema = z.object({dni: documentoSchema}).passthrough();
+const clienteUpdatePayloadSchema = z.object({cliente: clienteUpdateSchema}).passthrough();
 
 function luhn(value) {
   let sum = 0;
@@ -163,6 +206,26 @@ function luhn(value) {
 function ensureSame(left, right, path, ctx, message) {
   if (left !== right) {
     ctx.addIssue({code: 'custom', path, message});
+  }
+}
+
+function isValidDocumento(tipo, value) {
+  if (tipo === 'DNI') return /^\d{8}$/.test(value);
+  if (tipo === 'RUC') return /^\d{11}$/.test(value);
+  if (tipo === 'CE') return /^[A-Z0-9-]{6,12}$/.test(value);
+  if (tipo === 'PASAPORTE') return /^[A-Z0-9-]{6,15}$/.test(value);
+  return false;
+}
+
+function validarDocumentoCliente(cliente, ctx) {
+  if (!isValidDocumento(cliente.tipoDocumento, cliente.dni)) {
+    ctx.addIssue({code: 'custom', path: ['dni'], message: 'DOCUMENTO_INVALIDO'});
+  }
+}
+
+function validarDocumentoMovimiento(tipoDocumento, numero, ctx) {
+  if (!isValidDocumento(tipoDocumento, numero)) {
+    ctx.addIssue({code: 'custom', path: ['dniCliente'], message: 'DOCUMENTO_INVALIDO'});
   }
 }
 
@@ -195,4 +258,8 @@ export function parseIdPayload(payload) {
 
 export function parseDniPayload(payload) {
   return parseOrThrow(dniPayloadSchema, payload);
+}
+
+export function parseClienteUpdatePayload(payload) {
+  return parseOrThrow(clienteUpdatePayloadSchema, payload);
 }

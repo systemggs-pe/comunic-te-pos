@@ -2,7 +2,7 @@
 import { penToClp } from '../../utils/currency.js';
 import {getPdf417Generator, getPdfTools} from '../../utils/pdfLibraries.js';
 
-export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, totalClp, fechaHora }) {
+export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta }) {
   const {jsPDF, JsBarcode} = getPdfTools();
   const mmW = 48;
   const FONT = 'courier';
@@ -23,7 +23,7 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
   }
 
   // Número de boleta auto (timestamp)
-  const nBoleta = String(Date.now()).slice(-4).padStart(4, '0');
+  const nBoleta = numeroBoleta ? String(numeroBoleta) : String(Date.now()).slice(-4).padStart(4, '0');
 
   const renderPDF = (doc, dibujar) => {
     let y = 4;
@@ -176,14 +176,14 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
 }
 
 
-export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, totalClp, fechaHora }) {
+export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta }) {
   const {jsPDF} = getPdfTools();
   const gen417 = await getPdf417Generator();
   const mmW  = 80;
   const M    = 5;
   const FONT = 'courier';
   const FS   = 9; // ← tamaño de fuente de la boleta 2, cámbialo aquí
-  const nBoleta = String(Date.now()).slice(-3).padStart(3, '0');
+  const nBoleta = numeroBoleta ? String(numeroBoleta) : String(Date.now()).slice(-4).padStart(4, '0');
 
   // Totales
   const totalNum = typeof totalClp === 'number' ? totalClp

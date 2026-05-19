@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev:api": "node scripts/local-api.mjs",
+    "dev": "node scripts/dev-local.mjs",
     "dev:netlify": "npx netlify dev",
     "dev:vite": "vite",
     "build": "vite build",

@@ -2,13 +2,18 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { actualizarRegistro, consultarReniecDni, crearRegistro, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
+import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
 import { EscanerIA } from './EscanerIA.jsx';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MONEY_RE = /^\d+(\.\d{1,2})?$/;
 const PHONE_RE = /^9\d{8}$/;
-const DNI_RE = /^\d{8}$/;
 const clean = value => String(value || '').trim();
+const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
+const opcionesContacto = (cliente, campoPrincipal, campoLista) => uniqueClean([
+  cliente?.[campoPrincipal],
+  ...(Array.isArray(cliente?.[campoLista]) ? cliente[campoLista] : []),
+]);
 
 export function RegistroForm({ clientes, equipos, registros, initialData, onCancel, onSave, onDirty, showToast }) {
   const [loading, setLoading] = useState(false);
@@ -41,15 +46,16 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const [formData, setFormData] = useState({
-    dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
+    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
   });
+  const [confirmarGuardado, setConfirmarGuardado] = useState(false);
 
   useEffect(() => {
     if (initialData) {
       const cliente = clientes.find(c => c.dni === initialData.dniCliente) || {};
       const eq = equipos.find(e => e.idEquipo === initialData.imeiEquipo) || {};
       setFormData({
-        dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: cliente.direccion || '', imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', sn: eq.sn || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
+        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: cliente.direccion || '', imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', sn: eq.sn || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
       });
       setShowManualEqForm(true);
     }
@@ -63,10 +69,12 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
   const [mostrarEscaner, setMostrarEscaner] = useState(false);
   const [buscandoReniec, setBuscandoReniec] = useState(false);
-  const [datosAnterioresReg, setDatosAnterioresReg] = useState(null);
+  const [dniStatusReg, setDniStatusReg] = useState(null);
+  const [contactosClienteReg, setContactosClienteReg] = useState({celulares: [], correos: []});
 
   const buscarReniec = async (dni) => {
     setBuscandoReniec(true);
+    setDniStatusReg({type: 'loading', text: 'Buscando...'});
     try {
       const json = await consultarReniecDni(dni);
       if (json.success && json.result) {
@@ -77,20 +85,15 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           direccion: r.address && !r.address.includes('*') ? r.address : prev.direccion,
           correo:    r.email   && !r.email.includes('*')   ? r.email   : prev.correo,
         }));
-        showToast('✓ Datos encontrados en RENIEC', 'success');
+        setDniStatusReg({type: 'reniec', text: 'Encontrado RENIEC'});
       } else {
+        setDniStatusReg(null);
         showToast('DNI no encontrado en RENIEC', 'error');
       }
     } catch (e) {
       console.error('RENIEC error:', e);
-      const mensaje = e.message === 'RENIEC_TOKEN_MISSING'
-        ? 'Falta configurar token RENIEC'
-        : e.message === 'BACKEND_INVALID_RESPONSE'
-          ? 'Respuesta invalida de Netlify Functions'
-        : e.message === 'BACKEND_NOT_DEPLOYED'
-          ? 'Funciones Netlify no desplegadas'
-          : 'Error al consultar RENIEC';
-      showToast(mensaje, 'error');
+      setDniStatusReg(null);
+      showToast(obtenerMensajeErrorFuncion(e, 'Error al consultar RENIEC'), 'error');
     } finally {
       setBuscandoReniec(false);
     }
@@ -116,21 +119,25 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   useEffect(() => {
-    if (formData.dni.length >= 8 && !initialData) {
+    if (formData.dni.length >= 6 && !initialData) {
       const clienteExistente = clientes.find(c => c.dni === formData.dni);
       if (clienteExistente) {
-        setDatosAnterioresReg({ celular: clienteExistente.celular || '', correo: clienteExistente.correo || '' });
+        const celulares = opcionesContacto(clienteExistente, 'celular', 'celulares');
+        const correos = opcionesContacto(clienteExistente, 'correo', 'correos');
+        setContactosClienteReg({celulares, correos});
+        setDniStatusReg({type: 'db', text: 'Cliente COMUNIC@TE'});
         setFormData(prev => ({
           ...prev,
           nombre: clienteExistente.nombre || '',
-          celular: clienteExistente.celular || '',
-          celularRef: prev.celularRef || clienteExistente.celular || '',
-          correo: clienteExistente.correo || '',
+          celular: prev.celular || celulares[0] || '',
+          celularRef: prev.celularRef || celulares[0] || '',
+          correo: prev.correo || correos[0] || '',
           direccion: clienteExistente.direccion || '',
         }));
       } else {
-        setDatosAnterioresReg(null);
-        buscarReniec(formData.dni);
+        setContactosClienteReg({celulares: [], correos: []});
+        if (formData.tipoDocumento === 'DNI' && formData.dni.length === 8) buscarReniec(formData.dni);
+        else setDniStatusReg(null);
       }
       const eqsRaw = equipos.filter(e => e.idDuenio === formData.dni);
       // Agrupar duplicados (mismo sn o imei2 cruzado) igual que en ClientesList
@@ -154,11 +161,13 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       setEquiposCliente(eqsAgrupados);
       if (eqsAgrupados.length > 0 && !formData.imei) setShowManualEqForm(false);
       else setShowManualEqForm(true);
-    } else if (!initialData && formData.dni.length < 8) {
+    } else if (!initialData && formData.dni.length < 6) {
       setEquiposCliente([]);
       setShowManualEqForm(true);
+      setDniStatusReg(null);
+      setContactosClienteReg({celulares: [], correos: []});
     }
-  }, [formData.dni, clientes, equipos, initialData]);
+  }, [formData.dni, formData.tipoDocumento, clientes, equipos, initialData]);
 
   // Cuando escriben el IMEI manualmente, autocompletar solo campos vacíos
   useEffect(() => {
@@ -203,7 +212,15 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   const handleChange = (e) => {
     const { name, value } = e.target;
     let val = value;
-    if (CAMPOS_SOLO_NUMEROS.includes(name)) val = val.replace(/\D/g, '');
+    if (name === 'tipoDocumento') {
+      onDirty?.();
+      setDniStatusReg(null);
+      setContactosClienteReg({celulares: [], correos: []});
+      setFormData(prev => ({ ...prev, tipoDocumento: val, dni: limpiarDocumento(prev.dni, val) }));
+      return;
+    }
+    if (name === 'dni') val = limpiarDocumento(val, formData.tipoDocumento);
+    else if (CAMPOS_SOLO_NUMEROS.includes(name)) val = val.replace(/\D/g, '');
     if (name === 'dni') val = val.slice(0, 8);
     if (name === 'imei' || name === 'imei2') val = val.slice(0, 15);
     if (name === 'celular' || name === 'celularRef') val = val.slice(0, 9);
@@ -222,8 +239,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const validarFormularioCompleto = () => {
-    if (!DNI_RE.test(clean(formData.dni))) {
-      showToast('El DNI debe tener 8 digitos', 'error'); return false;
+    if (!validarDocumento(formData.tipoDocumento, clean(formData.dni))) {
+      showToast(`${etiquetaDocumento(formData.tipoDocumento)} no valido`, 'error'); return false;
     }
     if (!clean(formData.nombre)) {
       showToast('Completa el nombre del cliente', 'error'); return false;
@@ -290,10 +307,11 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       return;
     }
 
-    // Confirmación final
-    const confirmMsg = `¿Los datos son correctos?\n\n👤 Cliente: ${formData.nombre} (DNI: ${formData.dni})\n📱 Equipo: ${formData.marca} ${formData.nombreComercial} ${formData.modelo}\n🔢 IMEI: ${formData.imei}\n📡 Operador: ${formData.operador} | ${formData.estado}\n🏷 Tipo: ${formData.tipo}\n💰 Precio: S/. ${parseFloat(formData.precio || 0).toFixed(2)}`;
-    if (!window.confirm(confirmMsg)) return;
+    setConfirmarGuardado(true);
+  };
 
+  const guardarRegistro = async () => {
+    setConfirmarGuardado(false);
     setLoading(true);
     try {
       // Calcular IMEIs reales
@@ -307,6 +325,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       // Construir datos del registro
       const eqExistente = equipos.find(e => e.idEquipo === imei1Real) || {};
       const registroData = {
+        tipoDocumentoCliente: formData.tipoDocumento,
         dniCliente: formData.dni, celularCliente: formData.celular,
         celularRef: formData.celularRef || formData.celular,
         imeiEquipo: imei1Real, imeiRegistrado: formData.imei, imei2Equipo: imei2Real,
@@ -319,6 +338,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
       const clienteData = {
         dni: formData.dni,
+        tipoDocumento: formData.tipoDocumento,
         nombre: formData.nombre,
         celular: formData.celular,
         celularRef: formData.celularRef || formData.celular,
@@ -364,8 +384,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   const [paso, setPaso] = useState(1);
 
   const validarPaso1 = () => {
-    if (!DNI_RE.test(clean(formData.dni))) {
-      showToast('El DNI debe tener 8 digitos', 'error'); return false;
+    if (!validarDocumento(formData.tipoDocumento, clean(formData.dni))) {
+      showToast(`${etiquetaDocumento(formData.tipoDocumento)} no valido`, 'error'); return false;
     }
     if (!clean(formData.nombre)) {
       showToast('Completa el nombre del cliente', 'error'); return false;
@@ -408,6 +428,22 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
   return (
     <div className="saas-form-shell">
+      {confirmarGuardado && (
+        <div className="saas-modal-backdrop fixed inset-0 z-[210] flex items-center justify-center p-4">
+          <div className="saas-detail-modal w-full max-w-sm p-6 text-center">
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700">
+              <CheckCircle2 size={22} />
+            </div>
+            <h3 className="text-base font-semibold text-slate-900">¿Los datos que pusiste son correctos?</h3>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setConfirmarGuardado(false)} className="saas-secondary">Revisar</button>
+              <button type="button" onClick={guardarRegistro} disabled={loading} className="saas-primary disabled:opacity-60">
+                {loading ? 'Guardando...' : 'Sí, guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="saas-form-header">
         <div>
@@ -442,26 +478,47 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         {paso === 1 && (
           <div className="space-y-4">
             <h4 className="saas-form-section-title">Datos del Cliente</h4>
-            {buscandoReniec && (
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
-                <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-                Consultando RENIEC...
-              </div>
-            )}
-            {datosAnterioresReg && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
-                <p className="font-semibold mb-1">⚠ Cliente existente — datos anteriores registrados:</p>
-                {datosAnterioresReg.celular && <p>📱 Celular anterior: <span className="font-mono font-bold">{datosAnterioresReg.celular}</span></p>}
-                {datosAnterioresReg.correo  && <p>✉ Correo anterior: <span className="font-mono font-bold">{datosAnterioresReg.correo}</span></p>}
-              </div>
-            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><label className="block text-xs text-gray-500 mb-1">DNI *</label><input name="dni" value={formData.dni} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" placeholder="8 dígitos" /></div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Documento *</label>
+                <div className="grid grid-cols-[112px_1fr] gap-2">
+                  <select name="tipoDocumento" value={formData.tipoDocumento} onChange={handleChange} className="rounded border border-slate-200 bg-white p-2 text-sm">
+                    {TIPOS_DOCUMENTO.map(tipo => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
+                  </select>
+                  <div className="relative min-w-0">
+                    <input name="dni" value={formData.dni} onChange={handleChange} className="w-full border rounded p-2 pr-36 text-sm" inputMode={formData.tipoDocumento === 'DNI' || formData.tipoDocumento === 'RUC' ? 'numeric' : 'text'} placeholder={placeholderDocumento(formData.tipoDocumento)} />
+                  {dniStatusReg && (
+                    <span className={`absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold ${
+                      dniStatusReg.type === 'db' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+                    }`}>
+                      {buscandoReniec && <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-transparent" />}
+                      {dniStatusReg.text}
+                    </span>
+                  )}
+                  </div>
+                </div>
+              </div>
               <div><label className="block text-xs text-gray-500 mb-1">Nombre Completo *</label><input name="nombre" value={formData.nombre} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Celular *</label><input name="celular" value={formData.celular} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} /></div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Celular *</label>
+                <input name="celular" value={formData.celular} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} />
+                {contactosClienteReg.celulares.length > 1 && (
+                  <select value={formData.celular} onChange={e => setFormData(prev => ({...prev, celular: e.target.value, celularRef: prev.celularRef || e.target.value}))} className="mt-2 w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                    {contactosClienteReg.celulares.map(celular => <option key={celular} value={celular}>{celular}</option>)}
+                  </select>
+                )}
+              </div>
               <div><label className="block text-xs text-gray-500 mb-1">N° Referencia</label><input name="celularRef" value={formData.celularRef} onChange={handleChange} placeholder={formData.celular || 'Igual al celular'} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} /></div>
               <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Dirección *</label><input name="direccion" value={formData.direccion} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Av. / Jr. / Calle..." /></div>
-              <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Correo Electrónico *</label><input type="email" name="correo" value={formData.correo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-gray-500 mb-1">Correo Electronico *</label>
+                <input type="email" name="correo" value={formData.correo} onChange={handleChange} className="w-full border rounded p-2 text-sm" />
+                {contactosClienteReg.correos.length > 1 && (
+                  <select value={formData.correo} onChange={e => setFormData(prev => ({...prev, correo: e.target.value}))} className="mt-2 w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                    {contactosClienteReg.correos.map(correo => <option key={correo} value={correo}>{correo}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
             <div className="flex justify-between pt-4 border-t">
               <button type="button" onClick={onCancel} className="saas-secondary">Cancelar</button>
@@ -598,25 +655,6 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
               </div>
               <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Fecha y hora *</label>
                 <input required type="datetime-local" name="fecha" value={formData.fecha} onChange={handleChange} className="w-full border rounded p-2 text-sm" />
-              </div>
-            </div>
-
-            {/* Resumen completo para confirmar */}
-            <div className="saas-summary space-y-2 text-sm">
-              <p className="font-semibold text-blue-800 mb-1">Verifica que los datos sean correctos:</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
-                <span className="font-medium text-gray-700">Cliente:</span><span>{formData.nombre}</span>
-                <span className="font-medium text-gray-700">DNI:</span><span>{formData.dni}</span>
-                <span className="font-medium text-gray-700">Celular:</span><span>{formData.celular}</span>
-                <span className="font-medium text-gray-700">Dirección:</span><span>{formData.direccion}</span>
-                <span className="font-medium text-gray-700">Correo:</span><span>{formData.correo}</span>
-                <span className="font-medium text-gray-700">Equipo:</span><span>{formData.marca} {formData.nombreComercial}</span>
-                <span className="font-medium text-gray-700">Modelo:</span><span>{formData.modelo}</span>
-                <span className="font-medium text-gray-700">IMEI registrado:</span><span className="font-mono">{formData.imei}</span>
-                <span className="font-medium text-gray-700">Operador:</span><span>{formData.operador}</span>
-                <span className="font-medium text-gray-700">Estado:</span><span>{formData.estado}</span>
-                <span className="font-medium text-gray-700">Tipo:</span><span>{formData.tipo}</span>
-                <span className="font-medium text-gray-700">Precio:</span><span className="text-green-700 font-bold">S/. {parseFloat(formData.precio || 0).toFixed(2)}</span>
               </div>
             </div>
 

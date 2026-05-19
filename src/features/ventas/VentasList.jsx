@@ -3,10 +3,14 @@ import React, { useState, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { generarTicketVentaPDF } from './ventaPdf.js';
 import { eliminarVenta } from '../../services/functionsClient.js';
+import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
+import {etiquetaDocumento} from '../../utils/documentos.js';
 export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingVenta, setViewingVenta] = useState(null);
   const [ticketVentaData, setTicketVentaData] = useState(null);
+  const [ventaAEliminar, setVentaAEliminar] = useState(null);
+  const [eliminando, setEliminando] = useState(false);
   const [ticketPendiente, setTicketPendiente] = useState(null); // data pendiente hasta elegir tamaño
 
   const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
@@ -23,6 +27,8 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
       ram:           eq.ram   || row.ram   || '',
       memoria:       eq.memoria || row.memoria || '',
       nombreComercial: eq.nombreComercial || row.nombreComercial || '',
+      precioEquipo:  row.precioEquipo || row.precio || '',
+      itemsAdicionales: Array.isArray(row.itemsAdicionales) ? row.itemsAdicionales : [],
     };
   };
 
@@ -36,19 +42,36 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
     });
   }, [data, clientes, searchTerm]);
 
-  const handleDelete = async (id) => {
-    if(window.confirm("¿Estás seguro de eliminar esta venta?")) {
-      try {
-        await eliminarVenta(id);
-        onDeleted?.(id);
-        showToast('Venta eliminada');
-      } catch (e) { console.error(e); showToast('Error al eliminar', 'error'); }
+  const handleDelete = async () => {
+    if (!ventaAEliminar) return;
+    setEliminando(true);
+    try {
+      await eliminarVenta(ventaAEliminar.id);
+      onDeleted?.(ventaAEliminar.id);
+      showToast('Venta eliminada');
+      setVentaAEliminar(null);
+    } catch (e) {
+      console.error(e);
+      showToast('Error al eliminar', 'error');
+    } finally {
+      setEliminando(false);
     }
   };
 
   return (
     <div className="saas-list-shell relative">
       {ticketVentaData && null}
+      <ConfirmModal
+        open={Boolean(ventaAEliminar)}
+        title="Eliminar venta"
+        message="Se eliminara la venta seleccionada. Si era el unico movimiento del cliente, tambien se limpiaran sus datos asociados."
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        tone="danger"
+        loading={eliminando}
+        onConfirm={handleDelete}
+        onCancel={() => setVentaAEliminar(null)}
+      />
       {/* Modal tamaño de papel */}
       {ticketPendiente && (
         <div className="saas-modal-backdrop fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -74,17 +97,36 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
       )}
       {viewingVenta && (
         <div className="saas-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="saas-detail-modal p-6 relative">
-            <button onClick={() => setViewingVenta(null)} className="saas-form-close absolute top-4 right-4"><X size={20}/></button>
-            <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Detalles de la Venta</h3>
-            <div className="space-y-4 text-sm">
+          <div className="saas-detail-modal max-h-[88vh] w-full max-w-4xl overflow-y-auto p-0">
+            <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-5 py-4">
+              <div>
+                <p className="saas-page-kicker">Venta</p>
+                <h3 className="text-lg font-semibold text-slate-900">{viewingVenta.nVenta || 'Detalle de venta'}</h3>
+                <p className="mt-1 text-sm text-slate-500">{new Date(viewingVenta.fecha).toLocaleString('es-PE')}</p>
+              </div>
+              <button onClick={() => setViewingVenta(null)} className="saas-form-close"><X size={20}/></button>
+            </div>
+            <div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
+              <aside className="space-y-2">
+                <button type="button" onClick={() => setTicketPendiente(ticketData(viewingVenta))} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
+                <button type="button" onClick={() => { onEdit(viewingVenta); setViewingVenta(null); }} className="saas-secondary w-full justify-start"><Edit size={16}/> Editar</button>
+                <button type="button" onClick={() => { setVentaAEliminar(viewingVenta); setViewingVenta(null); }} className="saas-secondary w-full justify-start text-red-600"><Trash2 size={16}/> Eliminar</button>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-slate-400">Total</p>
+                  <p className="mt-1 text-lg font-bold text-emerald-700">S/. {parseFloat(viewingVenta.precio || 0).toFixed(2)}</p>
+                  <p className="text-xs text-slate-500">{viewingVenta.medioPago || 'EFECTIVO'}</p>
+                </div>
+              </aside>
+              <div className="space-y-4 text-sm">
               {/* Venta */}
               <div>
                 <p className="text-xs font-semibold text-green-600 uppercase mb-2 border-b pb-1">Venta</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
                   <p><strong className="text-gray-700">Código:</strong></p><p className="text-gray-600">{viewingVenta.nVenta}</p>
                   <p><strong className="text-gray-700">Fecha:</strong></p><p className="text-gray-600">{new Date(viewingVenta.fecha).toLocaleString('es-PE')}</p>
-                  <p><strong className="text-gray-700">Precio:</strong></p><p className="text-green-700 font-bold">S/. {parseFloat(viewingVenta.precio).toFixed(2)}</p>
+                  <p><strong className="text-gray-700">Total:</strong></p><p className="text-green-700 font-bold">S/. {parseFloat(viewingVenta.precio).toFixed(2)}</p>
+                  <p><strong className="text-gray-700">Medio de pago:</strong></p><p className="text-gray-600">{viewingVenta.medioPago || 'EFECTIVO'}</p>
+                  {viewingVenta.precioEquipo && <><p><strong className="text-gray-700">Equipo:</strong></p><p className="text-gray-600">S/. {parseFloat(viewingVenta.precioEquipo).toFixed(2)}</p></>}
                 </div>
               </div>
               {/* Cliente */}
@@ -92,7 +134,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                 <p className="text-xs font-semibold text-green-600 uppercase mb-2 border-b pb-1">Cliente</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
                   <p><strong className="text-gray-700">Nombre:</strong></p><p className="text-gray-600">{getCliente(viewingVenta.dniCliente).nombre || '-'}</p>
-                  <p><strong className="text-gray-700">DNI:</strong></p><p className="text-gray-600">{viewingVenta.dniCliente}</p>
+                  <p><strong className="text-gray-700">{etiquetaDocumento(viewingVenta.tipoDocumentoCliente || getCliente(viewingVenta.dniCliente).tipoDocumento)}:</strong></p><p className="text-gray-600">{viewingVenta.dniCliente}</p>
                   <p><strong className="text-gray-700">Celular:</strong></p><p className="text-gray-600">{getCliente(viewingVenta.dniCliente).celular || '-'}</p>
                 </div>
               </div>
@@ -111,6 +153,20 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                   {(viewingVenta.sn || getEquipo(viewingVenta.imeiEquipo).sn) && <><p><strong className="text-gray-700">S/N:</strong></p><p className="font-mono text-gray-600">{viewingVenta.sn || getEquipo(viewingVenta.imeiEquipo).sn}</p></>}
                 </div>
               </div>
+              {Array.isArray(viewingVenta.itemsAdicionales) && viewingVenta.itemsAdicionales.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-green-600 uppercase mb-2 border-b pb-1">Accesorios</p>
+                  <div className="space-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
+                    {viewingVenta.itemsAdicionales.map((item, index) => (
+                      <div key={`${item.nombre}-${index}`} className="flex items-center justify-between gap-3 text-gray-600">
+                        <span>{item.cantidad} x {item.nombre}</span>
+                        <span className="font-semibold">S/. {(Number(item.cantidad || 1) * Number(item.precio || 0)).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              </div>
             </div>
           </div>
         </div>
@@ -123,10 +179,12 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
         </div>
         <div className="saas-toolbar-actions">
           <div className="saas-searchbox">
-            <input type="text" placeholder="Buscar por DNI, cliente o IMEI" className="saas-search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input type="text" placeholder="Buscar por documento, cliente o IMEI" className="saas-search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             <Search size={18} />
           </div>
-          <button onClick={onNew} className="saas-primary"><Plus size={18} /> Nueva Venta</button>
+          <button onClick={onNew} className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
+            <Plus size={18} /> Nueva Venta
+          </button>
         </div>
       </div>
 
@@ -138,7 +196,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
             <span className="text-sm">Cargando ventas...</span>
           </div>
         ) : filteredData.length === 0 ? (
-          <div className="saas-empty px-4 py-8"><p className="text-sm font-semibold">No se encontraron ventas</p><p className="text-xs">Prueba con otro DNI, cliente o IMEI.</p></div>
+          <div className="saas-empty px-4 py-8"><p className="text-sm font-semibold">No se encontraron ventas</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div>
         ) : filteredData.map(row => (
           <div key={row.id} className="saas-mobile-row">
             <div className="flex items-start justify-between mb-2">
@@ -175,7 +233,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
               <button onClick={() => setViewingVenta(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Ver venta" title="Ver"><Eye size={16}/><span className="sr-only">Ver</span></button>
               <button onClick={() => onEdit(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Editar venta" title="Editar"><Edit size={16}/><span className="sr-only">Editar</span></button>
               <button onClick={() => setTicketPendiente(ticketData(row))} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
-              <button onClick={() => handleDelete(row.id)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar venta" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
+              <button onClick={() => setVentaAEliminar(row)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar venta" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
             </div>
           </div>
         ))}
@@ -196,7 +254,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                 </div>
               </td></tr>
             ) : filteredData.length === 0 ? (
-              <tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">No se encontraron ventas</p><p className="text-xs">Prueba con otro DNI, cliente o IMEI.</p></div></td></tr>
+              <tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">No se encontraron ventas</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div></td></tr>
             ) : filteredData.map(row => (
               <tr key={row.id}>
                 <td className="px-6 py-4"><div className="font-medium">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs">{row.nVenta}</div></td>
@@ -229,7 +287,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                     <button onClick={() => setViewingVenta(row)} className="saas-icon-button" title="Ver detalle"><Eye size={18} /></button>
                     <button onClick={() => onEdit(row)} className="saas-icon-button" title="Editar"><Edit size={18} /></button>
                     <button onClick={() => setTicketPendiente(ticketData(row))} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
-                    <button onClick={() => handleDelete(row.id)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
+                    <button onClick={() => setVentaAEliminar(row)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
                   </div>
                 </td>
               </tr>

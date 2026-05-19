@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 
 export function ConfiguracionLogo({ logoVentas, onLogoChange, showToast }) {
   const [guardando, setGuardando] = useState(false);
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
 
   const handleFile = (e) => {
     const file = e.target.files[0];
@@ -25,11 +27,11 @@ export function ConfiguracionLogo({ logoVentas, onLogoChange, showToast }) {
   };
 
   const handleEliminar = async () => {
-    if (!window.confirm('¿Eliminar el logo?')) return;
     setGuardando(true);
     try {
       await onLogoChange(null);
       showToast('Logo eliminado ✓', 'success');
+      setConfirmarEliminar(false);
     } catch {
       showToast('Error al eliminar el logo', 'error');
     } finally {
@@ -39,6 +41,17 @@ export function ConfiguracionLogo({ logoVentas, onLogoChange, showToast }) {
 
   return (
     <div className="saas-settings-page space-y-6">
+      <ConfirmModal
+        open={confirmarEliminar}
+        title="Eliminar logo"
+        message="El logo dejara de aparecer en los tickets de venta."
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        tone="danger"
+        loading={guardando}
+        onConfirm={handleEliminar}
+        onCancel={() => setConfirmarEliminar(false)}
+      />
       <div className="saas-settings-card">
         <div className="saas-form-header">
           <div>
@@ -75,7 +88,7 @@ export function ConfiguracionLogo({ logoVentas, onLogoChange, showToast }) {
             <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={guardando} />
           </label>
           {logoVentas && (
-            <button onClick={handleEliminar} disabled={guardando}
+            <button onClick={() => setConfirmarEliminar(true)} disabled={guardando}
               className="saas-secondary text-red-600 disabled:opacity-50">
               Eliminar
             </button>

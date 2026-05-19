@@ -1,6 +1,22 @@
 /* eslint-disable no-unused-vars, no-empty */
 import {getPdfTools} from '../../utils/pdfLibraries.js';
 
+function normalizarItems(data) {
+  const items = Array.isArray(data.itemsAdicionales) ? data.itemsAdicionales : [];
+  return items
+    .map(item => ({
+      nombre: String(item.nombre || '').trim(),
+      cantidad: Number(item.cantidad || 1),
+      precio: Number(item.precio || 0),
+    }))
+    .filter(item => item.nombre && item.cantidad > 0 && item.precio > 0);
+}
+
+function recortar(text, max) {
+  const value = String(text || '');
+  return value.length > max ? `${value.slice(0, Math.max(max - 3, 1))}...` : value;
+}
+
 export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
   const {jsPDF, JsBarcode} = getPdfTools();
   // mmW comes from parameter (58 or 80)
@@ -28,7 +44,11 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
     const dt  = new Date(data.fecha);
     const fechaStr = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`;
     const horaStr  = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-    const precio   = parseFloat(data.precio || 0).toFixed(2);
+    const itemsAdicionales = normalizarItems(data);
+    const totalItems = itemsAdicionales.reduce((total, item) => total + (item.cantidad * item.precio), 0);
+    const totalVenta = Number(data.precio || 0);
+    const precioEquipo = Number(data.precioEquipo || (totalItems ? Math.max(totalVenta - totalItems, 0) : totalVenta));
+    const totalTicket = Number(data.precio || (precioEquipo + totalItems));
 
     let y = 5;
 
@@ -107,7 +127,7 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
 
     // ── CLIENTE ──
     wrap('Nombre: ', data.nombreCliente || '');
-    wrap('DNI:    ', data.dniCliente    || '');
+    wrap(`${data.tipoDocumentoCliente || 'DNI'}:    `, data.dniCliente || '');
     rule();
 
     // ── EQUIPO ──
@@ -123,11 +143,16 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
     rule();
 
     // ── PAGO ──
-    wrap('Metodo:  ', 'Al contado');
+    wrap('Pago:    ', String(data.medioPago || 'EFECTIVO').replace('_', ' '));
     rule();
-    row('Subtotal:', `S/. ${precio}`, SZ.sm);
+    row('Equipo:', `S/. ${precioEquipo.toFixed(2)}`, SZ.sm);
+    itemsAdicionales.forEach(item => {
+      const subtotal = item.cantidad * item.precio;
+      const maxLabel = mmW <= 58 ? 17 : 28;
+      row(recortar(`${item.cantidad}x ${item.nombre}`, maxLabel), `S/. ${subtotal.toFixed(2)}`, SZ.xs);
+    });
     rule();
-    row('TOTAL:   ', `S/. ${precio}`, SZ.lg);
+    row('TOTAL:   ', `S/. ${totalTicket.toFixed(2)}`, SZ.lg);
     rule();
     y += 2;
 

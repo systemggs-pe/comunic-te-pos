@@ -9,7 +9,7 @@ export function TicketRegistroImpresion({ data, onClose }) {
       <div className="w-[181px] bg-white text-black font-mono text-[10px] leading-tight mx-auto print:m-0 print:absolute print:top-0 print:left-0">
         <div className="text-center mb-2"><p className="font-bold text-[12px]">TICKET DE REGISTRO</p><p>NUMERO = {data.nRegistro}</p></div>
         <p className="text-center">------------------------</p>
-        <div className="mb-2"><p>NOMBRE: {data.nombreCliente}</p><p>DNI: {data.dniCliente}</p><p>IMEI: {data.imeiEquipo}</p></div>
+        <div className="mb-2"><p>NOMBRE: {data.nombreCliente}</p><p>{data.tipoDocumentoCliente || 'DNI'}: {data.dniCliente}</p><p>IMEI: {data.imeiEquipo}</p></div>
         <p className="text-center">------------------------</p>
         <div className="text-center mb-2"><p>{new Date(data.fecha).toLocaleDateString()}</p></div>
         <div className="h-8"></div>

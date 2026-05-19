@@ -9,6 +9,7 @@ import { TopNavItem } from '../components/navigation/TopNavItem.jsx';
 import { MobileNavIcon } from '../components/navigation/MobileNavIcon.jsx';
 import { AppFooter } from '../components/branding/AppFooter.jsx';
 import { IntroSplash } from '../components/branding/IntroSplash.jsx';
+import { ConfirmModal } from '../components/ui/ConfirmModal.jsx';
 
 const lazyNamed = (loader, name) => lazy(() => loader().then(module => ({default: module[name]})));
 const Dashboard = lazyNamed(() => import('../features/dashboard/Dashboard.jsx'), 'Dashboard');
@@ -43,6 +44,7 @@ function App() {
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [logoVentas, setLogoVentas] = useState(null);
   const [showIntro, setShowIntro] = useState(false);
+  const [pendingView, setPendingView] = useState(null);
 
   const [clientes, setClientes] = useState([]);
   const [equipos, setEquipos]   = useState([]);
@@ -69,12 +71,21 @@ function App() {
   // ── Navegación segura con confirmación si hay formulario sucio ──
   const navegarA = (vista) => {
     if (formDirty) {
-      if (!window.confirm('¿Salir sin guardar? Los datos ingresados se perderán.')) return;
-      setFormDirty(false);
+      setPendingView(vista);
+      return;
     }
     setCurrentView(vista);
     setBusquedaGlobal('');
     setMostrarBusqueda(false);
+  };
+
+  const confirmarSalidaSinGuardar = () => {
+    if (!pendingView) return;
+    setFormDirty(false);
+    setCurrentView(pendingView);
+    setBusquedaGlobal('');
+    setMostrarBusqueda(false);
+    setPendingView(null);
   };
 
   useEffect(() => {
@@ -388,7 +399,7 @@ function App() {
     // Buscar en clientes
     clientes.forEach(c => {
       if (c.dni?.includes(q) || c.nombre?.toLowerCase().includes(q) || c.celular?.includes(q)) {
-        res.push({ tipo: 'cliente', icono: '👤', titulo: c.nombre, subtitulo: `DNI: ${c.dni} · ${c.celular || ''}`, data: c });
+        res.push({ tipo: 'cliente', icono: '👤', titulo: c.nombre, subtitulo: `Doc: ${c.dni} · ${c.celular || ''}`, data: c });
       }
     });
     return res.slice(0, 10); // máximo 10 resultados
@@ -417,6 +428,16 @@ function App() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[oklch(0.976_0.006_250)] font-sans text-slate-900">
       {showIntro && <IntroSplash />}
+      <ConfirmModal
+        open={Boolean(pendingView)}
+        title="Salir sin guardar"
+        message="Los datos ingresados se perderan."
+        confirmLabel="Salir"
+        cancelLabel="Quedarme"
+        tone="danger"
+        onConfirm={confirmarSalidaSinGuardar}
+        onCancel={() => setPendingView(null)}
+      />
 
       {/* ── TOPBAR ── */}
       <header className="z-50 flex shrink-0 flex-wrap items-center justify-between border-b border-slate-200 bg-[oklch(0.988_0.004_250)] px-4 py-2 text-slate-900 shadow-sm md:px-6">
@@ -431,7 +452,7 @@ function App() {
         <nav className="order-last hidden w-full flex-wrap items-center gap-1.5 border-t border-slate-200 pt-2 md:flex">
           <TopNavItem Icon={Home}          label="Inicio"            active={currentView === 'dashboard'}          onClick={() => navegarA('dashboard')} />
           <TopNavItem Icon={ClipboardList} label="Registros"         active={currentView.startsWith('registros')} onClick={() => navegarA('registros_list')} />
-          <TopNavItem Icon={ShoppingCart}  label="Ventas"            active={currentView.startsWith('ventas')}    onClick={() => navegarA('ventas_list')} />
+          <TopNavItem Icon={ShoppingCart}  label="Ventas"            active={currentView.startsWith('ventas')}    onClick={() => navegarA('ventas_list')} tone="emerald" />
           <TopNavItem Icon={Users}         label="Clientes"          active={currentView === 'clientes_list'}     onClick={() => navegarA('clientes_list')} />
           <TopNavItem Icon={FileText}      label="Boleta Extranjera" active={currentView === 'boleta_extranjera'} onClick={() => navegarA('boleta_extranjera')} />
           <TopNavItem Icon={Settings}      label="Configuración"     active={currentView === 'configuracion'}     onClick={() => navegarA('configuracion')} />
@@ -508,7 +529,7 @@ function App() {
       <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-slate-200 bg-white px-2 py-2 md:hidden">
         <MobileNavIcon showLabel Icon={Home}          active={currentView === 'dashboard'}             onClick={() => navegarA('dashboard')}               title="Inicio" />
         <MobileNavIcon showLabel Icon={ClipboardList} active={currentView.startsWith('registros')}    onClick={() => navegarA('registros_list')}           title="Registros" />
-        <MobileNavIcon showLabel Icon={ShoppingCart}  active={currentView.startsWith('ventas')}       onClick={() => navegarA('ventas_list')}              title="Ventas" />
+        <MobileNavIcon showLabel Icon={ShoppingCart}  active={currentView.startsWith('ventas')}       onClick={() => navegarA('ventas_list')}              title="Ventas" tone="emerald" />
         <MobileNavIcon showLabel Icon={Users}         active={currentView === 'clientes_list'}        onClick={() => navegarA('clientes_list')}            title="Clientes" />
         <MobileNavIcon showLabel Icon={FileText}      active={currentView === 'boleta_extranjera'}    onClick={() => navegarA('boleta_extranjera')}        title="Boleta" />
         <MobileNavIcon showLabel Icon={Settings}      active={currentView === 'configuracion'}        onClick={() => navegarA('configuracion')}            title="Config" />
@@ -556,7 +577,7 @@ function App() {
           {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} />}
           {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
-          {currentView === 'clientes_list' && <ClientesList clientes={clientes} equipos={equipos} registros={registros} ventas={ventas} />}
+          {currentView === 'clientes_list' && <ClientesList clientes={clientes} equipos={equipos} registros={registros} ventas={ventas} showToast={showToast} />}
 
           {currentView === 'boleta_extranjera' && <BoletaExtranjera clientes={clientes} equipos={equipos} ventas={ventas} showToast={showToast} />}
 

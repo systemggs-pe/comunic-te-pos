@@ -1,9 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
-import { actualizarVenta, consultarReniecDni, crearVenta } from '../../services/functionsClient.js';
+import { actualizarVenta, consultarReniecDni, crearVenta, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
+import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
 import { EscanerIA } from '../registros/EscanerIA.jsx';
 import { generarTicketVentaPDF } from './ventaPdf.js';
+
+const MONEY_RE = /^\d+(\.\d{1,2})?$/;
+const clean = value => String(value || '').trim();
+const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
+const opcionesContacto = (cliente, campoPrincipal, campoLista) => uniqueClean([
+  cliente?.[campoPrincipal],
+  ...(Array.isArray(cliente?.[campoLista]) ? cliente[campoLista] : []),
+]);
+const createAccessoryItem = () => ({
+  id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  nombre: '',
+  cantidad: '1',
+  precio: '',
+});
+
 export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel, onSave, onDirty, showToast }) {
   const [loading, setLoading] = useState(false);
 
@@ -14,12 +30,18 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  const [formData, setFormData] = useState({ dni: '', nombre: '', celular: '', correo: '', imei1: '', imei2: '', sn: '', nombreComercial: '', ram: '', memoria: '', marca: '', modelo: '', color: '', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString()) });
+  const [formData, setFormData] = useState({ tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', correo: '', imei1: '', imei2: '', sn: '', nombreComercial: '', ram: '', memoria: '', marca: '', modelo: '', color: '', precio: '', medioPago: 'EFECTIVO', fecha: toLocalDatetimeValue(new Date().toISOString()) });
+  const [itemsAdicionales, setItemsAdicionales] = useState([]);
+  const [confirmarGuardado, setConfirmarGuardado] = useState(false);
+  const [ticketPendienteForm, setTicketPendienteForm] = useState(null);
 
   useEffect(() => {
     if (initialData) {
       const cliente = clientes.find(c => c.dni === initialData.dniCliente) || {};
-      setFormData({ dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', correo: cliente.correo || '', imei1: initialData.imeiEquipo || '', imei2: '', sn: '', nombreComercial: initialData.nombreComercial || '', ram: initialData.ram || '', memoria: initialData.memoria || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', color: initialData.color || '', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha) });
+      setFormData({ tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', correo: cliente.correo || '', imei1: initialData.imeiEquipo || '', imei2: '', sn: '', nombreComercial: initialData.nombreComercial || '', ram: initialData.ram || '', memoria: initialData.memoria || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', color: initialData.color || '', precio: initialData.precioEquipo || initialData.precio || '', medioPago: initialData.medioPago || 'EFECTIVO', fecha: toLocalDatetimeValue(initialData.fecha) });
+      setItemsAdicionales(Array.isArray(initialData.itemsAdicionales)
+        ? initialData.itemsAdicionales.map(item => ({...createAccessoryItem(), ...item}))
+        : []);
       const e = equipos.find(eq => eq.idEquipo === initialData.imeiEquipo);
       if (e) setFormData(prev => ({...prev, imei2: e.imei2||'', sn: e.sn||'', nombreComercial: e.nombreComercial||'', ram: e.ram||'', memoria: e.memoria||'', color: e.color||''}));
     }
@@ -27,10 +49,12 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
 
   const [mostrarEscaner, setMostrarEscaner] = useState(false);
   const [buscandoReniecV, setBuscandoReniecV] = useState(false);
-  const [datosAnterioresV, setDatosAnterioresV] = useState(null);
+  const [dniStatusV, setDniStatusV] = useState(null);
+  const [contactosClienteV, setContactosClienteV] = useState({celulares: [], correos: []});
 
   const buscarReniecV = async (dni) => {
     setBuscandoReniecV(true);
+    setDniStatusV({type: 'loading', text: 'Buscando...'});
     try {
       const json = await consultarReniecDni(dni);
       if (json.success && json.result) {
@@ -40,20 +64,15 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
           nombre: r.full_name ? r.full_name : prev.nombre,
           correo: r.email && !r.email.includes('*') ? r.email : prev.correo,
         }));
-        showToast('✓ Datos encontrados en RENIEC', 'success');
+        setDniStatusV({type: 'reniec', text: 'Encontrado RENIEC'});
       } else {
+        setDniStatusV(null);
         showToast('DNI no encontrado en RENIEC', 'error');
       }
     } catch (e) {
       console.error('RENIEC error:', e);
-      const mensaje = e.message === 'RENIEC_TOKEN_MISSING'
-        ? 'Falta configurar token RENIEC'
-        : e.message === 'BACKEND_INVALID_RESPONSE'
-          ? 'Respuesta invalida de Netlify Functions'
-        : e.message === 'BACKEND_NOT_DEPLOYED'
-          ? 'Funciones Netlify no desplegadas'
-          : 'Error al consultar RENIEC';
-      showToast(mensaje, 'error');
+      setDniStatusV(null);
+      showToast(obtenerMensajeErrorFuncion(e, 'Error al consultar RENIEC'), 'error');
     } finally {
       setBuscandoReniecV(false);
     }
@@ -79,17 +98,29 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   };
 
   useEffect(() => {
-    if (formData.dni.length >= 8 && !initialData) {
+    if (formData.dni.length >= 6 && !initialData) {
       const c = clientes.find(c => c.dni === formData.dni);
       if (c) {
-        setDatosAnterioresV({ celular: c.celular || '', correo: c.correo || '' });
-        setFormData(prev => ({ ...prev, nombre: c.nombre, celular: c.celular, correo: c.correo }));
+        const celulares = opcionesContacto(c, 'celular', 'celulares');
+        const correos = opcionesContacto(c, 'correo', 'correos');
+        setContactosClienteV({celulares, correos});
+        setDniStatusV({type: 'db', text: 'Cliente COMUNIC@TE'});
+        setFormData(prev => ({
+          ...prev,
+          nombre: c.nombre || prev.nombre,
+          celular: prev.celular || celulares[0] || '',
+          correo: prev.correo || correos[0] || '',
+        }));
       } else {
-        setDatosAnterioresV(null);
-        buscarReniecV(formData.dni);
+        setContactosClienteV({celulares: [], correos: []});
+        if (formData.tipoDocumento === 'DNI' && formData.dni.length === 8) buscarReniecV(formData.dni);
+        else setDniStatusV(null);
       }
+    } else if (!initialData && formData.dni.length < 6) {
+      setDniStatusV(null);
+      setContactosClienteV({celulares: [], correos: []});
     }
-  }, [formData.dni, clientes, initialData]);
+  }, [formData.dni, formData.tipoDocumento, clientes, initialData]);
 
   useEffect(() => {
     if (formData.imei1.length >= 14 && !initialData) {
@@ -111,7 +142,15 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   const handleChange = (e) => {
     const { name, value } = e.target;
     let val = value;
-    if (CAMPOS_SOLO_NUMEROS_V.includes(name)) val = val.replace(/\D/g, '');
+    if (name === 'tipoDocumento') {
+      onDirty?.();
+      setDniStatusV(null);
+      setContactosClienteV({celulares: [], correos: []});
+      setFormData(prev => ({ ...prev, tipoDocumento: val, dni: limpiarDocumento(prev.dni, val) }));
+      return;
+    }
+    if (name === 'dni') val = limpiarDocumento(val, formData.tipoDocumento);
+    else if (CAMPOS_SOLO_NUMEROS_V.includes(name)) val = val.replace(/\D/g, '');
     if (name === 'imei1' || name === 'imei2') val = val.slice(0, 15);
     if (name === 'celular') val = val.slice(0, 9);
     if (CAMPOS_MAYUSCULAS_V.includes(name)) val = val.toUpperCase();
@@ -119,32 +158,105 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
     setFormData(prev => ({ ...prev, [name]: val }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // Validar nombre comercial obligatorio
+  const handleAccessoryChange = (id, field, value) => {
+    let val = value;
+    if (field === 'nombre') val = val.toUpperCase();
+    if (field === 'cantidad') val = val.replace(/\D/g, '').slice(0, 3);
+    if (field === 'precio') {
+      val = val.replace(',', '.');
+      if (val && !/^\d*\.?\d{0,2}$/.test(val)) return;
+    }
+    onDirty?.();
+    setItemsAdicionales(prev => prev.map(item => item.id === id ? {...item, [field]: val} : item));
+  };
+
+  const agregarAccesorio = () => {
+    onDirty?.();
+    setItemsAdicionales(prev => [...prev, createAccessoryItem()]);
+  };
+
+  const quitarAccesorio = (id) => {
+    onDirty?.();
+    setItemsAdicionales(prev => prev.filter(item => item.id !== id));
+  };
+
+  const obtenerItemsVenta = () => {
+    const items = itemsAdicionales
+      .map(item => ({
+        nombre: clean(item.nombre).toUpperCase(),
+        cantidad: clean(item.cantidad || '1'),
+        precio: clean(item.precio),
+      }))
+      .filter(item => item.nombre || item.precio || item.cantidad !== '1');
+
+    for (const item of items) {
+      if (!item.nombre) {
+        showToast('Completa el nombre del accesorio', 'error');
+        return null;
+      }
+      if (!/^\d+$/.test(item.cantidad) || Number(item.cantidad) <= 0) {
+        showToast('La cantidad del accesorio debe ser mayor a 0', 'error');
+        return null;
+      }
+      if (!MONEY_RE.test(item.precio) || Number(item.precio) <= 0) {
+        showToast('El precio del accesorio debe ser mayor a 0', 'error');
+        return null;
+      }
+    }
+
+    return items;
+  };
+
+  const calcularTotalItems = (items) => items.reduce((total, item) => (
+    total + (Number(item.cantidad || 1) * Number(item.precio || 0))
+  ), 0);
+
+  const validarVentaCompleta = () => {
     if (!formData.nombreComercial) {
-      showToast('El nombre comercial es obligatorio', 'error'); return;
+      showToast('El nombre comercial es obligatorio', 'error'); return false;
+    }
+    if (!validarDocumento(formData.tipoDocumento, formData.dni)) {
+      showToast(`${etiquetaDocumento(formData.tipoDocumento)} no valido`, 'error'); return false;
     }
     if (!luhn(formData.imei1)) {
-      showToast('El IMEI 1 no es válido — verifica los dígitos', 'error'); return;
+      showToast('El IMEI 1 no es válido — verifica los dígitos', 'error'); return false;
     }
     if (formData.imei2 && !luhn(formData.imei2)) {
-      showToast('El IMEI 2 no es válido — verifica los dígitos', 'error'); return;
+      showToast('El IMEI 2 no es válido — verifica los dígitos', 'error'); return false;
     }
-    // Confirmación final
-    const confirmMsg = `¿Los datos son correctos?\n\n👤 Cliente: ${formData.nombre} (DNI: ${formData.dni})\n📱 Equipo: ${formData.marca} ${formData.nombreComercial}\n🔢 IMEI 1: ${formData.imei1}${formData.imei2 ? `\n🔢 IMEI 2: ${formData.imei2}` : ''}${formData.sn ? `\n📟 S/N: ${formData.sn}` : ''}\n💰 Precio: S/. ${parseFloat(formData.precio || 0).toFixed(2)}`;
-    if (!window.confirm(confirmMsg)) return;
+    if (!MONEY_RE.test(clean(formData.precio)) || Number(formData.precio) <= 0) {
+      showToast('El precio del equipo debe ser mayor a 0', 'error'); return false;
+    }
+    return Boolean(obtenerItemsVenta());
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validarVentaCompleta()) return;
+    setConfirmarGuardado(true);
+  };
+
+  const guardarVenta = async () => {
+    const itemsVenta = obtenerItemsVenta();
+    if (!itemsVenta) return;
+    setConfirmarGuardado(false);
     setLoading(true);
     try {
+      const precioEquipo = Number(formData.precio || 0);
+      const totalItems = calcularTotalItems(itemsVenta);
+      const totalVenta = (precioEquipo + totalItems).toFixed(2);
       const ventaData = {
+        tipoDocumentoCliente: formData.tipoDocumento,
         dniCliente: formData.dni, imeiEquipo: formData.imei1,
         imei2Equipo: formData.imei2, sn: formData.sn,
         modeloEquipo: formData.modelo, marcaEquipo: formData.marca,
         nombreComercial: formData.nombreComercial, ram: formData.ram,
         memoria: formData.memoria, color: formData.color, precio: formData.precio,
+        precioEquipo: precioEquipo.toFixed(2), itemsAdicionales: itemsVenta, medioPago: formData.medioPago,
         fecha: new Date(formData.fecha).toISOString(),
       };
-      const clienteData = { dni: formData.dni, nombre: formData.nombre, celular: formData.celular, correo: formData.correo };
+      ventaData.precio = totalVenta;
+      const clienteData = { tipoDocumento: formData.tipoDocumento, dni: formData.dni, nombre: formData.nombre, celular: formData.celular, correo: formData.correo };
       const equipoData = { idEquipo: formData.imei1, idDuenio: formData.dni, imei2: formData.imei2, sn: formData.sn, nombreComercial: formData.nombreComercial, marca: formData.marca, modelo: formData.modelo, ram: formData.ram, memoria: formData.memoria, color: formData.color, isVendido: true };
 
       if (initialData) {
@@ -163,23 +275,25 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         });
         const ventaGuardada = resultado.venta || ventaData;
         showToast('Venta registrada — generando ticket...');
-        const tData = { ...ventaGuardada, nombreCliente: formData.nombre, dniCliente: formData.dni, imei2Equipo: formData.imei2, sn: formData.sn };
+        const tData = { ...ventaGuardada, tipoDocumentoCliente: formData.tipoDocumento, nombreCliente: formData.nombre, dniCliente: formData.dni, imei2Equipo: formData.imei2, sn: formData.sn, precioEquipo: precioEquipo.toFixed(2), itemsAdicionales: itemsVenta, medioPago: formData.medioPago };
         setTicketPendienteForm(tData);
         return; // no llamar onSave todavía, se llama desde el modal
       }
       (onSave || onCancel)();
-    } catch (error) { console.error(error); showToast('Error al procesar venta', 'error'); } finally { setLoading(false); }
+    } catch (error) { console.error(error); showToast(obtenerMensajeErrorFuncion(error, 'Error al procesar venta'), 'error'); } finally { setLoading(false); }
   };
 
   const [paso, setPaso] = useState(1);
-  const [ticketPendienteForm, setTicketPendienteForm] = useState(null);
 
   const validarPaso1V = () => {
-    if (!formData.dni || !formData.nombre) {
-      showToast('Completa DNI y nombre', 'error'); return false;
+    if (!validarDocumento(formData.tipoDocumento, formData.dni) || !formData.nombre) {
+      showToast(`Completa ${etiquetaDocumento(formData.tipoDocumento)} y nombre`, 'error'); return false;
     }
     return true;
   };
+
+  const totalAccesoriosPreview = calcularTotalItems(itemsAdicionales);
+  const totalVentaPreview = (Number(formData.precio || 0) + totalAccesoriosPreview).toFixed(2);
 
   return (
     <div className="saas-form-shell">
@@ -199,6 +313,22 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
                 className="saas-secondary flex-1">80 mm</button>
             </div>
             <button onClick={() => { setTicketPendienteForm(null); (onSave || onCancel)(); }} className="saas-secondary mt-3 w-full">Omitir ticket</button>
+          </div>
+        </div>
+      )}
+      {confirmarGuardado && (
+        <div className="saas-modal-backdrop fixed inset-0 z-[210] flex items-center justify-center p-4">
+          <div className="saas-detail-modal w-full max-w-sm p-6 text-center">
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-700">
+              <CheckCircle2 size={22} />
+            </div>
+            <h3 className="text-base font-semibold text-slate-900">¿Los datos que pusiste son correctos?</h3>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setConfirmarGuardado(false)} className="saas-secondary">Revisar</button>
+              <button type="button" onClick={guardarVenta} disabled={loading} className="saas-primary disabled:opacity-60">
+                {loading ? 'Guardando...' : 'Sí, guardar'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -234,24 +364,45 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         {paso === 1 && (
           <div className="space-y-4">
             <h4 className="saas-form-section-title">Datos del Cliente</h4>
-            {buscandoReniecV && (
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
-                <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-                Consultando RENIEC...
-              </div>
-            )}
-            {datosAnterioresV && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
-                <p className="font-semibold mb-1">⚠ Cliente existente — datos anteriores registrados:</p>
-                {datosAnterioresV.celular && <p>📱 Celular anterior: <span className="font-mono font-bold">{datosAnterioresV.celular}</span></p>}
-                {datosAnterioresV.correo  && <p>✉ Correo anterior: <span className="font-mono font-bold">{datosAnterioresV.correo}</span></p>}
-              </div>
-            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><label className="block text-xs text-gray-500 mb-1">DNI *</label><input name="dni" value={formData.dni} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" /></div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Documento *</label>
+                <div className="grid grid-cols-[112px_1fr] gap-2">
+                  <select name="tipoDocumento" value={formData.tipoDocumento} onChange={handleChange} className="rounded border border-slate-200 bg-white p-2 text-sm">
+                    {TIPOS_DOCUMENTO.map(tipo => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
+                  </select>
+                  <div className="relative min-w-0">
+                    <input name="dni" value={formData.dni} onChange={handleChange} className="w-full border rounded p-2 pr-36 text-sm" inputMode={formData.tipoDocumento === 'DNI' || formData.tipoDocumento === 'RUC' ? 'numeric' : 'text'} placeholder={placeholderDocumento(formData.tipoDocumento)} />
+                  {dniStatusV && (
+                    <span className={`absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold ${
+                      dniStatusV.type === 'db' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+                    }`}>
+                      {buscandoReniecV && <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-transparent" />}
+                      {dniStatusV.text}
+                    </span>
+                  )}
+                  </div>
+                </div>
+              </div>
               <div><label className="block text-xs text-gray-500 mb-1">Nombre *</label><input name="nombre" value={formData.nombre} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Celular</label><input name="celular" value={formData.celular} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Correo</label><input type="email" name="correo" value={formData.correo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Celular</label>
+                <input name="celular" value={formData.celular} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} />
+                {contactosClienteV.celulares.length > 1 && (
+                  <select value={formData.celular} onChange={e => setFormData(prev => ({...prev, celular: e.target.value}))} className="mt-2 w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                    {contactosClienteV.celulares.map(celular => <option key={celular} value={celular}>{celular}</option>)}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Correo</label>
+                <input type="email" name="correo" value={formData.correo} onChange={handleChange} className="w-full border rounded p-2 text-sm" />
+                {contactosClienteV.correos.length > 1 && (
+                  <select value={formData.correo} onChange={e => setFormData(prev => ({...prev, correo: e.target.value}))} className="mt-2 w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                    {contactosClienteV.correos.map(correo => <option key={correo} value={correo}>{correo}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
             <div className="flex justify-between pt-4 border-t">
               <button type="button" onClick={onCancel} className="saas-secondary">Cancelar</button>
@@ -297,23 +448,59 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
               <div><label className="block text-xs text-gray-500 mb-1">Memoria (GB)</label><input name="memoria" value={formData.memoria} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="ej: 256" /></div>
               <div><label className="block text-xs text-gray-500 mb-1">Color</label><input name="color" value={formData.color} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
               <div><label className="block text-xs text-gray-500 mb-1">Precio (S/.) *</label><input required type="number" step="0.01" name="precio" value={formData.precio} onChange={handleChange} className="w-full border rounded p-2 text-sm font-bold text-green-700" /></div>
-              <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Fecha y hora *</label><input required type="datetime-local" name="fecha" value={formData.fecha} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Medio de pago *</label>
+                <select required name="medioPago" value={formData.medioPago} onChange={handleChange} className="w-full border rounded p-2 text-sm">
+                  <option value="EFECTIVO">Efectivo</option>
+                  <option value="TRANSFERENCIA">Transferencia</option>
+                  <option value="TARJETA">Tarjeta</option>
+                </select>
+              </div>
+              <div><label className="block text-xs text-gray-500 mb-1">Fecha y hora *</label><input required type="datetime-local" name="fecha" value={formData.fecha} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
             </div>
 
-            {/* Resumen completo para confirmar */}
-            <div className="saas-summary space-y-2 text-sm">
-              <p className="font-semibold text-green-800 mb-1">Verifica que los datos sean correctos:</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
-                <span className="font-medium text-gray-700">Cliente:</span><span>{formData.nombre}</span>
-                <span className="font-medium text-gray-700">DNI:</span><span>{formData.dni}</span>
-                <span className="font-medium text-gray-700">Equipo:</span><span>{formData.marca} {formData.nombreComercial}</span>
-                <span className="font-medium text-gray-700">Modelo:</span><span>{formData.modelo}</span>
-                <span className="font-medium text-gray-700">IMEI 1:</span><span className="font-mono">{formData.imei1}</span>
-                {formData.imei2 && <><span className="font-medium text-gray-700">IMEI 2:</span><span className="font-mono">{formData.imei2}</span></>}
-                {formData.sn && <><span className="font-medium text-gray-700">S/N:</span><span className="font-mono">{formData.sn}</span></>}
-                {formData.memoria && <><span className="font-medium text-gray-700">Memoria:</span><span>{formData.memoria} GB</span></>}
-                {formData.color && <><span className="font-medium text-gray-700">Color:</span><span>{formData.color}</span></>}
-                <span className="font-medium text-gray-700">Precio:</span><span className="text-green-700 font-bold">S/. {parseFloat(formData.precio || 0).toFixed(2)}</span>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Accesorios</p>
+                  <p className="text-xs text-slate-500">Agrega cargador, mica, funda u otro item de la venta.</p>
+                </div>
+                <button type="button" onClick={agregarAccesorio} className="saas-secondary shrink-0"><Plus size={14}/> Item</button>
+              </div>
+              {itemsAdicionales.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {itemsAdicionales.map(item => (
+                    <div key={item.id} className="grid grid-cols-[1fr_72px_96px_36px] gap-2 max-sm:grid-cols-2">
+                      <input
+                        value={item.nombre}
+                        onChange={e => handleAccessoryChange(item.id, 'nombre', e.target.value)}
+                        className="rounded border border-slate-200 bg-white p-2 text-sm max-sm:col-span-2"
+                        placeholder="Accesorio"
+                      />
+                      <input
+                        value={item.cantidad}
+                        onChange={e => handleAccessoryChange(item.id, 'cantidad', e.target.value)}
+                        className="rounded border border-slate-200 bg-white p-2 text-sm"
+                        inputMode="numeric"
+                        placeholder="Cant."
+                      />
+                      <input
+                        value={item.precio}
+                        onChange={e => handleAccessoryChange(item.id, 'precio', e.target.value)}
+                        className="rounded border border-slate-200 bg-white p-2 text-sm"
+                        inputMode="decimal"
+                        placeholder="Precio"
+                      />
+                      <button type="button" onClick={() => quitarAccesorio(item.id)} className="saas-icon-button max-sm:justify-self-end" aria-label="Quitar accesorio">
+                        <Trash2 size={16}/>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-sm">
+                <span className="font-medium text-slate-600">Total venta</span>
+                <span className="font-bold text-emerald-700">S/. {totalVentaPreview}</span>
               </div>
             </div>
 

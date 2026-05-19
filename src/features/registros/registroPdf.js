@@ -72,7 +72,7 @@ export async function generarTicketRegistroPDF(data) {
 
     // DATOS CLIENTE
     fila('NOMBRE',   data.nombreCliente  || '');
-    fila('DNI',      data.dniCliente     || '');
+    fila(data.tipoDocumentoCliente || 'DNI', data.dniCliente || '');
     fila('CORREO',   data.correoCliente  || '');
     fila('CELULAR',  data.celularCliente || '');
     fila('CEL. REF', data.celularRef     || '');
