@@ -1,0 +1,35 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-Frame-Options: DENY
+
+/privacy-policy
+  Cache-Control: public, max-age=300
+
+/terms-and-conditions
+  Cache-Control: public, max-age=300
+
+/terms-of-use
+  Cache-Control: public, max-age=300
+
+/legal
+  Cache-Control: public, max-age=300
+
+/cookies
+  Cache-Control: public, max-age=300
+
+/copyright
+  Cache-Control: public, max-age=300
+
+/community-guidelines
+  Cache-Control: public, max-age=300
+
+/robots.txt
+  Cache-Control: public, max-age=300
+
+/sitemap.xml
+  Cache-Control: public, max-age=300
+
+/sitemap-legal.xml
+  Cache-Control: public, max-age=300

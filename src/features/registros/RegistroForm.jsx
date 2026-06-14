@@ -14,6 +14,7 @@ const opcionesContacto = (cliente, campoPrincipal, campoLista) => uniqueClean([
   cliente?.[campoPrincipal],
   ...(Array.isArray(cliente?.[campoLista]) ? cliente[campoLista] : []),
 ]);
+const debeSincronizarCelularRef = form => !form.celularRef || form.celularRef === form.celular;
 
 export function RegistroForm({ clientes, equipos, registros, initialData, onCancel, onSave, onDirty, showToast }) {
   const [loading, setLoading] = useState(false);
@@ -233,7 +234,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     onDirty?.();
     setFormData(prev => {
       const next = { ...prev, [name]: val };
-      if (name === 'celular' && !prev.celularRef) next.celularRef = val;
+      if (name === 'celular' && debeSincronizarCelularRef(prev)) next.celularRef = val;
       return next;
     });
   };
@@ -503,7 +504,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 <label className="block text-xs text-gray-500 mb-1">Celular *</label>
                 <input name="celular" value={formData.celular} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} />
                 {contactosClienteReg.celulares.length > 1 && (
-                  <select value={formData.celular} onChange={e => setFormData(prev => ({...prev, celular: e.target.value, celularRef: prev.celularRef || e.target.value}))} className="mt-2 w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                  <select value={formData.celular} onChange={e => setFormData(prev => ({...prev, celular: e.target.value, celularRef: debeSincronizarCelularRef(prev) ? e.target.value : prev.celularRef}))} className="mt-2 w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs">
                     {contactosClienteReg.celulares.map(celular => <option key={celular} value={celular}>{celular}</option>)}
                   </select>
                 )}

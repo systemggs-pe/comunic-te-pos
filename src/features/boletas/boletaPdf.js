@@ -1,9 +1,22 @@
 /* eslint-disable no-unused-vars, no-empty */
 import { penToClp } from '../../utils/currency.js';
 import {getPdf417Generator, getPdfTools} from '../../utils/pdfLibraries.js';
+import {getBoletaExtranjeraEmisor} from '../../config/boletaExtranjera.js';
 
-export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta }) {
+const lineas = value => String(value || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+const rutVendedor = value => String(value || '').replace(/\./g, '').replace(/\s+/g, '');
+
+function nombreCortoEmisor(nombre) {
+  const words = String(nombre || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return {
+    linea1: words[0] || '',
+    linea2: words.slice(1, 3).join(' ') || words[0] || '',
+  };
+}
+
+export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor }) {
   const {jsPDF, JsBarcode} = getPdfTools();
+  const emisorInfo = emisor || getBoletaExtranjeraEmisor({}, 1);
   const mmW = 48;
   const FONT = 'courier';
   // Courier es ancho — sin escala, tamaños pequeños para que quepan en 48mm
@@ -78,7 +91,7 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
 
     // ── CABECERA (centrada, bold) ──
     y += 1;
-    tc(`R.U.T.  17.673.680 - 1`, 7, true);
+    tc(`R.U.T.  ${emisorInfo.rut}`, 7, true);
     tc(`BOLETA ELECTRONICA N°  ${nBoleta}`, 7, true);
     tc('SII ARICA', 7, true);
     y += 1;
@@ -86,11 +99,9 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
     y += 1;
 
     // ── TIENDA (izquierda) ──
-    tl('ROBERTO IGNACIO', 6.5);
-    tl('PIZARRO VILLAROEL', 6.5);
+    lineas(emisorInfo.nombre).forEach(linea => tl(linea, 6.5));
     tl('VENTA CELULARES ACCESORIOS', 6.5);
-    tl('18 DE SEPTIEMBRE #257', 6.5);
-    tl('LOCAL 68 - COM. SANTA BLANCA', 6.5);
+    lineas(emisorInfo.direccion).forEach(linea => tl(linea, 6.5));
     y += 1;
     sep();
     y += 2;
@@ -176,9 +187,10 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
 }
 
 
-export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta }) {
+export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor }) {
   const {jsPDF} = getPdfTools();
   const gen417 = await getPdf417Generator();
+  const emisorInfo = emisor || getBoletaExtranjeraEmisor({}, 2);
   const mmW  = 80;
   const M    = 5;
   const FONT = 'courier';
@@ -210,7 +222,7 @@ export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, to
     nBoleta, cliente.dni || '', cliente.nombre || '',
     imei1, imei2,
     `${nombreComercial}${memoria ? ' ' + memoria + 'GB' : ''}`,
-    color, totalNum, iva, fechaStr, '18.478.314-2', 'SII Res.99/2014'
+    color, totalNum, iva, fechaStr, emisorInfo.rut, 'SII Res.99/2014'
   ].join('|');
   const dataUrl417 = gen417(texto417, 2, 1);
   const img417 = new Image();
@@ -241,17 +253,16 @@ export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, to
     nl(5);
     tl('                               ', FS);
     tl('                               ', FS);
-    tl('ALVARO JOSE PIZARRO VILLARROEL', FS);
-    tl('18.478.314-2', FS);
+    lineas(emisorInfo.nombre).forEach(linea => tl(linea, FS));
+    tl(emisorInfo.rut, FS);
     tl('Giro: VTA.CELULARES,TARJETA', FS);
     tl('PREPAGO,', FS);
     tl('CHIPS,ACCESORIOS,ELECTROD.ELECTRONI', FS);
     tl('COS.', FS);
-    tl('18 DE SEPTIEMBRE 257', FS);
-    tl('Arica', FS);
+    lineas(emisorInfo.direccion).forEach(linea => tl(linea, FS));
     nl(2);
     tl(`BOLETA ELECTRÓNICA NUMERO: ${nBoleta}`, FS);
-    tl('REF. VENDEDOR: 18478314-2', FS);
+    tl(`REF. VENDEDOR: ${rutVendedor(emisorInfo.rut)}`, FS);
     tl(`Fecha: ${fechaStr}`, FS);
     nl(2);
     tl('Dirección: Santiago', FS);
@@ -300,7 +311,7 @@ export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, to
   setTimeout(() => URL.revokeObjectURL(url2), 15000);
 }
 
-export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta }) {
+export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor: emisorConfig }) {
   const {jsPDF} = getPdfTools();
   const gen417 = await getPdf417Generator();
   const mmW = 80;
@@ -308,6 +319,7 @@ export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, to
   const FONT = 'helvetica';
   const FS = 9; // mismo tamano base que la boleta extranjera #2
   const nBoleta = numeroBoleta ? String(numeroBoleta) : String(Date.now()).slice(-4).padStart(4, '0');
+  const emisorDefaults = getBoletaExtranjeraEmisor({}, 3);
   const emisor = {
     nombre: 'ALVARO JOSE PIZARRO VILLARROEL',
     rut: '18.478.314-2',
@@ -317,7 +329,10 @@ export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, to
     comuna: 'ARICA',
     ciudad: 'ARICA',
     vendedor: '18478314-2',
+    ...emisorDefaults,
+    ...(emisorConfig || {}),
   };
+  emisor.vendedor = rutVendedor(emisor.rut) || emisor.vendedor;
 
   const ventasBoleta = Array.isArray(ventas) ? ventas : [];
   const totalNum = typeof totalClp === 'number'
@@ -487,8 +502,9 @@ export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, to
       doc.rect(M, 4, 31, 24, 'F');
     }
 
-    drawText('ALVARO', M + 2, 10.2, 10.8, {bold: true});
-    drawText('PIZARRO', M + 2, 16, 10.8, {bold: true});
+    const nombreCorto = nombreCortoEmisor(emisor.nombre);
+    drawText(nombreCorto.linea1, M + 2, 10.2, 10.8, {bold: true});
+    drawText(nombreCorto.linea2, M + 2, 16, 10.8, {bold: true});
     drawText('VENTA CELULARES', M + 2, 21.5, 7.4, {muted: true});
     drawText('ARICA, CHILE', M + 2, 25.5, 7.4, {muted: true});
 

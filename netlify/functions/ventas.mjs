@@ -1,6 +1,8 @@
 import {handlePost} from './_shared.mjs';
 import {getAdminDb} from './_firebaseAdmin.mjs';
-import {setClienteWithHistory} from './_clientesShared.mjs';
+import {withContactHistory} from './_clientesShared.mjs';
+import {normalizeImeiList, releaseImeiLocks, syncImeiLocks} from './_imeiLocks.mjs';
+import {queueAuditEvent} from './_observability.mjs';
 import {parseIdPayload, parseVentaPayload} from './_validators.mjs';
 
 const APP_ID = 'comunicate-pos';
@@ -10,9 +12,35 @@ function baseRef(db) {
   return db.collection('artifacts').doc(APP_ID).collection('users').doc(SCOPE);
 }
 
+function imeiLocksRef(base) {
+  return base.collection('imeiLocks');
+}
+
+function ventaLockImeis(venta) {
+  return normalizeImeiList([venta?.imeiEquipo, venta?.imei2Equipo]);
+}
+
 async function hasOther(collectionRef, field, value, excludeId, transaction) {
   const snap = await transaction.get(collectionRef.where(field, '==', value).limit(20));
   return snap.docs.some(doc => doc.id !== excludeId);
+}
+
+async function assertNoOtherVentaWithImeis(ventasRef, imeis, excludeId, transaction) {
+  const cleanImeis = normalizeImeiList(imeis);
+  for (const imei of cleanImeis) {
+    const [primarySnap, secondarySnap] = await Promise.all([
+      transaction.get(ventasRef.where('imeiEquipo', '==', imei).limit(20)),
+      transaction.get(ventasRef.where('imei2Equipo', '==', imei).limit(20)),
+    ]);
+    const docs = [...primarySnap.docs, ...secondarySnap.docs];
+    const hasDuplicate = docs.some(doc => doc.id !== excludeId && ventaLockImeis(doc.data()).includes(imei));
+    if (hasDuplicate) {
+      throw Object.assign(new Error('IMEI_YA_VENDIDO'), {
+        status: 409,
+        payload: {imei},
+      });
+    }
+  }
 }
 
 function getNextFromExisting(snapshot, field, prefix) {
@@ -25,34 +53,60 @@ function getNextFromExisting(snapshot, field, prefix) {
   return max + 1;
 }
 
-async function createVenta(db, payload) {
+async function createVenta(db, payload, context) {
   const {cliente, equipo, venta} = parseVentaPayload(payload);
   const base = baseRef(db);
   const counterRef = db.collection('_counters').doc('ventas');
   const ventaRef = base.collection('ventas').doc();
   const clienteRef = base.collection('clientes').doc(cliente.dni);
   const equipoRef = base.collection('equipos').doc(equipo.idEquipo);
+  const ventasRef = base.collection('ventas');
+  const locksRef = imeiLocksRef(base);
 
   return db.runTransaction(async transaction => {
     const counterSnap = await transaction.get(counterRef);
     let next = Number(counterSnap.data()?.last || 0) + 1;
     if (!counterSnap.exists) {
-      const existingSnap = await transaction.get(base.collection('ventas'));
+      const existingSnap = await transaction.get(ventasRef);
       next = Math.max(next, getNextFromExisting(existingSnap, 'nVenta', 'VEN'));
     }
     const nVenta = `VEN-${String(next).padStart(4, '0')}`;
     const ventaData = {...venta, nVenta};
+    const lockImeis = ventaLockImeis(ventaData);
+    await assertNoOtherVentaWithImeis(ventasRef, lockImeis, ventaRef.id, transaction);
+    const clienteSnap = await transaction.get(clienteRef);
+    const clienteData = withContactHistory(clienteSnap.exists ? clienteSnap.data() || {} : {}, cliente);
 
-    await setClienteWithHistory(transaction, clienteRef, cliente);
+    await syncImeiLocks({
+      transaction,
+      locksRef,
+      kind: 'venta',
+      ownerId: ventaRef.id,
+      setImeis: lockImeis,
+    });
+    transaction.set(clienteRef, clienteData, {merge: true});
     transaction.set(counterRef, {last: next, updatedAt: new Date().toISOString()}, {merge: true});
     transaction.set(equipoRef, equipo, {merge: true});
     transaction.set(ventaRef, ventaData);
+    queueAuditEvent(transaction, base, context, {
+      entityType: 'venta',
+      entityId: ventaRef.id,
+      action: 'create',
+      metadata: {
+        nVenta,
+        dniCliente: ventaData.dniCliente,
+        imeiEquipo: ventaData.imeiEquipo,
+        imei2Equipo: ventaData.imei2Equipo,
+        medioPago: ventaData.medioPago,
+        total: ventaData.precio,
+      },
+    });
 
     return {id: ventaRef.id, venta: {id: ventaRef.id, ...ventaData}};
   });
 }
 
-async function updateVenta(db, payload) {
+async function updateVenta(db, payload, context) {
   const {id} = parseIdPayload(payload);
   const {cliente, equipo, venta} = parseVentaPayload(payload);
 
@@ -61,6 +115,7 @@ async function updateVenta(db, payload) {
   const registrosRef = base.collection('registros');
   const equiposRef = base.collection('equipos');
   const clientesRef = base.collection('clientes');
+  const locksRef = imeiLocksRef(base);
   const ventaRef = ventasRef.doc(id);
   const clienteRef = clientesRef.doc(cliente.dni);
   const equipoRef = equiposRef.doc(equipo.idEquipo);
@@ -84,8 +139,21 @@ async function updateVenta(db, payload) {
       oldOtherEquipo = await hasOther(equiposRef, 'idDuenio', oldDni, oldImei, transaction);
     }
     const ventaData = {...venta, nVenta: current.nVenta || venta.nVenta || ''};
+    const oldLockImeis = ventaLockImeis(current);
+    const lockImeis = ventaLockImeis(ventaData);
+    await assertNoOtherVentaWithImeis(ventasRef, lockImeis, id, transaction);
+    const clienteSnap = await transaction.get(clienteRef);
+    const clienteData = withContactHistory(clienteSnap.exists ? clienteSnap.data() || {} : {}, cliente);
 
-    await setClienteWithHistory(transaction, clienteRef, cliente);
+    await syncImeiLocks({
+      transaction,
+      locksRef,
+      kind: 'venta',
+      ownerId: id,
+      setImeis: lockImeis,
+      releaseImeis: oldLockImeis,
+    });
+    transaction.set(clienteRef, clienteData, {merge: true});
     if (oldImeiChanged && !oldOtherVenta && !oldHasRegistro) {
       transaction.delete(equiposRef.doc(oldImei));
     }
@@ -94,23 +162,48 @@ async function updateVenta(db, payload) {
     }
     transaction.set(equipoRef, equipo, {merge: true});
     transaction.set(ventaRef, ventaData);
+    queueAuditEvent(transaction, base, context, {
+      entityType: 'venta',
+      entityId: id,
+      action: 'update',
+      metadata: {
+        nVenta: ventaData.nVenta,
+        dniCliente: ventaData.dniCliente,
+        oldDni,
+        imeiEquipo: ventaData.imeiEquipo,
+        oldImei,
+        imei2Equipo: ventaData.imei2Equipo,
+        oldLockImeis,
+        lockImeis,
+        total: ventaData.precio,
+      },
+    });
 
     return {id, venta: {id, ...ventaData}};
   });
 }
 
-async function deleteVenta(db, payload) {
+async function deleteVenta(db, payload, context) {
   const {id} = parseIdPayload(payload);
   const base = baseRef(db);
   const ventasRef = base.collection('ventas');
   const registrosRef = base.collection('registros');
   const equiposRef = base.collection('equipos');
   const clientesRef = base.collection('clientes');
+  const locksRef = imeiLocksRef(base);
   const ventaRef = ventasRef.doc(id);
 
   return db.runTransaction(async transaction => {
     const ventaSnap = await transaction.get(ventaRef);
-    if (!ventaSnap.exists) return {deleted: true, missing: true};
+    if (!ventaSnap.exists) {
+      queueAuditEvent(transaction, base, context, {
+        entityType: 'venta',
+        entityId: id,
+        action: 'delete',
+        metadata: {missing: true},
+      });
+      return {deleted: true, missing: true};
+    }
     const venta = ventaSnap.data() || {};
     const imei1 = venta.imeiEquipo || '';
     const dni = venta.dniCliente || '';
@@ -130,6 +223,13 @@ async function deleteVenta(db, payload) {
       equiposClienteSnap = await transaction.get(equiposRef.where('idDuenio', '==', dni).limit(100));
     }
 
+    await releaseImeiLocks({
+      transaction,
+      locksRef,
+      kind: 'venta',
+      ownerId: id,
+      imeis: ventaLockImeis(venta),
+    });
     transaction.delete(ventaRef);
     if (dni && !otherDniVenta && !otherDniRegistro) {
       equiposClienteSnap?.docs.forEach(doc => transaction.delete(doc.ref));
@@ -139,17 +239,29 @@ async function deleteVenta(db, payload) {
     } else if (imei1) {
       transaction.set(equiposRef.doc(imei1), {isVendido: otherVenta}, {merge: true});
     }
+    queueAuditEvent(transaction, base, context, {
+      entityType: 'venta',
+      entityId: id,
+      action: 'delete',
+      metadata: {
+        nVenta: venta.nVenta,
+        dniCliente: dni,
+        imeiEquipo: venta.imeiEquipo,
+        imei2Equipo: venta.imei2Equipo,
+        total: venta.precio,
+      },
+    });
 
     return {deleted: true};
   });
 }
 
-async function dispatchVentas(body) {
+async function dispatchVentas(body, user, context) {
   const db = getAdminDb();
   const action = String(body?.action || '');
-  if (action === 'create') return createVenta(db, body);
-  if (action === 'update') return updateVenta(db, body);
-  if (action === 'delete') return deleteVenta(db, body);
+  if (action === 'create') return createVenta(db, body, context);
+  if (action === 'update') return updateVenta(db, body, context);
+  if (action === 'delete') return deleteVenta(db, body, context);
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 

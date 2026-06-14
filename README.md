@@ -1,78 +1,151 @@
-# Comunicate
+# COMUNIC@TE Enterprise SaaS Documentation
 
-Aplicacion React + Vite desplegada en Netlify.
+COMUNIC@TE is an operational SaaS platform for device registration, equipment sales, customer records, foreign receipt generation, legal consent capture and PDF ticket/receipt workflows. The product runs under the GGS software ecosystem:
 
-## Backend canonico
+- `GGS`: parent company and corporate ecosystem.
+- `GGS SYSTEMS`: commercial software brand and SaaS operator.
+- `GGS CODE`: engineering, architecture, security and delivery division.
+- `COMUNIC@TE`: operational product inside the GGS SYSTEMS portfolio.
 
-El unico backend activo del proyecto esta en `netlify/functions`.
+This repository is a Vite + React application backed by Firebase Auth, Firestore and Netlify Functions. The canonical backend is `netlify/functions`; Firebase Cloud Functions are not used.
 
-- `reniec.mjs`: consulta DNI con token RENIEC.
-- `analizarCajaGemini.mjs`: OCR de caja con Gemini.
-- `registros.mjs`: altas, ediciones, desbloqueos y borrados de registros con transacciones Firestore.
-- `ventas.mjs`: altas, ediciones y borrados de ventas con transacciones Firestore.
-- `_validators.mjs`: modelos Zod compartidos para validar DNI, celular, email, IMEI, precio y fechas en servidor.
+## Documentation Index
 
-No se usan Firebase Cloud Functions para mantener compatibilidad con el plan gratuito de Firebase.
+| Document | Purpose |
+|---|---|
+| [Enterprise Index](docs/enterprise/INDEX.md) | Entry point for all professional documentation. |
+| [System Overview](docs/enterprise/system-overview.md) | Product purpose, modules, workflows and stack. |
+| [Architecture](docs/enterprise/architecture.md) | Folder structure, frontend/backend/data architecture and diagrams. |
+| [Frontend](docs/enterprise/frontend.md) | React surfaces, navigation, state, UI system and responsive behavior. |
+| [Functional Specification](docs/enterprise/functional-specification.md) | Business modules, user journeys and operational rules. |
+| [API Reference](docs/enterprise/api-reference.md) | Netlify endpoints, request bodies, responses, auth and errors. |
+| [Data Model](docs/enterprise/data-model.md) | Firestore collections, relationships, indexes and data flows. |
+| [Security](docs/enterprise/security.md) | Authentication, authorization, validation, rate limits and hardening. |
+| [Deployment and DevOps](docs/enterprise/deployment-devops.md) | Local setup, builds, hosting, deployment and production operations. |
+| [Configuration](docs/enterprise/configuration.md) | Environment variables, secrets and external APIs. |
+| [Business and Legal Architecture](docs/enterprise/business-legal.md) | Corporate ownership, legal documents and compliance model. |
+| [Developer Guide](docs/enterprise/developer-guide.md) | Onboarding, conventions, module development and maintenance. |
+| [Troubleshooting](docs/enterprise/troubleshooting.md) | Common errors, debugging flows and quick fixes. |
+| [Maintenance and Scalability](docs/enterprise/maintenance-and-scalability.md) | Future enterprise roadmap, scale plan and technical debt. |
 
-## Variables de entorno en Netlify
+Existing specialized documents:
 
-Configurar en `Site configuration > Environment variables`:
+- [Brand Architecture](docs/brand-architecture.md)
+- [Legal Compliance Architecture](docs/legal-compliance-architecture.md)
+- [Enterprise SaaS Audit PDF](docs/auditoria-enterprise-saas-comunicate-2026-05-20.pdf)
 
-```env
-FIREBASE_SERVICE_ACCOUNT=JSON_PRIVADO_DE_FIREBASE_ADMIN_EN_UNA_LINEA
-FIREBASE_API_KEY=TU_FIREBASE_WEB_API_KEY
-ALLOWED_EMAILS=correo1@gmail.com,correo2@gmail.com
-ALLOWED_ORIGINS=https://tu-sitio.netlify.app
-RENIEC_TOKEN=TU_TOKEN_RENIEC
-GEMINI_API_KEY=TU_API_KEY_GEMINI
-GEMINI_MODEL=gemini-2.0-flash
-VITE_BACKEND_BASE_URL=
+## Current Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Vite 7, Tailwind CSS 3 |
+| UI Icons | lucide-react |
+| Authentication | Firebase Auth with Google provider |
+| Database | Firestore |
+| Backend | Netlify Functions |
+| Server validation | Zod |
+| Admin SDK | firebase-admin |
+| PDF generation | jsPDF, JsBarcode, local PDF417 script |
+| External APIs | RENIEC provider, Gemini OCR |
+| Hosting | Netlify for app/functions, Firebase Hosting configuration also present |
+
+## Quick Start
+
+Install dependencies:
+
+```bash
+npm install
 ```
 
-Si el frontend se despliega en Netlify junto con las funciones, `VITE_BACKEND_BASE_URL` queda vacio.
+Create local environment values from `.env.example`:
 
-## Desarrollo local
+```bash
+cp .env.example .env
+```
 
-Para probar frontend consumiendo las mismas APIs sin hacer hosting:
+Run the app with local API proxy:
 
 ```bash
 npm run dev
 ```
 
-Ese comando levanta la API local en `http://127.0.0.1:3001` y Vite redirige `/api` hacia ese servidor local. Mantén `VITE_BACKEND_BASE_URL` vacio en `.env` para usar ese proxy.
-
-Para revisar solo frontend sin API local:
+Run only the Vite frontend:
 
 ```bash
 npm run dev:vite
 ```
 
-Para levantar solo la API local:
+Run only the local API adapter:
 
 ```bash
 npm run dev:api
 ```
 
-Para probar frontend y Netlify Functions localmente:
+Run lint:
 
 ```bash
-npx netlify dev
+npm run lint
 ```
 
-## Despliegue
-
-Netlify construye con:
+Build production assets:
 
 ```bash
 npm run build
 ```
 
-Firestore rules se despliegan aparte:
+Run tests:
+
+```bash
+npm test
+```
+
+## Canonical Backend
+
+The active backend is `netlify/functions`.
+
+| Function | Responsibility |
+|---|---|
+| `reniec.mjs` | DNI lookup through external RENIEC provider. |
+| `analizarCajaGemini.mjs` | OCR for phone box images through Gemini. |
+| `registros.mjs` | Create, update, delete and unlock equipment registrations. |
+| `ventas.mjs` | Create, update and delete equipment sales. |
+| `clientes.mjs` | Update and delete customer records. |
+| `legalConsent.mjs` | Record authenticated legal consent evidence. |
+| `_shared.mjs` | CORS, auth, body parsing, JSON responses and in-memory rate limiting. |
+| `_validators.mjs` | Zod schemas for server-side validation. |
+| `_firebaseAdmin.mjs` | Firebase Admin initialization. |
+
+## Repository Hygiene
+
+The canonical runtime paths are `src/` for the React app and `netlify/functions/` for backend actions. The following paths are present or may appear locally, but they are not the active backend:
+
+| Path | Current status | Maintenance decision |
+|---|---|---|
+| `backend/` | Empty local placeholder. | Do not add runtime code here unless architecture changes. It can be removed in a cleanup-only task. |
+| `functions/` | Legacy/local Firebase Functions area. Only `functions/.gitignore` is tracked; local `.env`, `node_modules` or `src` content is not canonical. | Keep secrets out of git. Prefer `netlify/functions/` for backend code. |
+| `deno.lock` | Netlify Edge/bootstrap lock artifact. | Keep only while Netlify tooling requires it; remove in a separate cleanup task if no Edge/runtime dependency remains. |
+| `.agents/` | Versioned Codex/agent skill assets, currently used for design workflow assistance. | Not app runtime. Do not treat as production source code. |
+
+## Deployment Summary
+
+Netlify builds the frontend and serves Netlify Functions:
+
+```bash
+npm run build
+```
+
+Firestore rules and indexes are deployed separately:
 
 ```bash
 npx firebase deploy --only firestore
 ```
 
-No desplegar Firebase Functions.
+Do not deploy Firebase Functions for this project unless the architecture changes.
 
-La configuracion de Firestore incluye `firestore.rules` y `firestore.indexes.json`. Los listados de ventas y registros leen por paginas ordenadas por `fecha desc`.
+## Production Notes
+
+- Keep `.env` and `functions/.env` out of version control.
+- Configure production secrets in Netlify environment variables.
+- Review `firestore.rules` before adding any new client-side write path.
+- API writes for registrations, sales and customers should remain server-mediated through Netlify Functions.
+- Legal documents define the current Peru/Tacna/domain baseline in `src/config/legal.js`; counsel should still confirm formal registration, tax, retention and provider-processing obligations before public production use.

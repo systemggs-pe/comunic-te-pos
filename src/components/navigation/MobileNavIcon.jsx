@@ -19,9 +19,9 @@ export function MobileNavIcon({ Icon, active, onClick, title, showLabel = false,
   const styles = toneStyles[tone] || toneStyles.blue;
   return (
     <button onClick={onClick} title={title} aria-label={title}
-      className={`rounded-lg transition-colors ${showLabel ? 'flex min-w-[72px] flex-col items-center gap-1 px-3 py-2 text-[11px] font-medium' : 'p-2'} ${active ? styles.active : styles.inactive}`}>
-      <NavIcon size={20} className={styles.icon} />
-      {showLabel && <span className="leading-none">{title}</span>}
+      className={`rounded-md transition-colors ${showLabel ? 'flex min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 py-1 text-[9px] font-semibold' : 'p-2'} ${active ? styles.active : styles.inactive}`}>
+      <NavIcon size={showLabel ? 16 : 20} className={styles.icon} />
+      {showLabel && <span className="max-w-full truncate leading-none">{title}</span>}
     </button>
   );
 }

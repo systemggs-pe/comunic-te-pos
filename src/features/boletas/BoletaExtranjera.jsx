@@ -5,6 +5,7 @@ import { consultarReniecDni } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import { penToClp, formatClp } from '../../utils/currency.js';
 import { toLocalDatetimeValueBoleta } from '../../utils/dates.js';
+import {getBoletaExtranjeraEmisor} from '../../config/boletaExtranjera.js';
 import { EscanerIA } from '../registros/EscanerIA.jsx';
 import { generarBoletaExtranjera, generarBoletaExtranjera2, generarBoletaExtranjera3 } from './boletaPdf.js';
 import {appId, db} from '../../lib/firebase.js';
@@ -13,7 +14,7 @@ const boletasRef = collection(db, 'artifacts', appId, 'users', 'shared', 'boleta
 const contadorBoletasRef = doc(db, 'artifacts', appId, 'users', 'shared', 'configuracion', 'contadorBoletas');
 const limpiarParaFirestore = data => JSON.parse(JSON.stringify(data));
 
-export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
+export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConfig, showToast, onSearchVentas, searchingVentas = false }) {
   const [modo, setModo] = useState('buscar');
   const [fechaHora, setFechaHora] = useState(toLocalDatetimeValueBoleta(new Date()));
   const [modalBoleta, setModalBoleta] = useState(null);
@@ -39,15 +40,43 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   const [clienteEncontrado, setClienteEncontrado] = useState(null);
   const [ventasCliente, setVentasCliente] = useState([]);
   const [seleccionadas, setSeleccionadas] = useState(new Set());
+  const [buscandoVentas, setBuscandoVentas] = useState(false);
 
-  const buscar = () => {
+  const buscar = async () => {
     const dni = searchDni.trim();
-    const cliente = clientes.find(c => c.dni === dni);
-    if (!cliente) { showToast('Cliente no encontrado', 'error'); return; }
-    const vs = ventas.filter(v => v.dniCliente === dni);
-    setClienteEncontrado(cliente);
-    setVentasCliente(vs);
-    setSeleccionadas(new Set(vs.map(v => v.id)));
+    if (!dni) { showToast('Ingresa el DNI del cliente', 'error'); return; }
+
+    setBuscandoVentas(true);
+    try {
+      const ventasHistoricas = onSearchVentas ? await onSearchVentas(dni) : [];
+      const ventasMap = new Map();
+      [...ventas, ...(Array.isArray(ventasHistoricas) ? ventasHistoricas : [])].forEach(venta => {
+        if (venta?.id) ventasMap.set(venta.id, venta);
+      });
+      const vs = Array.from(ventasMap.values())
+        .filter(v => v.dniCliente === dni)
+        .sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
+      const clienteBase = clientes.find(c => c.dni === dni);
+      if (!clienteBase && vs.length === 0) { showToast('Cliente no encontrado', 'error'); return; }
+
+      const cliente = clienteBase || {
+        dni,
+        tipoDocumento: vs[0]?.tipoDocumentoCliente || 'DNI',
+        nombre: vs[0]?.nombreCliente || dni,
+        celular: vs[0]?.celularCliente || '',
+      };
+
+      if (vs.length === 0) showToast('Cliente encontrado, pero no tiene ventas registradas', 'error');
+
+      setClienteEncontrado(cliente);
+      setVentasCliente(vs);
+      setSeleccionadas(new Set(vs.map(v => v.id)));
+    } catch (error) {
+      console.error(error);
+      showToast('No se pudo buscar ventas antiguas', 'error');
+    } finally {
+      setBuscandoVentas(false);
+    }
   };
 
   const toggleVenta = (id) => {
@@ -57,6 +86,17 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
   const ventasSel = ventasCliente.filter(v => seleccionadas.has(v.id));
   const totalPen  = ventasSel.reduce((s, v) => s + parseFloat(v.precio || 0), 0);
   const totalClp  = penToClp(totalPen);
+
+  const fechaDesdeVentas = (ventasSeleccionadas) => {
+    const fechas = ventasSeleccionadas
+      .map(venta => new Date(venta.fecha || 0))
+      .filter(date => !Number.isNaN(date.getTime()))
+      .sort((a, b) => b - a);
+    if (!fechas.length) return fechaHora;
+    const fecha = new Date(fechas[0]);
+    fecha.setDate(fecha.getDate() - 1);
+    return toLocalDatetimeValueBoleta(fecha);
+  };
 
   const abrirSelectorFormato = (boletaData, opciones = {}) => {
     setModalBoleta({
@@ -86,6 +126,7 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
       totalClp: data.totalClp,
       fechaHora: data.fechaHora,
       nBoleta: data.nBoleta || data.boletaData?.nBoleta || null,
+      emisor: data.emisor || data.boletaData?.emisor || getBoletaExtranjeraEmisor(boletaEmisoresConfig, formato),
     };
 
     try {
@@ -126,7 +167,7 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
     if (!clienteEncontrado || ventasSel.length === 0) { showToast('Selecciona al menos una venta', 'error'); return; }
     const equiposMap = {};
     equipos.forEach(e => { equiposMap[e.idEquipo] = e; });
-    abrirSelectorFormato({ cliente: clienteEncontrado, ventas: ventasSel, equiposMap, totalClp, fechaHora });
+    abrirSelectorFormato({ cliente: clienteEncontrado, ventas: ventasSel, equiposMap, totalClp, fechaHora: fechaDesdeVentas(ventasSel) });
   };
 
   // ── MODO NUEVA BOLETA MANUAL ──
@@ -310,10 +351,13 @@ export function BoletaExtranjera({ clientes, equipos, ventas, showToast }) {
                 onKeyDown={e => e.key === 'Enter' && buscar()}
                 placeholder="DNI del cliente..." inputMode="numeric"
                 className="flex-1 min-w-0" />
-              <button onClick={buscar} className="saas-primary">
-                <Search size={16}/> Buscar
+              <button onClick={buscar} disabled={buscandoVentas || searchingVentas} className="saas-primary disabled:cursor-not-allowed disabled:opacity-60">
+                <Search size={16}/> {buscandoVentas || searchingVentas ? 'Buscando...' : 'Buscar'}
               </button>
             </div>
+            {(buscandoVentas || searchingVentas) && (
+              <p className="text-xs text-blue-600">Buscando tambien en ventas antiguas...</p>
+            )}
 
             {clienteEncontrado && (
               <>

@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /privacy-policy
+Allow: /terms-and-conditions
+Allow: /terms-of-use
+Allow: /legal
+Allow: /cookies
+Allow: /copyright
+Allow: /community-guidelines
+Allow: /sitemap.xml
+Allow: /sitemap-legal.xml
+Allow: /comunicate-icon.svg
+Disallow: /
+
+Sitemap: https://comunicate-tacna.web.app/sitemap.xml

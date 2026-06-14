@@ -1,32 +1,31 @@
 import React from 'react';
 import {
-  DIGITAL_SIGNATURE,
-  SUPPORT_EMAIL,
-  SUPPORT_PHONE,
-  SUPPORT_WHATSAPP_URL,
+  CORPORATE_PARENT,
+  ENGINEERING_DIVISION,
+  PRODUCT_BRAND,
+  SOFTWARE_BRAND,
   SYSTEM_VERSION,
 } from '../../config/branding.js';
 
 export function AppFooter() {
+  const year = new Date().getFullYear();
+
   return (
-    <footer className="shrink-0 border-t border-gray-200 bg-white/95 px-4 py-2 text-center text-[11px] text-gray-500">
-      <span>Creado por <strong className="font-semibold text-gray-700">{DIGITAL_SIGNATURE} {SYSTEM_VERSION}</strong></span>
-      <span className="mx-2 text-gray-300">|</span>
-      <a
-        href={SUPPORT_WHATSAPP_URL}
-        target="_blank"
-        rel="noreferrer"
-        className="font-medium text-green-700 hover:text-green-800 hover:underline"
-      >
-        Soporte {SUPPORT_PHONE}
-      </a>
-      <span className="mx-2 text-gray-300">|</span>
-      <a
-        href={`mailto:${SUPPORT_EMAIL}`}
-        className="font-medium text-blue-700 hover:text-blue-800 hover:underline"
-      >
-        {SUPPORT_EMAIL}
-      </a>
+    <footer className="shrink-0 border-t border-slate-200 bg-white px-3 py-1.5 text-[10px] text-slate-500 sm:text-[11px]">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-2 gap-y-1">
+        <span className="font-semibold text-slate-700">{PRODUCT_BRAND}</span>
+        <span className="text-slate-300">|</span>
+        <span>{SOFTWARE_BRAND}</span>
+        <span className="hidden sm:inline text-slate-300">|</span>
+        <span className="hidden sm:inline">by {CORPORATE_PARENT} / {ENGINEERING_DIVISION}</span>
+        <span className="text-slate-300">|</span>
+        <span>{SYSTEM_VERSION}</span>
+        <span className="text-slate-300">|</span>
+        <a href="/privacy-policy" className="font-medium text-slate-600 hover:text-slate-900 hover:underline">Privacidad</a>
+        <a href="/terms-and-conditions" className="font-medium text-slate-600 hover:text-slate-900 hover:underline">Terminos</a>
+        <span className="hidden sm:inline text-slate-300">|</span>
+        <span className="hidden sm:inline">Copyright {year}</span>
+      </div>
     </footer>
   );
 }

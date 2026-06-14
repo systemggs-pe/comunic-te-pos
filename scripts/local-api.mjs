@@ -1,4 +1,5 @@
 import {existsSync, readFileSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
 import {createServer} from 'node:http';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -7,11 +8,26 @@ const rootDir = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const routeModules = {
   '/api/analizarCajaGemini': '../netlify/functions/analizarCajaGemini.mjs',
   '/api/clientes': '../netlify/functions/clientes.mjs',
+  '/api/legalConsent': '../netlify/functions/legalConsent.mjs',
   '/api/registros': '../netlify/functions/registros.mjs',
   '/api/reniec': '../netlify/functions/reniec.mjs',
   '/api/ventas': '../netlify/functions/ventas.mjs',
 };
 const shellEnvKeys = new Set(Object.keys(process.env));
+
+function logLocal(level, event, fields = {}) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    level,
+    event,
+    service: 'local-api',
+    ...fields,
+  };
+  const line = JSON.stringify(entry);
+  if (level === 'error') console.error(line);
+  else if (level === 'warn') console.warn(line);
+  else console.log(line);
+}
 
 function parseEnvValue(value) {
   const trimmed = value.trim();
@@ -88,8 +104,8 @@ async function getHandler(pathname) {
   return module.handler;
 }
 
-function sendJson(res, statusCode, body) {
-  res.writeHead(statusCode, {'Content-Type': 'application/json; charset=utf-8'});
+function sendJson(res, statusCode, body, headers = {}) {
+  res.writeHead(statusCode, {'Content-Type': 'application/json; charset=utf-8', ...headers});
   res.end(JSON.stringify(body));
 }
 
@@ -109,8 +125,9 @@ function logConfigHints() {
   }
 
   if (hints.length) {
-    console.warn('Avisos de configuracion local:');
-    for (const hint of hints) console.warn(`- ${hint}`);
+    for (const hint of hints) {
+      logLocal('warn', 'local.config_warning', {message: hint});
+    }
   }
 }
 
@@ -124,11 +141,15 @@ const port = Number(process.env.BACKEND_PORT || 3001);
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || `127.0.0.1:${port}`}`);
   const pathname = url.pathname.replace(/\/$/, '') || '/';
+  const requestId = String(req.headers['x-request-id'] || randomUUID());
+  const startedAt = Date.now();
+  logLocal('info', 'local.request_start', {requestId, method: req.method, path: pathname});
 
   try {
     const handler = await getHandler(pathname);
     if (!handler) {
-      sendJson(res, 404, {error: 'API_LOCAL_ROUTE_NOT_FOUND', path: pathname});
+      logLocal('warn', 'local.request_error', {requestId, method: req.method, path: pathname, statusCode: 404});
+      sendJson(res, 404, {error: 'API_LOCAL_ROUTE_NOT_FOUND', path: pathname, requestId}, {'X-Request-Id': requestId});
       return;
     }
 
@@ -137,7 +158,7 @@ const server = createServer(async (req, res) => {
       httpMethod: req.method,
       path: pathname,
       rawUrl: url.href,
-      headers: req.headers,
+      headers: {...req.headers, 'x-request-id': requestId},
       body,
       queryStringParameters: getQueryParams(url),
     });
@@ -149,25 +170,45 @@ const server = createServer(async (req, res) => {
     }
     res.statusCode = statusCode;
     res.end(response?.body || '');
+    logLocal(statusCode >= 400 ? 'warn' : 'info', statusCode >= 400 ? 'local.request_error' : 'local.request_success', {
+      requestId,
+      method: req.method,
+      path: pathname,
+      statusCode,
+      durationMs: Date.now() - startedAt,
+    });
     if (statusCode >= 400) {
-      console.warn(`[API local] ${req.method} ${pathname} -> ${statusCode}: ${response?.body || ''}`);
+      logLocal('warn', 'local.response_body', {requestId, body: response?.body || ''});
     }
   } catch (error) {
-    console.error(`[API local] ${req.method} ${pathname} -> ${error.statusCode || 500}: ${error.message}`);
-    sendJson(res, error.statusCode || 500, {error: error.message || 'API_LOCAL_ERROR'});
+    const statusCode = error.statusCode || 500;
+    logLocal('error', 'local.unhandled_error', {
+      requestId,
+      method: req.method,
+      path: pathname,
+      statusCode,
+      durationMs: Date.now() - startedAt,
+      errorMessage: error.message,
+    });
+    sendJson(res, statusCode, {error: error.message || 'API_LOCAL_ERROR', requestId}, {'X-Request-Id': requestId});
   }
 });
 
 server.on('error', error => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`El puerto ${port} ya esta en uso. Cierra la otra API local o cambia BACKEND_PORT.`);
+    logLocal('error', 'local.port_in_use', {
+      port,
+      errorMessage: `El puerto ${port} ya esta en uso. Cierra la otra API local o cambia BACKEND_PORT.`,
+    });
     process.exit(1);
   }
-  console.error(error);
+  logLocal('error', 'local.server_error', {errorMessage: error.message, errorCode: error.code || ''});
   process.exit(1);
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`API local lista en http://127.0.0.1:${port}`);
-  console.log(`Endpoints: ${Object.keys(routeModules).join(', ')}`);
+  logLocal('info', 'local.server_ready', {
+    url: `http://127.0.0.1:${port}`,
+    endpoints: Object.keys(routeModules),
+  });
 });

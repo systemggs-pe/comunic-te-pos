@@ -1,3 +1,12 @@
+import {
+  attachUserToContext,
+  createRequestContext,
+  logRequestError,
+  logRequestStart,
+  logRequestSuccess,
+} from './_observability.mjs';
+import {enforcePersistentRateLimit} from './_rateLimit.mjs';
+
 const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
@@ -13,7 +22,6 @@ const DEFAULT_ALLOWED_EMAILS = [
   'brand050103@gmail.com',
   'lauryruyz50@gmail.com',
 ];
-const rateLimits = new Map();
 
 function getAllowedEmails() {
   const configured = (process.env.ALLOWED_EMAILS || '')
@@ -31,10 +39,11 @@ function requireAllowedUser(user) {
 }
 
 export function corsHeaders(event) {
-  const origin = event.headers.origin || event.headers.Origin || '';
+  const origin = event.headers?.origin || event.headers?.Origin || '';
   const headers = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Request-Id',
+    'Access-Control-Expose-Headers': 'X-Request-Id, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset',
   };
 
   if (allowedOrigins.includes(origin)) {
@@ -84,48 +93,37 @@ export async function requireFirebaseUser(event) {
   return {uid: user.localId, email: user.email || ''};
 }
 
-function enforceRateLimit(user, rateLimit = {}) {
-  if (!rateLimit.name || !rateLimit.max) return {};
-
-  const windowMs = rateLimit.windowMs || 60 * 1000;
-  const now = Date.now();
-  const bucket = Math.floor(now / windowMs);
-  const key = `${rateLimit.name}:${user.uid}:${bucket}`;
-  const current = rateLimits.get(key) || 0;
-  const resetSeconds = Math.ceil(((bucket + 1) * windowMs - now) / 1000);
-  const headers = {
-    'X-RateLimit-Limit': String(rateLimit.max),
-    'X-RateLimit-Remaining': String(Math.max(rateLimit.max - current - 1, 0)),
-    'X-RateLimit-Reset': String(resetSeconds),
-  };
-
-  if (current >= rateLimit.max) {
-    throw Object.assign(new Error('Demasiadas solicitudes. Intenta de nuevo en unos segundos.'), {
-      status: 429,
-      responseHeaders: headers,
-    });
-  }
-  rateLimits.set(key, current + 1);
-  return headers;
-}
-
 export async function handlePost(event, callback, options = {}) {
-  const headers = corsHeaders(event);
+  const context = createRequestContext(event, options);
+  const headers = {
+    ...corsHeaders(event),
+    'X-Request-Id': context.requestId,
+  };
+  logRequestStart(context);
+
   if (event.httpMethod === 'OPTIONS') {
+    logRequestSuccess(context, {statusCode: 204});
     return {statusCode: 204, headers, body: ''};
   }
   if (event.httpMethod !== 'POST') {
-    return json(405, {error: 'Metodo no permitido'}, headers);
+    const error = Object.assign(new Error('Metodo no permitido'), {status: 405});
+    logRequestError(context, error);
+    return json(405, {error: error.message, requestId: context.requestId}, headers);
   }
 
   try {
     const user = await requireFirebaseUser(event);
-    const rateLimitHeaders = enforceRateLimit(user, options.rateLimit);
+    attachUserToContext(context, user);
+    const rateLimitHeaders = await enforcePersistentRateLimit(user, context, options.rateLimit);
     const body = parseBody(event);
-    return json(200, await callback(body, user), {...headers, ...rateLimitHeaders});
+    const result = await callback(body, user, context);
+    logRequestSuccess(context, {statusCode: 200});
+    return json(200, result, {...headers, ...rateLimitHeaders});
   } catch (error) {
+    logRequestError(context, error);
     return json(error.status || 500, {
       error: error.message || 'Error interno',
+      requestId: context.requestId,
       ...(error.payload ? {details: error.payload} : {}),
     }, {...headers, ...(error.responseHeaders || {})});
   }

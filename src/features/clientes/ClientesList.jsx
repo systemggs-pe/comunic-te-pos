@@ -1,10 +1,9 @@
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {CalendarClock, ClipboardList, Edit, Eye, Search, ShoppingCart, Smartphone, Trash2, Users, X} from 'lucide-react';
-import {actualizarCliente, eliminarCliente, obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
+import {actualizarCliente, consultarClientesOperativos, eliminarCliente, obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento} from '../../utils/documentos.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 
-const normalizar = value => String(value || '').trim().toLowerCase();
 const clean = value => String(value || '').trim();
 const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
 const lineasALista = value => uniqueClean(String(value || '').split(/\r?\n/));
@@ -20,8 +19,12 @@ const fechaHora = value => {
     minute: '2-digit',
   }).format(date);
 };
+const monto = value => Number(value || 0);
+const soles = value => `S/. ${monto(value).toFixed(2)}`;
+const CLIENTES_LIMIT = 25;
+const TOP_CLIENTES_LIMIT = 10;
 
-export function ClientesList({clientes, equipos, registros, ventas = [], showToast}) {
+export function ClientesList({showToast}) {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('todo');
   const [selectedDni, setSelectedDni] = useState(null);
@@ -29,94 +32,82 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
   const [editForm, setEditForm] = useState({tipoDocumento: 'DNI', nombre: '', celular: '', correo: '', direccion: '', celulares: '', correos: ''});
   const [guardando, setGuardando] = useState(false);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
+  const [clientesOperativos, setClientesOperativos] = useState([]);
+  const [totalResultados, setTotalResultados] = useState(0);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [errorCarga, setErrorCarga] = useState('');
+  const showToastRef = useRef(showToast);
+  const requestIdRef = useRef(0);
 
-  const clientesOperativos = useMemo(() => {
-    const mapa = new Map(clientes.map(cliente => [cliente.dni, {...cliente}]));
+  useEffect(() => {
+    showToastRef.current = showToast;
+  }, [showToast]);
 
-    ventas.forEach(venta => {
-      if (!venta.dniCliente) return;
-      if (!mapa.has(venta.dniCliente)) {
-        mapa.set(venta.dniCliente, {
-          id: venta.dniCliente,
-          dni: venta.dniCliente,
-          tipoDocumento: venta.tipoDocumentoCliente || 'DNI',
-          nombre: venta.nombreCliente || '',
-          celular: venta.celularCliente || '',
+  useEffect(() => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    let active = true;
+    const timeoutId = window.setTimeout(async () => {
+      setCargando(true);
+      setErrorCarga('');
+      try {
+        const response = await consultarClientesOperativos({
+          searchTerm,
+          searchField,
+          limit: searchTerm.trim() ? CLIENTES_LIMIT : TOP_CLIENTES_LIMIT,
         });
+        if (!active || requestId !== requestIdRef.current) return;
+        setClientesOperativos(Array.isArray(response.clientes) ? response.clientes : []);
+        setTotalResultados(Number(response.total || 0));
+        setNextCursor(response.nextCursor || null);
+      } catch (error) {
+        console.error(error);
+        if (!active || requestId !== requestIdRef.current) return;
+        setErrorCarga(obtenerMensajeErrorFuncion(error, 'No se pudo cargar el directorio'));
+        showToastRef.current?.(obtenerMensajeErrorFuncion(error, 'No se pudo cargar el directorio'), 'error');
+      } finally {
+        if (active && requestId === requestIdRef.current) setCargando(false);
       }
-    });
+    }, searchTerm.trim() ? 350 : 0);
 
-    registros.forEach(registro => {
-      if (!registro.dniCliente) return;
-      if (!mapa.has(registro.dniCliente)) {
-        mapa.set(registro.dniCliente, {
-          id: registro.dniCliente,
-          dni: registro.dniCliente,
-          tipoDocumento: registro.tipoDocumentoCliente || 'DNI',
-          nombre: registro.nombreCliente || '',
-          celular: registro.celularCliente || '',
-          celularRef: registro.celularRef || '',
-        });
-      }
-    });
-
-    return Array.from(mapa.values()).map(cliente => {
-      const ventasCliente = ventas.filter(venta => venta.dniCliente === cliente.dni);
-      const registrosCliente = registros.filter(registro => registro.dniCliente === cliente.dni);
-      const equiposPorDni = equipos.filter(equipo => equipo.idDuenio === cliente.dni);
-      const equiposPorMovimientos = [...ventasCliente, ...registrosCliente]
-        .filter(item => item.imeiEquipo)
-        .map(item => ({
-          idEquipo: item.imeiEquipo,
-          imei2: item.imei2Equipo || '',
-          sn: item.sn || '',
-          marca: item.marcaEquipo || '',
-          modelo: item.modeloEquipo || '',
-          nombreComercial: item.nombreComercial || item.nombreComercialEquipo || '',
-          color: item.color || '',
-          memoria: item.memoria || '',
-        }));
-      const equiposMap = new Map();
-      [...equiposPorDni, ...equiposPorMovimientos].forEach(equipo => {
-        if (!equipo?.idEquipo) return;
-        equiposMap.set(equipo.idEquipo, {...(equiposMap.get(equipo.idEquipo) || {}), ...equipo});
-      });
-
-      return {
-        ...cliente,
-        ventas: ventasCliente,
-        registros: registrosCliente,
-        equipos: Array.from(equiposMap.values()),
-        actividad: ventasCliente.length + registrosCliente.length,
-      };
-    }).filter(cliente => cliente.actividad > 0);
-  }, [clientes, equipos, registros, ventas]);
-
-  const clientesVisibles = useMemo(() => {
-    const term = normalizar(searchTerm);
-    const coincide = (cliente) => {
-      if (!term) return true;
-      const campos = {
-        dni: [cliente.dni],
-        nombre: [cliente.nombre],
-        imei: cliente.equipos.flatMap(equipo => [equipo.idEquipo, equipo.imei2]),
-        modelo: cliente.equipos.map(equipo => equipo.modelo),
-        nombreComercial: cliente.equipos.map(equipo => equipo.nombreComercial),
-        sn: cliente.equipos.map(equipo => equipo.sn),
-      };
-      const valores = searchField === 'todo'
-        ? Object.values(campos).flat()
-        : campos[searchField] || [];
-      return valores.some(value => normalizar(value).includes(term));
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
     };
+  }, [searchField, searchTerm]);
 
-    const filtrados = clientesOperativos.filter(coincide);
-    const ordenados = [...filtrados].sort((a, b) => {
-      if (b.actividad !== a.actividad) return b.actividad - a.actividad;
-      return normalizar(a.nombre).localeCompare(normalizar(b.nombre));
-    });
-    return term ? ordenados : ordenados.slice(0, 10);
-  }, [clientesOperativos, searchField, searchTerm]);
+  const cargarMasClientes = async () => {
+    if (!nextCursor || cargandoMas) return;
+    setCargandoMas(true);
+    setErrorCarga('');
+    try {
+      const response = await consultarClientesOperativos({
+        searchTerm,
+        searchField,
+        limit: CLIENTES_LIMIT,
+        cursor: nextCursor,
+      });
+      const nuevos = Array.isArray(response.clientes) ? response.clientes : [];
+      setClientesOperativos(prev => {
+        const mapa = new Map(prev.map(cliente => [cliente.dni, cliente]));
+        nuevos.forEach(cliente => mapa.set(cliente.dni, cliente));
+        return Array.from(mapa.values());
+      });
+      setTotalResultados(Number(response.total || 0));
+      setNextCursor(response.nextCursor || null);
+    } catch (error) {
+      console.error(error);
+      const message = obtenerMensajeErrorFuncion(error, 'No se pudo cargar mas clientes');
+      setErrorCarga(message);
+      showToastRef.current?.(message, 'error');
+    } finally {
+      setCargandoMas(false);
+    }
+  };
+
+  const clientesVisibles = clientesOperativos;
 
   const selectedClient = clientesOperativos.find(cliente => cliente.dni === selectedDni);
   const celularesSeleccionado = selectedClient ? uniqueClean([
@@ -149,7 +140,7 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
     const correos = lineasALista(editForm.correos).map(correo => correo.toLowerCase());
     setGuardando(true);
     try {
-      await actualizarCliente({
+      const response = await actualizarCliente({
         cliente: {
           dni: selectedClient.dni,
           tipoDocumento: editForm.tipoDocumento || selectedClient.tipoDocumento || 'DNI',
@@ -162,6 +153,11 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
           correos,
         },
       });
+      if (response?.cliente) {
+        setClientesOperativos(prev => prev.map(cliente => (
+          cliente.dni === selectedClient.dni ? {...cliente, ...response.cliente} : cliente
+        )));
+      }
       showToast?.('Cliente actualizado');
       setEditando(false);
     } catch (error) {
@@ -178,6 +174,8 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
     try {
       await eliminarCliente(selectedClient.dni);
       showToast?.('Cliente eliminado');
+      setClientesOperativos(prev => prev.filter(cliente => cliente.dni !== selectedClient.dni));
+      setTotalResultados(prev => Math.max(prev - 1, 0));
       setSelectedDni(null);
       setEditando(false);
       setConfirmarEliminar(false);
@@ -231,7 +229,11 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
           <p className="saas-page-kicker">Clientes</p>
           <h2 className="saas-page-title">Directorio operativo</h2>
           <p className="saas-page-desc">
-            {searchTerm ? `${clientesVisibles.length} resultado${clientesVisibles.length !== 1 ? 's' : ''}` : 'Top 10 clientes con mas ventas o registros'}
+            {cargando
+              ? 'Cargando clientes...'
+              : searchTerm
+                ? `${totalResultados} resultado${totalResultados !== 1 ? 's' : ''}`
+                : `${clientesVisibles.length} de ${totalResultados} cliente${totalResultados !== 1 ? 's' : ''} con ventas o registros`}
           </p>
         </div>
         <div className="saas-toolbar-actions">
@@ -261,19 +263,60 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
         </div>
       </div>
 
-      {clientesVisibles.length === 0 ? (
+      {cargando ? (
+        <div className="saas-empty py-20">
+          <Users size={48} strokeWidth={1.4} />
+          <p className="text-base font-semibold">Cargando directorio operativo...</p>
+          <p className="text-sm">Calculando clientes, historial e ingresos completos.</p>
+        </div>
+      ) : errorCarga ? (
+        <div className="saas-empty py-20">
+          <Users size={48} strokeWidth={1.4} />
+          <p className="text-base font-semibold">No se pudo cargar clientes</p>
+          <p className="text-sm">{errorCarga}</p>
+        </div>
+      ) : clientesVisibles.length === 0 ? (
         <div className="saas-empty py-20">
           <Users size={48} strokeWidth={1.4} />
           <p className="text-base font-semibold">No se encontraron clientes</p>
           <p className="text-sm">Prueba con otro DNI, IMEI, modelo, nombre comercial o serie.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="md:hidden saas-mobile-list">
+          {clientesVisibles.map(cliente => {
+            const historial = [
+              ...cliente.ventas.map(item => item.fecha),
+              ...cliente.registros.map(item => item.fecha),
+            ].filter(Boolean).sort((a, b) => new Date(b) - new Date(a));
+            return (
+              <button key={cliente.dni} type="button" onClick={() => setSelectedDni(cliente.dni)} className="saas-mobile-row w-full text-left">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-slate-900">{cliente.nombre || 'Cliente sin nombre'}</p>
+                    <p className="mt-0.5 break-all font-mono text-xs text-slate-500">{etiquetaDocumento(cliente.tipoDocumento)} {cliente.dni}</p>
+                    {cliente.celular && <p className="mt-0.5 text-xs text-slate-500">{cliente.celular}</p>}
+                  </div>
+                  <p className="shrink-0 text-right text-sm font-bold text-emerald-700">{soles(cliente.totalIngreso)}</p>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <span className="rounded-md bg-emerald-50 px-2 py-2 text-xs font-semibold text-emerald-700">{cliente.ventas.length} ventas</span>
+                  <span className="rounded-md bg-blue-50 px-2 py-2 text-xs font-semibold text-blue-700">{cliente.registros.length} reg.</span>
+                  <span className="rounded-md bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700">{cliente.equipos.length} equipos</span>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">Ultimo movimiento: {fechaHora(historial[0])}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="hidden md:block">
           <table className="saas-table text-left">
             <thead>
               <tr>
                 <th className="px-5 py-3">Cliente</th>
                 <th className="px-5 py-3">Actividad</th>
+                <th className="px-5 py-3">Ingreso total</th>
                 <th className="px-5 py-3">Ultimo movimiento</th>
                 <th className="px-5 py-3">Equipos</th>
                 <th className="px-5 py-3 text-right">Detalle</th>
@@ -298,6 +341,10 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
                         <span className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">{cliente.registros.length} registro{cliente.registros.length !== 1 ? 's' : ''}</span>
                       </div>
                     </td>
+                    <td className="px-5 py-4">
+                      <p className="font-bold text-emerald-700">{soles(cliente.totalIngreso)}</p>
+                      <p className="text-xs text-slate-400">Ventas {soles(cliente.totalVentas)} · Reg. {soles(cliente.totalRegistros)}</p>
+                    </td>
                     <td className="px-5 py-4 text-sm text-slate-600">{fechaHora(historial[0])}</td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -316,18 +363,26 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
             </tbody>
           </table>
         </div>
+        {nextCursor && (
+          <div className="border-t border-slate-100 p-4 text-center">
+            <button type="button" onClick={cargarMasClientes} disabled={cargandoMas} className="saas-secondary disabled:opacity-60">
+              {cargandoMas ? 'Cargando...' : 'Cargar mas clientes'}
+            </button>
+          </div>
+        )}
+        </>
       )}
 
       {selectedClient && (
-        <div className="saas-modal-backdrop fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="saas-detail-modal max-h-[88vh] w-full max-w-4xl overflow-y-auto p-0">
+        <div className="saas-modal-backdrop fixed inset-0 z-[200] overflow-y-auto p-0 sm:p-4">
+          <div className="saas-detail-modal min-h-screen w-full p-0 sm:mx-auto sm:my-6 sm:min-h-0 sm:max-w-4xl">
             <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-5 py-4">
-              <div>
+              <div className="min-w-0">
                 <p className="saas-page-kicker">Ficha del cliente</p>
-                <h3 className="text-lg font-semibold text-slate-900">{selectedClient.nombre || 'Cliente sin nombre'}</h3>
+                <h3 className="break-words text-lg font-semibold text-slate-900">{selectedClient.nombre || 'Cliente sin nombre'}</h3>
                 <p className="mt-1 text-sm text-slate-500">{etiquetaDocumento(selectedClient.tipoDocumento)} {selectedClient.dni}{selectedClient.celular ? ` · ${selectedClient.celular}` : ''}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <button onClick={abrirEdicion} className="saas-icon-button" title="Editar cliente"><Edit size={18}/></button>
                 <button onClick={() => setConfirmarEliminar(true)} disabled={guardando} className="saas-icon-button text-red-600" title="Eliminar cliente"><Trash2 size={18}/></button>
                 <button onClick={() => { setSelectedDni(null); setEditando(false); }} className="saas-form-close"><X size={20}/></button>
@@ -386,7 +441,7 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
                       </div>
                       <div>
                         <p className="text-xs font-semibold uppercase text-slate-400">Correos usados</p>
-                        <p className="mt-1 break-words">{correosSeleccionado.length ? correosSeleccionado.join(', ') : 'Sin correos'}</p>
+                        <p className="mt-1 break-all">{correosSeleccionado.length ? correosSeleccionado.join(', ') : 'Sin correos'}</p>
                       </div>
                       {selectedClient.direccion && (
                         <div>
@@ -412,6 +467,11 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
                       <p className="text-lg font-semibold text-slate-900">{selectedClient.equipos.length}</p>
                       <p className="text-[10px] uppercase text-slate-400">Equipos</p>
                     </div>
+                  </div>
+                  <div className="mt-3 rounded-lg bg-white p-3">
+                    <p className="text-xs font-semibold uppercase text-slate-400">Ingreso generado</p>
+                    <p className="mt-1 text-2xl font-bold text-emerald-700">{soles(selectedClient.totalIngreso)}</p>
+                    <p className="mt-1 text-xs text-slate-500">Ventas {soles(selectedClient.totalVentas)} · Registros {soles(selectedClient.totalRegistros)}</p>
                   </div>
                 </div>
 
@@ -450,10 +510,10 @@ export function ClientesList({clientes, equipos, registros, ventas = [], showToa
                           <p className="text-sm font-semibold text-slate-900">{item.tipo} · {item.codigo}</p>
                           <span className="text-xs text-slate-400">{fechaHora(item.fecha)}</span>
                         </div>
-                        <p className="mt-0.5 truncate text-sm text-slate-600">{item.equipo || 'Equipo sin detalle'}</p>
-                        {item.imei && <p className="mt-0.5 font-mono text-xs text-slate-500">{item.imei}</p>}
+                        <p className="mt-0.5 break-words text-sm text-slate-600">{item.equipo || 'Equipo sin detalle'}</p>
+                        {item.imei && <p className="mt-0.5 break-all font-mono text-xs text-slate-500">{item.imei}</p>}
                       </div>
-                      {item.monto && <p className="text-sm font-semibold text-slate-700">S/. {Number(item.monto).toFixed(2)}</p>}
+                      {item.monto && <p className="shrink-0 text-sm font-semibold text-slate-700">{soles(item.monto)}</p>}
                     </div>
                   ))}
                 </div>

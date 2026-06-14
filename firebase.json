@@ -10,6 +10,35 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {"key": "X-Content-Type-Options", "value": "nosniff"},
+          {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
+          {"key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()"},
+          {"key": "X-Frame-Options", "value": "DENY"}
+        ]
+      },
+      {
+        "source": "/sitemap-legal.xml",
+        "headers": [
+          {"key": "Cache-Control", "value": "public, max-age=300"}
+        ]
+      },
+      {
+        "source": "/sitemap.xml",
+        "headers": [
+          {"key": "Cache-Control", "value": "public, max-age=300"}
+        ]
+      },
+      {
+        "source": "/robots.txt",
+        "headers": [
+          {"key": "Cache-Control", "value": "public, max-age=300"}
+        ]
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

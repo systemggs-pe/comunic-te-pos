@@ -1,11 +1,12 @@
 /* eslint-disable no-unused-vars */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { generarTicketVentaPDF } from './ventaPdf.js';
 import { eliminarVenta } from '../../services/functionsClient.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
-export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total }) {
+import {ventaMatchesSearch} from '../../utils/searchRecords.js';
+export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingVenta, setViewingVenta] = useState(null);
   const [ticketVentaData, setTicketVentaData] = useState(null);
@@ -32,15 +33,20 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
     };
   };
 
+  useEffect(() => {
+    const term = searchTerm.trim();
+    if (term.length < 2 || !onSearchAll || (total && data.length >= total)) return undefined;
+    const timeoutId = window.setTimeout(() => onSearchAll(term), 350);
+    return () => window.clearTimeout(timeoutId);
+  }, [data.length, onSearchAll, searchTerm, total]);
+
   const filteredData = useMemo(() => {
-    const term = searchTerm.toLowerCase();
     return data.filter(v => {
       const cliente = clientes.find(c => c.dni === v.dniCliente) || {};
-      return (v.imeiEquipo && v.imeiEquipo.includes(searchTerm)) ||
-             (v.dniCliente && v.dniCliente.includes(searchTerm)) ||
-             (cliente.nombre && cliente.nombre.toLowerCase().includes(term));
+      const equipo = equipos.find(e => e.idEquipo === v.imeiEquipo) || {};
+      return ventaMatchesSearch(v, searchTerm, cliente, equipo);
     });
-  }, [data, clientes, searchTerm]);
+  }, [data, clientes, equipos, searchTerm]);
 
   const handleDelete = async () => {
     if (!ventaAEliminar) return;
@@ -96,8 +102,8 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
         </div>
       )}
       {viewingVenta && (
-        <div className="saas-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="saas-detail-modal max-h-[88vh] w-full max-w-4xl overflow-y-auto p-0">
+        <div className="saas-modal-backdrop fixed inset-0 z-[100] overflow-y-auto p-0 sm:p-4">
+          <div className="saas-detail-modal min-h-screen w-full p-0 sm:mx-auto sm:my-6 sm:min-h-0 sm:max-w-4xl">
             <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-5 py-4">
               <div>
                 <p className="saas-page-kicker">Venta</p>
@@ -106,12 +112,12 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
               </div>
               <button onClick={() => setViewingVenta(null)} className="saas-form-close"><X size={20}/></button>
             </div>
-            <div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
-              <aside className="space-y-2">
-                <button type="button" onClick={() => setTicketPendiente(ticketData(viewingVenta))} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
-                <button type="button" onClick={() => { onEdit(viewingVenta); setViewingVenta(null); }} className="saas-secondary w-full justify-start"><Edit size={16}/> Editar</button>
-                <button type="button" onClick={() => { setVentaAEliminar(viewingVenta); setViewingVenta(null); }} className="saas-secondary w-full justify-start text-red-600"><Trash2 size={16}/> Eliminar</button>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="grid gap-5 p-5 lg:grid-cols-[240px_1fr]">
+              <aside className="grid grid-cols-2 gap-2 lg:block lg:space-y-2">
+                <button type="button" onClick={() => setTicketPendiente(ticketData(viewingVenta))} className="saas-secondary min-h-11 w-full justify-center lg:justify-start"><Printer size={16}/> Ticket</button>
+                <button type="button" onClick={() => { onEdit(viewingVenta); setViewingVenta(null); }} className="saas-secondary min-h-11 w-full justify-center lg:justify-start"><Edit size={16}/> Editar</button>
+                <button type="button" onClick={() => { setVentaAEliminar(viewingVenta); setViewingVenta(null); }} className="saas-secondary col-span-2 min-h-11 w-full justify-center text-red-600 lg:col-span-1 lg:justify-start"><Trash2 size={16}/> Eliminar</button>
+                <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 lg:col-span-1">
                   <p className="text-xs font-semibold uppercase text-slate-400">Total</p>
                   <p className="mt-1 text-lg font-bold text-emerald-700">S/. {parseFloat(viewingVenta.precio || 0).toFixed(2)}</p>
                   <p className="text-xs text-slate-500">{viewingVenta.medioPago || 'EFECTIVO'}</p>
@@ -121,7 +127,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
               {/* Venta */}
               <div>
                 <p className="text-xs font-semibold text-green-600 uppercase mb-2 border-b pb-1">Venta</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
+                <div className="grid grid-cols-1 gap-y-1.5 rounded border border-gray-100 bg-gray-50 p-3 sm:grid-cols-[145px_minmax(0,1fr)] sm:gap-x-4">
                   <p><strong className="text-gray-700">Código:</strong></p><p className="text-gray-600">{viewingVenta.nVenta}</p>
                   <p><strong className="text-gray-700">Fecha:</strong></p><p className="text-gray-600">{new Date(viewingVenta.fecha).toLocaleString('es-PE')}</p>
                   <p><strong className="text-gray-700">Total:</strong></p><p className="text-green-700 font-bold">S/. {parseFloat(viewingVenta.precio).toFixed(2)}</p>
@@ -132,7 +138,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
               {/* Cliente */}
               <div>
                 <p className="text-xs font-semibold text-green-600 uppercase mb-2 border-b pb-1">Cliente</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
+                <div className="grid grid-cols-1 gap-y-1.5 rounded border border-gray-100 bg-gray-50 p-3 sm:grid-cols-[145px_minmax(0,1fr)] sm:gap-x-4">
                   <p><strong className="text-gray-700">Nombre:</strong></p><p className="text-gray-600">{getCliente(viewingVenta.dniCliente).nombre || '-'}</p>
                   <p><strong className="text-gray-700">{etiquetaDocumento(viewingVenta.tipoDocumentoCliente || getCliente(viewingVenta.dniCliente).tipoDocumento)}:</strong></p><p className="text-gray-600">{viewingVenta.dniCliente}</p>
                   <p><strong className="text-gray-700">Celular:</strong></p><p className="text-gray-600">{getCliente(viewingVenta.dniCliente).celular || '-'}</p>
@@ -141,7 +147,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
               {/* Equipo */}
               <div>
                 <p className="text-xs font-semibold text-green-600 uppercase mb-2 border-b pb-1">Equipo</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
+                <div className="grid grid-cols-1 gap-y-1.5 rounded border border-gray-100 bg-gray-50 p-3 sm:grid-cols-[145px_minmax(0,1fr)] sm:gap-x-4">
                   <p><strong className="text-gray-700">Marca:</strong></p><p className="text-gray-600">{viewingVenta.marcaEquipo || '-'}</p>
                   <p><strong className="text-gray-700">Modelo:</strong></p><p className="text-gray-600">{viewingVenta.modeloEquipo || '-'}</p>
                   <p><strong className="text-gray-700">Nombre comercial:</strong></p><p className="text-gray-600">{viewingVenta.nombreComercial || getEquipo(viewingVenta.imeiEquipo).nombreComercial || '-'}</p>
@@ -175,7 +181,10 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
         <div>
           <p className="saas-page-kicker">Ventas</p>
           <h2 className="saas-page-title">Ventas de equipos</h2>
-          <p className="saas-page-desc">{filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} venta{(total || data.length) !== 1 ? 's' : ''}</p>
+          <p className="saas-page-desc">
+            {filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} venta{(total || data.length) !== 1 ? 's' : ''}
+            {searchingAll && <span className="ml-2 text-slate-400">Buscando historial...</span>}
+          </p>
         </div>
         <div className="saas-toolbar-actions">
           <div className="saas-searchbox">
@@ -196,7 +205,10 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
             <span className="text-sm">Cargando ventas...</span>
           </div>
         ) : filteredData.length === 0 ? (
-          <div className="saas-empty px-4 py-8"><p className="text-sm font-semibold">No se encontraron ventas</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div>
+          <div className="saas-empty px-4 py-8">
+            <p className="text-sm font-semibold">{searchingAll ? 'Buscando en historial completo...' : 'No se encontraron ventas'}</p>
+            <p className="text-xs">Prueba con otro documento, cliente o IMEI.</p>
+          </div>
         ) : filteredData.map(row => (
           <div key={row.id} className="saas-mobile-row">
             <div className="flex items-start justify-between mb-2">
@@ -254,7 +266,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                 </div>
               </td></tr>
             ) : filteredData.length === 0 ? (
-              <tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">No se encontraron ventas</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div></td></tr>
+              <tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">{searchingAll ? 'Buscando en historial completo...' : 'No se encontraron ventas'}</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div></td></tr>
             ) : filteredData.map(row => (
               <tr key={row.id}>
                 <td className="px-6 py-4"><div className="font-medium">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs">{row.nVenta}</div></td>

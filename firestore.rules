@@ -34,6 +34,12 @@ service cloud.firestore {
         || request.resource.data[field] is bool;
     }
 
+    function optionalList(field, maxSize) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is list
+          && request.resource.data[field].size() <= maxSize);
+    }
+
     function validDocumento(value) {
       return value is string && value.matches('^[A-Z0-9-]{6,15}$');
     }
@@ -169,6 +175,75 @@ service cloud.firestore {
         && request.resource.data.dataUrl.size() <= 900000;
     }
 
+    function validBoletaEmisor(emisor) {
+      return emisor is map
+        && emisor.keys().hasOnly(['nombre', 'rut', 'direccion'])
+        && emisor.nombre is string
+        && emisor.nombre.size() <= 220
+        && emisor.rut is string
+        && emisor.rut.size() <= 40
+        && emisor.direccion is string
+        && emisor.direccion.size() <= 300;
+    }
+
+    function validBoletaExtranjeraEmisores() {
+      return hasOnly(['formato1', 'formato2', 'formato3'])
+        && validBoletaEmisor(request.resource.data.formato1)
+        && validBoletaEmisor(request.resource.data.formato2)
+        && validBoletaEmisor(request.resource.data.formato3);
+    }
+
+    function validProblemaApp() {
+      return request.resource.data.keys().hasAll([
+          'titulo', 'descripcion', 'severidad', 'solucion', 'resuelto',
+          'createdAt', 'updatedAt', 'resolvedAt', 'resolvedBy'
+        ])
+        && hasOnly([
+          'titulo', 'descripcion', 'archivos', 'severidad', 'solucion', 'resuelto',
+          'createdAt', 'updatedAt', 'resolvedAt', 'resolvedBy'
+        ])
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() > 0
+        && request.resource.data.titulo.size() <= 220
+        && request.resource.data.descripcion is string
+        && request.resource.data.descripcion.size() <= 1000
+        && optionalList('archivos', 20)
+        && request.resource.data.severidad in ['critico', 'alto', 'medio', 'bajo']
+        && request.resource.data.solucion is string
+        && request.resource.data.solucion.size() <= 2000
+        && request.resource.data.resuelto is bool
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (request.resource.data.resolvedAt == null || request.resource.data.resolvedAt is timestamp)
+        && request.resource.data.resolvedBy is string
+        && request.resource.data.resolvedBy.size() <= 180;
+    }
+
+    function validChangelogProblema() {
+      return request.resource.data.keys().hasAll([
+          'problemaId', 'titulo', 'severidad', 'solucion', 'resumen',
+          'createdAt', 'createdBy'
+        ])
+        && hasOnly([
+          'problemaId', 'titulo', 'archivos', 'severidad', 'solucion', 'resumen',
+          'createdAt', 'createdBy'
+        ])
+        && request.resource.data.problemaId is string
+        && request.resource.data.problemaId.size() <= 120
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() > 0
+        && request.resource.data.titulo.size() <= 220
+        && optionalList('archivos', 20)
+        && request.resource.data.severidad in ['critico', 'alto', 'medio', 'bajo']
+        && request.resource.data.solucion is string
+        && request.resource.data.solucion.size() <= 2000
+        && request.resource.data.resumen is string
+        && request.resource.data.resumen.size() <= 260
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdBy is string
+        && request.resource.data.createdBy.size() <= 180;
+    }
+
     function validBoletaExtranjera() {
       return hasOnly([
           'nBoleta', 'clienteDni', 'clienteNombre', 'totalPen', 'totalClp',
@@ -224,6 +299,24 @@ service cloud.firestore {
       allow read: if canUseSharedData(appId, scope);
       allow create, update: if canUseSharedData(appId, scope) && validContadorBoletas();
       allow delete: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/configuracion/boletaExtranjeraEmisores {
+      allow read: if canUseSharedData(appId, scope);
+      allow create, update: if canUseSharedData(appId, scope) && validBoletaExtranjeraEmisores();
+      allow delete: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/problemasApp/{problemaId} {
+      allow read: if canUseSharedData(appId, scope);
+      allow create, update: if canUseSharedData(appId, scope) && validProblemaApp();
+      allow delete: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/changelogProblemas/{changelogId} {
+      allow read: if canUseSharedData(appId, scope);
+      allow create: if canUseSharedData(appId, scope) && validChangelogProblema();
+      allow update, delete: if false;
     }
 
     match /artifacts/{appId}/users/{scope}/boletasExtranjeras/{boletaId} {

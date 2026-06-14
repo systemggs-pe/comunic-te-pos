@@ -21,12 +21,17 @@ export async function llamarFuncionSegura(nombre, payload) {
   });
 
   const text = await resp.text();
+  const requestId = resp.headers.get('x-request-id') || '';
   if (resp.status === 404) {
-    throw new Error('BACKEND_NOT_DEPLOYED');
+    const error = new Error('BACKEND_NOT_DEPLOYED');
+    error.requestId = requestId;
+    throw error;
   }
 
   if (looksLikeHtml(text)) {
-    throw new Error('BACKEND_NOT_DEPLOYED');
+    const error = new Error('BACKEND_NOT_DEPLOYED');
+    error.requestId = requestId;
+    throw error;
   }
 
   let data = {};
@@ -36,14 +41,18 @@ export async function llamarFuncionSegura(nombre, payload) {
     if (IS_LOCAL_API_PROXY && resp.status >= 500) {
       const error = new Error('API_LOCAL_NO_DISPONIBLE');
       error.status = resp.status;
+      error.requestId = requestId;
       throw error;
     }
-    throw new Error('BACKEND_INVALID_RESPONSE');
+    const error = new Error('BACKEND_INVALID_RESPONSE');
+    error.requestId = requestId;
+    throw error;
   }
   if (!resp.ok) {
     const message = data.error || (IS_LOCAL_API_PROXY ? 'API_LOCAL_ERROR' : 'BACKEND_ERROR');
     const error = new Error(message);
     error.status = resp.status;
+    error.requestId = requestId || data.requestId || '';
     error.payload = data;
     throw error;
   }
@@ -64,6 +73,8 @@ const VALIDATION_MESSAGES = {
   IMEI_INVALIDO: 'el IMEI debe tener 15 digitos',
   IMEI_LUHN_INVALIDO: 'el IMEI no pasa la validacion',
   IMEI_NO_COINCIDE: 'el IMEI del equipo no coincide con el registro',
+  IMEI_YA_REGISTRADO: 'el IMEI ya tiene un registro activo',
+  IMEI_YA_VENDIDO: 'el IMEI ya tiene una venta registrada',
   ITEM_CANTIDAD_INVALIDA: 'la cantidad del item debe ser mayor a 0',
   ITEM_NOMBRE_REQUERIDO: 'el nombre del item es obligatorio',
   ITEMS_MUY_LARGOS: 'hay demasiados items adicionales',
@@ -138,6 +149,14 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'BACKEND_NOT_DEPLOYED') return 'Funciones Netlify no desplegadas';
   if (error?.message === 'FIREBASE_ADMIN_CONFIG_MISSING') return 'Falta configurar Firebase Admin en .env local';
   if (error?.message === 'FIREBASE_SERVICE_ACCOUNT_INVALID') return 'FIREBASE_SERVICE_ACCOUNT no es un JSON valido';
+  if (error?.message === 'IMEI_YA_REGISTRADO') {
+    const imei = error?.payload?.details?.imei;
+    return imei ? `El IMEI ${imei} ya tiene un registro activo` : 'Ese IMEI ya tiene un registro activo';
+  }
+  if (error?.message === 'IMEI_YA_VENDIDO') {
+    const imei = error?.payload?.details?.imei;
+    return imei ? `El IMEI ${imei} ya tiene una venta registrada` : 'Ese IMEI ya tiene una venta registrada';
+  }
   if (error?.message === 'RENIEC_TOKEN_MISSING') return 'Falta configurar RENIEC_TOKEN en .env local';
   if (error?.message === 'fetch failed') return 'No se pudo conectar con el servicio externo';
   return error?.message || fallback;
@@ -181,4 +200,12 @@ export function actualizarCliente(payload) {
 
 export function eliminarCliente(dni) {
   return llamarFuncionSegura('clientes', {action: 'delete', dni});
+}
+
+export function consultarClientesOperativos(payload = {}) {
+  return llamarFuncionSegura('clientes', {action: 'queryOperational', ...payload});
+}
+
+export function registrarConsentimientoLegal(payload) {
+  return llamarFuncionSegura('legalConsent', payload);
 }

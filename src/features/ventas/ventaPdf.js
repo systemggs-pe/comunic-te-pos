@@ -20,7 +20,7 @@ function recortar(text, max) {
 export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
   const {jsPDF, JsBarcode} = getPdfTools();
   const M = mmW <= 58 ? 3 : 5;
-  const FONT = 'helvetica';
+  const FONT = 'courier';
   const cbVal = data.sn || data.imeiEquipo || '';
   let barcodeImg = null;
   let barcodeH = 0;
@@ -30,10 +30,10 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
       const c = document.createElement('canvas');
       JsBarcode(c, cbVal, {
         format: 'CODE128',
-        width: 2.2,
-        height: 60,
+        width: mmW <= 58 ? 2 : 2.4,
+        height: mmW <= 58 ? 66 : 72,
         displayValue: true,
-        fontSize: 16,
+        fontSize: mmW <= 58 ? 18 : 20,
         margin: 5,
       });
       barcodeImg = c.toDataURL('image/png');
@@ -53,13 +53,13 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
     const precioEquipo = Number(data.precioEquipo || (totalItems ? Math.max(totalVenta - totalItems, 0) : totalVenta));
     const totalTicket = Number(data.precio || (precioEquipo + totalItems));
     const SZ = mmW <= 58
-      ? {xs: 6.6, sm: 7.4, md: 8.3, lg: 9.4, xl: 13.2}
-      : {xs: 7.0, sm: 7.8, md: 8.8, lg: 10.0, xl: 14.0};
+      ? {xs: 7.2, sm: 8.0, md: 9.0, lg: 10.2, xl: 13.8}
+      : {xs: 8.0, sm: 8.8, md: 9.8, lg: 11.2, xl: 15.0};
     const ink = 18;
     const muted = 88;
     const ruleColor = 176;
     const sectionFill = 244;
-    const lh = size => size * 0.36 + 1.15;
+    const lh = size => size * 0.38 + 1.25;
     let y = 5;
 
     const text = (value, x, yy, size, opts = {}) => {
@@ -93,10 +93,10 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
       rule(2.2);
       if (draw) {
         doc.setFillColor(sectionFill);
-        doc.rect(M, y - 1.1, mmW - M * 2, 4.8, 'F');
+        doc.rect(M, y - 1.2, mmW - M * 2, 5.6, 'F');
       }
-      text(title, M + 1.4, y + 2.2, SZ.xs, {bold: true, muted: true});
-      y += 6.1;
+      text(title, M + 1.4, y + 2.6, SZ.xs, {bold: true, muted: true});
+      y += 6.9;
     };
 
     const row = (left, right, size = SZ.sm, opts = {}) => {
@@ -125,11 +125,11 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
     const totalBand = (label, value) => {
       if (draw) {
         doc.setFillColor(235);
-        doc.rect(M, y - 4.2, mmW - M * 2, 7.4, 'F');
+        doc.rect(M, y - 4.7, mmW - M * 2, 8.4, 'F');
       }
       text(label, M + 2, y, SZ.lg, {bold: true});
       text(value, mmW - M - 2, y, SZ.lg + 0.4, {align: 'right', bold: true});
-      y += 8.2;
+      y += 9.2;
     };
 
     if (logoVentas) {
@@ -168,7 +168,7 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
     row('Equipo', `S/. ${precioEquipo.toFixed(2)}`, SZ.sm);
     itemsAdicionales.forEach(item => {
       const subtotal = item.cantidad * item.precio;
-      const maxLabel = mmW <= 58 ? 22 : 34;
+      const maxLabel = mmW <= 58 ? 18 : 28;
       row(recortar(`${item.cantidad}x ${item.nombre}`, maxLabel), `S/. ${subtotal.toFixed(2)}`, SZ.xs, {muted: true});
     });
     rule();

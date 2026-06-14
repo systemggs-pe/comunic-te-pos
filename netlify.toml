@@ -25,6 +25,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/legalConsent"
+  to = "/.netlify/functions/legalConsent"
+  status = 200
+
+[[redirects]]
   from = "/api/registros"
   to = "/.netlify/functions/registros"
   status = 200

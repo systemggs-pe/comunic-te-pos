@@ -1,11 +1,12 @@
 /* eslint-disable no-unused-vars, no-empty */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { generarTicketRegistroPDF } from './registroPdf.js';
 import { desbloquearRegistro, eliminarRegistro } from '../../services/functionsClient.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
-export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total }) {
+import {registroMatchesSearch} from '../../utils/searchRecords.js';
+export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [ticketData, setTicketData] = useState(null);
   const [viewingRegistro, setViewingRegistro] = useState(null);
@@ -14,14 +15,17 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
 
   const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
 
+  useEffect(() => {
+    const term = searchTerm.trim();
+    if (term.length < 2 || !onSearchAll || (total && data.length >= total)) return undefined;
+    const timeoutId = window.setTimeout(() => onSearchAll(term), 350);
+    return () => window.clearTimeout(timeoutId);
+  }, [data.length, onSearchAll, searchTerm, total]);
+
   const filteredData = useMemo(() => {
-    const term = searchTerm.toLowerCase();
     return data.filter(r => {
       const cliente = clientes.find(c => c.dni === r.dniCliente) || {};
-      return (r.imeiEquipo && r.imeiEquipo.includes(searchTerm)) ||
-             (r.imei2Equipo && r.imei2Equipo.includes(searchTerm)) ||
-             (r.dniCliente && r.dniCliente.includes(searchTerm)) ||
-             (cliente.nombre && cliente.nombre.toLowerCase().includes(term));
+      return registroMatchesSearch(r, searchTerm, cliente);
     });
   }, [data, clientes, searchTerm]);
 
@@ -232,7 +236,10 @@ PDF Recibo: ${row.pdfReciboUrl}`;
         <div>
           <p className="saas-page-kicker">Registros</p>
           <h2 className="saas-page-title">Registros de equipos</h2>
-          <p className="saas-page-desc">{filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} registro{(total || data.length) !== 1 ? 's' : ''}</p>
+          <p className="saas-page-desc">
+            {filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} registro{(total || data.length) !== 1 ? 's' : ''}
+            {searchingAll && <span className="ml-2 text-slate-400">Buscando historial...</span>}
+          </p>
         </div>
         <div className="saas-toolbar-actions">
           <div className="saas-searchbox">
@@ -251,7 +258,10 @@ PDF Recibo: ${row.pdfReciboUrl}`;
             <span className="text-sm">Cargando registros...</span>
           </div>
         ) : filteredData.length === 0 ? (
-          <div className="saas-empty px-4 py-8"><p className="text-sm font-semibold">No se encontraron registros</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div>
+          <div className="saas-empty px-4 py-8">
+            <p className="text-sm font-semibold">{searchingAll ? 'Buscando en historial completo...' : 'No se encontraron registros'}</p>
+            <p className="text-xs">Prueba con otro documento, cliente o IMEI.</p>
+          </div>
         ) : filteredData.map(row => (
           <div key={row.id} className="saas-mobile-row">
             <div className="flex items-start justify-between mb-2">
@@ -301,7 +311,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                   <span className="text-sm">Cargando registros...</span>
                 </div>
               </td></tr>
-            ) : filteredData.length === 0 ? (<tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">No se encontraron registros</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div></td></tr>) : (
+            ) : filteredData.length === 0 ? (<tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">{searchingAll ? 'Buscando en historial completo...' : 'No se encontraron registros'}</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div></td></tr>) : (
               filteredData.map(row => (
                 <tr key={row.id}>
                   <td className="px-6 py-4"><div className="font-medium text-gray-800">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs text-gray-400">{row.nRegistro}</div></td>

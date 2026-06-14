@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardList, FileText, Plus, ShoppingCart, Users } from 'lucide-react';
+import { Bug, ClipboardList, FileText, Plus, ShoppingCart, Users } from 'lucide-react';
 
 export function Dashboard({ stats, setCurrentView, user }) {
   const nombre = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuario';
@@ -46,12 +46,21 @@ export function Dashboard({ stats, setCurrentView, user }) {
       view: 'boleta_extranjera',
       tone: 'amber',
     },
+    {
+      title: 'Problemas de app/web',
+      detail: 'Prioridad, solucion y cambios resueltos',
+      action: 'Revisar problemas',
+      Icon: Bug,
+      view: 'problemas_app',
+      tone: 'rose',
+    },
   ];
 
   const toneClasses = {
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
     blue: 'bg-blue-50 text-blue-700 border-blue-100',
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    rose: 'bg-rose-50 text-rose-700 border-rose-100',
     slate: 'bg-slate-100 text-slate-700 border-slate-200',
   };
 

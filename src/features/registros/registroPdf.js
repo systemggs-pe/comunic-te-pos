@@ -3,9 +3,9 @@ import {getPdfTools} from '../../utils/pdfLibraries.js';
 
 export async function generarTicketRegistroPDF(data) {
   const {jsPDF, JsBarcode} = getPdfTools();
-  const mmW = 62;
-  const M = 4;
-  const FONT = 'helvetica';
+  const mmW = 58;
+  const M = 3;
+  const FONT = 'courier';
   const codigoBarras = data.imeiRegistrado || data.imeiEquipo || '';
   let barcodeImg = null;
   let barcodeH = 0;
@@ -15,11 +15,11 @@ export async function generarTicketRegistroPDF(data) {
       const c = document.createElement('canvas');
       JsBarcode(c, codigoBarras, {
         format: 'CODE128',
-        width: 2.6,
-        height: 72,
+        width: 2.2,
+        height: 74,
         displayValue: true,
         fontSize: 18,
-        margin: 7,
+        margin: 5,
         background: '#ffffff',
         lineColor: '#000000',
       });
@@ -35,8 +35,8 @@ export async function generarTicketRegistroPDF(data) {
     const muted = 88;
     const ruleColor = 176;
     const sectionFill = 244;
-    const SZ = {xs: 6.5, sm: 7.2, md: 8.2, lg: 9.4, xl: 11.5};
-    const lh = size => size * 0.36 + 1.15;
+    const SZ = {xs: 7.0, sm: 7.8, md: 8.8, lg: 9.8, xl: 10.8};
+    const lh = size => size * 0.38 + 1.25;
 
     const text = (value, x, yy, size, opts = {}) => {
       doc.setFont(FONT, opts.bold ? 'bold' : 'normal');
@@ -69,10 +69,10 @@ export async function generarTicketRegistroPDF(data) {
       rule(2.2);
       if (dibujar) {
         doc.setFillColor(sectionFill);
-        doc.rect(M, y - 1.1, mmW - M * 2, 4.8, 'F');
+        doc.rect(M, y - 1.2, mmW - M * 2, 5.6, 'F');
       }
-      text(title, M + 1.4, y + 2.2, SZ.xs, {bold: true, muted: true});
-      y += 6.1;
+      text(title, M + 1.4, y + 2.6, SZ.xs, {bold: true, muted: true});
+      y += 6.9;
     };
 
     const field = (label, value, size = SZ.sm) => {
@@ -96,14 +96,14 @@ export async function generarTicketRegistroPDF(data) {
     const twoColDate = (fechaStr, horaStr) => {
       if (dibujar) {
         doc.setFillColor(244);
-        doc.rect(M, y - 3.8, mmW - M * 2, 7.4, 'F');
+        doc.rect(M, y - 4.1, mmW - M * 2, 8.2, 'F');
       }
       text('FECHA', M + 2, y, SZ.xs, {bold: true, muted: true});
       text('HORA', mmW - M - 2, y, SZ.xs, {align: 'right', bold: true, muted: true});
-      y += 3.4;
+      y += 3.8;
       text(fechaStr, M + 2, y, SZ.sm, {bold: true});
       text(horaStr, mmW - M - 2, y, SZ.sm, {align: 'right', bold: true});
-      y += 5.4;
+      y += 6.2;
     };
 
     const fecha = new Date(data.fecha);
@@ -113,7 +113,7 @@ export async function generarTicketRegistroPDF(data) {
 
     if (dibujar) {
       doc.setFillColor(245);
-      doc.rect(M, y - 1, mmW - M * 2, 16.5, 'F');
+      doc.rect(M, y - 1, mmW - M * 2, 20.5, 'F');
     }
     center('CENTRO DE REGISTRO', SZ.lg, {bold: true});
     center('INDEPENDIENTE', SZ.lg, {bold: true});
@@ -132,7 +132,7 @@ export async function generarTicketRegistroPDF(data) {
     field('CEL. REF', data.celularRef || '');
 
     section('EQUIPO');
-    field('IMEI', data.imeiRegistrado || data.imeiEquipo || '');
+    field('IMEI', data.imeiRegistrado || data.imeiEquipo || '', SZ.md);
     field('MARCA', data.marcaEquipo || '');
     field('MODELO', data.modeloEquipo || '');
     field('N. COM.', data.nombreComercialEquipo || '');
