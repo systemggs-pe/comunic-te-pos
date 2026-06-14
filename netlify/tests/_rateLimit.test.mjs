@@ -4,7 +4,7 @@ import {
   createRateLimitKey,
   enforcePersistentRateLimit,
   getRateLimitWindow,
-} from './_rateLimit.mjs';
+} from '../functions/_rateLimit.mjs';
 
 function createFakeDb() {
   const collections = new Map();

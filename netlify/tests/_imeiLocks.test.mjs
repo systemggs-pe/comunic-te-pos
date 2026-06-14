@@ -4,7 +4,7 @@ import {
   assertAndSetImeiLocks,
   normalizeImeiList,
   releaseImeiLocks,
-} from './_imeiLocks.mjs';
+} from '../functions/_imeiLocks.mjs';
 
 function createStore(initialDocs = {}) {
   return {

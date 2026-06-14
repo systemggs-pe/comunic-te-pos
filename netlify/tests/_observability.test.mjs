@@ -5,7 +5,7 @@ import {
   getHeader,
   queueAuditEvent,
   sanitizeMetadata,
-} from './_observability.mjs';
+} from '../functions/_observability.mjs';
 
 test('getHeader reads headers case-insensitively', () => {
   assert.equal(getHeader({'X-Request-Id': 'abc'}, 'x-request-id'), 'abc');
