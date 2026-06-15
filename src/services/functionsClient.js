@@ -147,6 +147,10 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'BACKEND_ERROR') return fallback;
   if (error?.message === 'BACKEND_INVALID_RESPONSE') return 'Respuesta invalida de Netlify Functions';
   if (error?.message === 'BACKEND_NOT_DEPLOYED') return 'Funciones Netlify no desplegadas';
+  if (error?.message === 'CODART_TOKEN_MISSING') return 'Falta configurar CODART_TOKEN o RENIEC_TOKEN en .env local';
+  if (error?.message === 'DNI_FOTOS_UPSTREAM_ERROR') return 'No se pudo consultar la foto del DNI';
+  if (error?.message === 'DNI_FOTO_TIPO_INVALIDO') return 'El tipo de foto DNI no es valido';
+  if (error?.message === 'DNI_INVALIDO') return 'El DNI debe tener 8 digitos';
   if (error?.message === 'FIREBASE_ADMIN_CONFIG_MISSING') return 'Falta configurar Firebase Admin en .env local';
   if (error?.message === 'FIREBASE_SERVICE_ACCOUNT_INVALID') return 'FIREBASE_SERVICE_ACCOUNT no es un JSON valido';
   if (error?.message === 'IMEI_YA_REGISTRADO') {
@@ -164,6 +168,10 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
 
 export function consultarReniecDni(dni) {
   return llamarFuncionSegura('reniec', {dni: String(dni)});
+}
+
+export function consultarDniFotos(dni, tipo = 'azul') {
+  return llamarFuncionSegura('dniFotos', {dni: String(dni), tipo});
 }
 
 export function crearRegistro(payload) {

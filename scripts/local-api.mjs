@@ -8,6 +8,7 @@ const rootDir = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const routeModules = {
   '/api/analizarCajaGemini': '../netlify/functions/analizarCajaGemini.mjs',
   '/api/clientes': '../netlify/functions/clientes.mjs',
+  '/api/dniFotos': '../netlify/functions/dniFotos.mjs',
   '/api/legalConsent': '../netlify/functions/legalConsent.mjs',
   '/api/registros': '../netlify/functions/registros.mjs',
   '/api/reniec': '../netlify/functions/reniec.mjs',

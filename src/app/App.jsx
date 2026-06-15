@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
-import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus, Bug } from 'lucide-react';
+import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, AlertTriangle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, orderBy, limit, startAfter, getDocs, getCountFromServer } from 'firebase/firestore';
 import { EMAILS_PERMITIDOS } from '../config/auth.js';
@@ -26,6 +26,7 @@ const RegistroForm = lazyNamed(() => import('../features/registros/RegistroForm.
 const VentasList = lazyNamed(() => import('../features/ventas/VentasList.jsx'), 'VentasList');
 const VentaForm = lazyNamed(() => import('../features/ventas/VentaForm.jsx'), 'VentaForm');
 const ClientesList = lazyNamed(() => import('../features/clientes/ClientesList.jsx'), 'ClientesList');
+const DniFotosPage = lazyNamed(() => import('../features/dniFotos/DniFotosPage.jsx'), 'DniFotosPage');
 const BoletaExtranjera = lazyNamed(() => import('../features/boletas/BoletaExtranjera.jsx'), 'BoletaExtranjera');
 const ProblemasApp = lazyNamed(() => import('../features/problemas/ProblemasApp.jsx'), 'ProblemasApp');
 
@@ -670,9 +671,10 @@ function App() {
           <TopNavItem Icon={ClipboardList} label="Registros"         active={currentView.startsWith('registros')} onClick={() => navegarA('registros_list')} />
           <TopNavItem Icon={ShoppingCart}  label="Ventas"            active={currentView.startsWith('ventas')}    onClick={() => navegarA('ventas_list')} tone="emerald" />
           <TopNavItem Icon={Users}         label="Clientes"          active={currentView === 'clientes_list'}     onClick={() => navegarA('clientes_list')} />
+          <TopNavItem Icon={ImagePlus}     label="Foto DNI"          active={currentView === 'foto_dni'}          onClick={() => navegarA('foto_dni')} />
           <TopNavItem Icon={FileText}      label="Boleta Extranjera" active={currentView === 'boleta_extranjera'} onClick={() => navegarA('boleta_extranjera')} />
-          <TopNavItem Icon={Bug}           label="Problemas"         active={currentView === 'problemas_app'}     onClick={() => navegarA('problemas_app')} />
-          <TopNavItem Icon={Settings}      label="Configuración"     active={currentView === 'configuracion'}     onClick={() => navegarA('configuracion')} />
+          <TopNavItem iconOnly Icon={AlertTriangle} label="Problemas" active={currentView === 'problemas_app'} onClick={() => navegarA('problemas_app')} tone="amber" className="ml-auto" />
+          <TopNavItem iconOnly Icon={Settings} label="Configuracion" active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} />
         </nav>
 
         {/* Derecha desktop: buscador + email + logout */}
@@ -743,14 +745,15 @@ function App() {
 
       </header>
 
-      <nav className="grid shrink-0 grid-cols-7 gap-0.5 border-b border-slate-200 bg-white px-1 py-1 md:hidden">
+      <nav className="grid shrink-0 grid-cols-4 gap-1 border-b border-slate-200 bg-white px-2 py-1.5 md:hidden">
         <MobileNavIcon showLabel Icon={Home}          active={currentView === 'dashboard'}             onClick={() => navegarA('dashboard')}               title="Inicio" />
         <MobileNavIcon showLabel Icon={ClipboardList} active={currentView.startsWith('registros')}    onClick={() => navegarA('registros_list')}           title="Registros" />
         <MobileNavIcon showLabel Icon={ShoppingCart}  active={currentView.startsWith('ventas')}       onClick={() => navegarA('ventas_list')}              title="Ventas" tone="emerald" />
         <MobileNavIcon showLabel Icon={Users}         active={currentView === 'clientes_list'}        onClick={() => navegarA('clientes_list')}            title="Clientes" />
+        <MobileNavIcon showLabel Icon={ImagePlus}     active={currentView === 'foto_dni'}             onClick={() => navegarA('foto_dni')}                 title="Foto DNI" />
         <MobileNavIcon showLabel Icon={FileText}      active={currentView === 'boleta_extranjera'}    onClick={() => navegarA('boleta_extranjera')}        title="Boleta" />
-        <MobileNavIcon showLabel Icon={Bug}           active={currentView === 'problemas_app'}        onClick={() => navegarA('problemas_app')}            title="Problemas" />
-        <MobileNavIcon showLabel Icon={Settings}      active={currentView === 'configuracion'}        onClick={() => navegarA('configuracion')}            title="Config" />
+        <MobileNavIcon Icon={AlertTriangle} active={currentView === 'problemas_app'} onClick={() => navegarA('problemas_app')} title="Problemas" tone="amber" className="order-last" />
+        <MobileNavIcon Icon={Settings} active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} title="Configuracion" className="order-last" />
       </nav>
 
       {/* Buscador móvil desplegable */}
@@ -796,6 +799,8 @@ function App() {
           {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
           {currentView === 'clientes_list' && <ClientesList showToast={showToast} />}
+
+          {currentView === 'foto_dni' && <DniFotosPage showToast={showToast} />}
 
           {currentView === 'boleta_extranjera' && <BoletaExtranjera clientes={clientes} equipos={equipos} ventas={ventas} boletaEmisoresConfig={boletaEmisoresConfig} showToast={showToast} onSearchVentas={buscarVentasEnHistorial} searchingVentas={buscandoHistorial.ventas} />}
 

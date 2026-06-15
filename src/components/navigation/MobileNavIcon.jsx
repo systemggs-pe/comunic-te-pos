@@ -12,16 +12,21 @@ const toneStyles = {
     inactive: 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-800',
     icon: 'text-emerald-600',
   },
+  amber: {
+    active: 'bg-amber-50 text-amber-700',
+    inactive: 'text-slate-500 hover:bg-amber-50 hover:text-amber-800',
+    icon: 'text-amber-600',
+  },
 };
 
-export function MobileNavIcon({ Icon, active, onClick, title, showLabel = false, tone = 'blue' }) {
+export function MobileNavIcon({ Icon, active, onClick, title, showLabel = false, tone = 'blue', className = '' }) {
   const NavIcon = Icon;
   const styles = toneStyles[tone] || toneStyles.blue;
   return (
     <button onClick={onClick} title={title} aria-label={title}
-      className={`rounded-md transition-colors ${showLabel ? 'flex min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 py-1 text-[9px] font-semibold' : 'p-2'} ${active ? styles.active : styles.inactive}`}>
-      <NavIcon size={showLabel ? 16 : 20} className={styles.icon} />
-      {showLabel && <span className="max-w-full truncate leading-none">{title}</span>}
+      className={`rounded-md transition-colors ${showLabel ? 'flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 px-1.5 py-1.5 text-[11px] font-semibold leading-tight' : 'p-2'} ${active ? styles.active : styles.inactive} ${className}`}>
+      <NavIcon size={showLabel ? 18 : 20} className={styles.icon} />
+      {showLabel && <span className="max-w-full truncate leading-tight">{title}</span>}
     </button>
   );
 }

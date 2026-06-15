@@ -12,14 +12,25 @@ const toneStyles = {
     inactive: 'border-transparent text-slate-600 hover:bg-emerald-50 hover:text-emerald-800',
     icon: 'text-emerald-600',
   },
+  amber: {
+    active: 'border-amber-200 bg-amber-50 text-amber-700',
+    inactive: 'border-transparent text-slate-600 hover:bg-amber-50 hover:text-amber-800',
+    icon: 'text-amber-600',
+  },
 };
 
-export function TopNavItem({ Icon, label, active, onClick, tone = 'blue' }) {
+export function TopNavItem({ Icon, label, active, onClick, tone = 'blue', iconOnly = false, className = '' }) {
   const NavIcon = Icon;
   const styles = toneStyles[tone] || toneStyles.blue;
   return (
-    <button onClick={onClick} className={`flex items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${active ? styles.active : styles.inactive}`}>
-      <NavIcon size={17} className={styles.icon} /> {label}
+    <button
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={`flex items-center whitespace-nowrap rounded-lg border text-sm font-medium transition-colors ${iconOnly ? 'h-9 w-9 justify-center p-0' : 'gap-2 px-3 py-1.5'} ${active ? styles.active : styles.inactive} ${className}`}
+    >
+      <NavIcon size={18} className={styles.icon} />
+      {!iconOnly && label}
     </button>
   );
 }

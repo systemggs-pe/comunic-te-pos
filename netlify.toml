@@ -15,6 +15,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/dniFotos"
+  to = "/.netlify/functions/dniFotos"
+  status = 200
+
+[[redirects]]
   from = "/api/analizarCajaGemini"
   to = "/.netlify/functions/analizarCajaGemini"
   status = 200
