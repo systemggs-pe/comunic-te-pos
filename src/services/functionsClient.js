@@ -147,6 +147,12 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'BACKEND_ERROR') return fallback;
   if (error?.message === 'BACKEND_INVALID_RESPONSE') return 'Respuesta invalida de Netlify Functions';
   if (error?.message === 'BACKEND_NOT_DEPLOYED') return 'Funciones Netlify no desplegadas';
+  if (error?.message === 'BOLETA_EQUIPO_YA_EXISTE') {
+    const imei = error?.payload?.details?.imei || error?.payload?.imei;
+    return imei ? `El equipo ${imei} ya tiene una boleta extranjera` : 'Ese equipo ya tiene una boleta extranjera';
+  }
+  if (error?.message === 'BOLETA_NOT_FOUND') return 'No se encontro la boleta para editar';
+  if (error?.message === 'BOLETA_SIN_EQUIPO' || error?.message === 'BOLETA_SIN_IMEI') return 'La boleta debe tener un equipo valido';
   if (error?.message === 'CODART_TOKEN_MISSING') return 'Falta configurar CODART_TOKEN o RENIEC_TOKEN en .env local';
   if (error?.message === 'DNI_FOTOS_UPSTREAM_ERROR') return 'No se pudo consultar la foto del DNI';
   if (error?.message === 'DNI_FOTO_TIPO_INVALIDO') return 'El tipo de foto DNI no es valido';
@@ -172,6 +178,10 @@ export function consultarReniecDni(dni) {
 
 export function consultarDniFotos(dni, tipo = 'azul') {
   return llamarFuncionSegura('dniFotos', {dni: String(dni), tipo});
+}
+
+export function guardarBoletaExtranjera(payload) {
+  return llamarFuncionSegura('boletasExtranjeras', payload);
 }
 
 export function crearRegistro(payload) {

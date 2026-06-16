@@ -745,15 +745,13 @@ function App() {
 
       </header>
 
-      <nav className="grid shrink-0 grid-cols-4 gap-1 border-b border-slate-200 bg-white px-2 py-1.5 md:hidden">
+      <nav className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-200 bg-white px-2 py-1.5 md:hidden">
         <MobileNavIcon showLabel Icon={Home}          active={currentView === 'dashboard'}             onClick={() => navegarA('dashboard')}               title="Inicio" />
         <MobileNavIcon showLabel Icon={ClipboardList} active={currentView.startsWith('registros')}    onClick={() => navegarA('registros_list')}           title="Registros" />
         <MobileNavIcon showLabel Icon={ShoppingCart}  active={currentView.startsWith('ventas')}       onClick={() => navegarA('ventas_list')}              title="Ventas" tone="emerald" />
         <MobileNavIcon showLabel Icon={Users}         active={currentView === 'clientes_list'}        onClick={() => navegarA('clientes_list')}            title="Clientes" />
         <MobileNavIcon showLabel Icon={ImagePlus}     active={currentView === 'foto_dni'}             onClick={() => navegarA('foto_dni')}                 title="Foto DNI" />
         <MobileNavIcon showLabel Icon={FileText}      active={currentView === 'boleta_extranjera'}    onClick={() => navegarA('boleta_extranjera')}        title="Boleta" />
-        <MobileNavIcon Icon={AlertTriangle} active={currentView === 'problemas_app'} onClick={() => navegarA('problemas_app')} title="Problemas" tone="amber" className="order-last" />
-        <MobileNavIcon Icon={Settings} active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} title="Configuracion" className="order-last" />
       </nav>
 
       {/* Buscador móvil desplegable */}

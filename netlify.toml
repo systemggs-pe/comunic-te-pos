@@ -25,6 +25,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/boletasExtranjeras"
+  to = "/.netlify/functions/boletasExtranjeras"
+  status = 200
+
+[[redirects]]
   from = "/api/clientes"
   to = "/.netlify/functions/clientes"
   status = 200

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bug, ClipboardList, FileText, Plus, ShoppingCart, Users } from 'lucide-react';
+import { AlertTriangle, ClipboardList, FileText, Plus, Settings, ShoppingCart, Users } from 'lucide-react';
 
 export function Dashboard({ stats, setCurrentView, user }) {
   const nombre = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuario';
@@ -50,9 +50,10 @@ export function Dashboard({ stats, setCurrentView, user }) {
       title: 'Problemas de app/web',
       detail: 'Prioridad, solucion y cambios resueltos',
       action: 'Revisar problemas',
-      Icon: Bug,
+      Icon: AlertTriangle,
       view: 'problemas_app',
-      tone: 'rose',
+      tone: 'amber',
+      mobileHidden: true,
     },
   ];
 
@@ -114,9 +115,9 @@ export function Dashboard({ stats, setCurrentView, user }) {
             <span className="text-xs font-medium text-slate-400">Acceso directo</span>
           </div>
           <div className="divide-y divide-slate-100">
-            {modulos.map(({title, detail, action, Icon: ModuleIcon, view, tone}) => (
+            {modulos.map(({title, detail, action, Icon: ModuleIcon, view, tone, mobileHidden}) => (
               <button key={title} onClick={() => setCurrentView(view)}
-                className="group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-slate-50">
+                className={`${mobileHidden ? 'hidden md:flex' : 'flex'} group w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-slate-50`}>
                 <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
                   {React.createElement(ModuleIcon, {size: 18})}
                 </span>
@@ -153,6 +154,35 @@ export function Dashboard({ stats, setCurrentView, user }) {
             </button>
           </div>
         </aside>
+      </section>
+
+      <section className="mt-auto grid gap-2 border-t border-slate-200 pt-4 md:hidden">
+        <button
+          type="button"
+          aria-label="Problemas"
+          title="Problemas"
+          onClick={() => setCurrentView('problemas_app')}
+          className="flex min-h-12 w-full items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-amber-700 transition-colors hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+        >
+          <span className="flex items-center gap-3">
+            <AlertTriangle size={18} />
+            <span className="text-sm font-semibold">Problemas</span>
+          </span>
+          <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Abrir</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Configuracion"
+          title="Configuracion"
+          onClick={() => setCurrentView('configuracion')}
+          className="flex min-h-12 w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          <span className="flex items-center gap-3">
+            <Settings size={18} />
+            <span className="text-sm font-semibold">Configuracion</span>
+          </span>
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Abrir</span>
+        </button>
       </section>
     </div>
   );

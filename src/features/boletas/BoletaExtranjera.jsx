@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
-import {addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp} from 'firebase/firestore';
-import { consultarReniecDni } from '../../services/functionsClient.js';
+import {collection, onSnapshot, orderBy, query} from 'firebase/firestore';
+import { consultarReniecDni, guardarBoletaExtranjera } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import { penToClp, formatClp } from '../../utils/currency.js';
 import { toLocalDatetimeValueBoleta } from '../../utils/dates.js';
@@ -11,13 +11,174 @@ import { generarBoletaExtranjera, generarBoletaExtranjera2, generarBoletaExtranj
 import {appId, db} from '../../lib/firebase.js';
 
 const boletasRef = collection(db, 'artifacts', appId, 'users', 'shared', 'boletasExtranjeras');
-const contadorBoletasRef = doc(db, 'artifacts', appId, 'users', 'shared', 'configuracion', 'contadorBoletas');
 const limpiarParaFirestore = data => JSON.parse(JSON.stringify(data));
+const emptyForm = { nombre: '', rut: '', imei1: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', memoria: '', color: '', precio: '' };
+
+const normalizarImeiBoleta = value => {
+  const imei = String(value || '').replace(/\D/g, '').slice(0, 15);
+  return /^\d{15}$/.test(imei) ? imei : '';
+};
+
+const obtenerImeisBoletaData = boletaData => {
+  const ventas = Array.isArray(boletaData?.ventas) ? boletaData.ventas : [];
+  const keysFromVentas = new Set();
+  ventas.forEach(venta => {
+    const imei1 = normalizarImeiBoleta(venta?.imeiEquipo);
+    const imei2 = normalizarImeiBoleta(venta?.imei2Equipo);
+    if (imei1) keysFromVentas.add(imei1);
+    if (imei2) keysFromVentas.add(imei2);
+
+    const equipo = imei1 ? boletaData?.equiposMap?.[imei1] : null;
+    const imei2Equipo = normalizarImeiBoleta(equipo?.imei2);
+    if (imei2Equipo) keysFromVentas.add(imei2Equipo);
+  });
+
+  if (keysFromVentas.size) return Array.from(keysFromVentas);
+
+  const keysFromMap = new Set();
+  if (boletaData?.equiposMap && typeof boletaData.equiposMap === 'object' && !Array.isArray(boletaData.equiposMap)) {
+    Object.entries(boletaData.equiposMap).forEach(([key, equipo]) => {
+      const imei1 = normalizarImeiBoleta(key);
+      const imei2 = normalizarImeiBoleta(equipo?.imei2);
+      if (imei1) keysFromMap.add(imei1);
+      if (imei2) keysFromMap.add(imei2);
+    });
+  }
+  return Array.from(keysFromMap);
+};
+
+const obtenerImeisBoletaGuardada = boleta => {
+  const dataKeys = obtenerImeisBoletaData(boleta?.boletaData);
+  if (dataKeys.length) return dataKeys;
+
+  const stored = Array.isArray(boleta?.boletaEquipoKeys)
+    ? boleta.boletaEquipoKeys.map(normalizarImeiBoleta).filter(Boolean)
+    : [];
+  return Array.from(new Set([
+    ...stored,
+    normalizarImeiBoleta(boleta?.boletaEquipoKey),
+  ].filter(Boolean)));
+};
+
+const resumirImeisBoleta = boleta => {
+  const imeis = obtenerImeisBoletaGuardada(boleta);
+  if (imeis.length <= 2) return imeis.join(' / ');
+  return `${imeis.slice(0, 2).join(' / ')} / +${imeis.length - 2}`;
+};
+
+const crearEquiposMapDesdeVentas = (ventasSeleccionadas, equipos) => {
+  const equiposPorImei = new Map(equipos.map(equipo => [equipo.idEquipo, equipo]));
+  return ventasSeleccionadas.reduce((map, venta) => {
+    const imei = normalizarImeiBoleta(venta?.imeiEquipo);
+    if (!imei) return map;
+
+    const equipo = equiposPorImei.get(imei) || {};
+    map[imei] = {
+      ...equipo,
+      imei2: equipo.imei2 || venta.imei2Equipo || '',
+      sn: equipo.sn || venta.sn || '',
+      marca: equipo.marca || venta.marcaEquipo || '',
+      modelo: equipo.modelo || venta.modeloEquipo || '',
+      nombreComercial: equipo.nombreComercial || venta.nombreComercial || '',
+      memoria: equipo.memoria || venta.memoria || '',
+      color: equipo.color || venta.color || '',
+    };
+    return map;
+  }, {});
+};
+
+const normalizarTextoBoleta = value => String(value || '').trim().replace(/\s+/g, ' ');
+
+const formatearMemoriaBoleta = value => {
+  const memoria = normalizarTextoBoleta(value).toUpperCase();
+  if (!memoria) return '';
+  return /\b(GB|TB|MB)\b/.test(memoria) ? memoria : `${memoria}GB`;
+};
+
+const nombreEquipoBoleta = (venta, data) => {
+  const imei = normalizarImeiBoleta(venta?.imeiEquipo);
+  const equipo = imei ? data?.equiposMap?.[imei] || {} : {};
+  const marca = venta?.marcaEquipo || equipo.marca || '';
+  const nombre = equipo.nombreComercial || venta?.nombreComercial || venta?.modeloEquipo || equipo.modelo || '';
+  const memoria = formatearMemoriaBoleta(venta?.memoria || equipo.memoria);
+  return normalizarTextoBoleta([marca, nombre, memoria].filter(Boolean).join(' '));
+};
+
+const obtenerResumenEquipoBoleta = boleta => {
+  const data = boleta?.boletaData || {};
+  const ventas = Array.isArray(data.ventas) ? data.ventas : [];
+  const nombres = ventas.map(venta => nombreEquipoBoleta(venta, data)).filter(Boolean);
+
+  if (!nombres.length && data.equiposMap && typeof data.equiposMap === 'object' && !Array.isArray(data.equiposMap)) {
+    Object.entries(data.equiposMap).forEach(([imei, equipo]) => {
+      const nombre = normalizarTextoBoleta([
+        equipo?.marca,
+        equipo?.nombreComercial || equipo?.modelo,
+        formatearMemoriaBoleta(equipo?.memoria),
+      ].filter(Boolean).join(' '));
+      if (nombre || normalizarImeiBoleta(imei)) nombres.push(nombre || `IMEI ${normalizarImeiBoleta(imei)}`);
+    });
+  }
+
+  const unicos = Array.from(new Set(nombres));
+  if (unicos.length <= 1) return unicos[0] || '';
+  return `${unicos[0]} +${unicos.length - 1} equipos`;
+};
+
+const crearBoletaDataDesdeForm = (form, fechaHora, totalClp) => ({
+  cliente: { nombre: form.nombre, dni: form.rut },
+  ventas: [{
+    imeiEquipo: form.imei1,
+    imei2Equipo: form.imei2,
+    sn: form.sn,
+    marcaEquipo: form.marca,
+    nombreComercial: form.nombreComercial,
+    modeloEquipo: form.modelo,
+    precio: form.precio,
+    color: form.color,
+    memoria: form.memoria,
+  }],
+  equiposMap: {
+    [form.imei1]: {
+      imei2: form.imei2,
+      sn: form.sn,
+      marca: form.marca,
+      modelo: form.modelo,
+      color: form.color,
+      memoria: form.memoria,
+      nombreComercial: form.nombreComercial,
+    },
+  },
+  totalClp,
+  fechaHora,
+});
+
+const formDesdeBoleta = boleta => {
+  const data = boleta?.boletaData || {};
+  const venta = Array.isArray(data.ventas) ? data.ventas[0] || {} : {};
+  const imei1 = normalizarImeiBoleta(venta.imeiEquipo) || obtenerImeisBoletaGuardada(boleta)[0] || '';
+  const equipo = data.equiposMap?.[imei1] || {};
+  return {
+    nombre: data.cliente?.nombre || boleta?.clienteNombre || '',
+    rut: data.cliente?.dni || boleta?.clienteDni || '',
+    imei1,
+    imei2: normalizarImeiBoleta(equipo.imei2 || venta.imei2Equipo),
+    sn: equipo.sn || venta.sn || '',
+    marca: venta.marcaEquipo || equipo.marca || '',
+    modelo: venta.modeloEquipo || equipo.modelo || '',
+    nombreComercial: venta.nombreComercial || equipo.nombreComercial || '',
+    memoria: venta.memoria || equipo.memoria || '',
+    color: venta.color || equipo.color || '',
+    precio: String(venta.precio || boleta?.totalPen || ''),
+  };
+};
 
 export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConfig, showToast, onSearchVentas, searchingVentas = false }) {
   const [modo, setModo] = useState('buscar');
   const [fechaHora, setFechaHora] = useState(toLocalDatetimeValueBoleta(new Date()));
   const [modalBoleta, setModalBoleta] = useState(null);
+  const [boletaExistentePrompt, setBoletaExistentePrompt] = useState(null);
+  const [boletaEnEdicion, setBoletaEnEdicion] = useState(null);
   const [historialBoletas, setHistorialBoletas] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(true);
   const [imprimiendoBoleta, setImprimiendoBoleta] = useState(false);
@@ -98,21 +259,47 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
     return toLocalDatetimeValueBoleta(fecha);
   };
 
+  const buscarBoletaExistente = (boletaData, excludeId = '') => {
+    const imeis = new Set(obtenerImeisBoletaData(boletaData));
+    if (!imeis.size) return null;
+
+    return historialBoletas.find(boleta => {
+      if (excludeId && boleta.id === excludeId) return false;
+      return obtenerImeisBoletaGuardada(boleta).some(imei => imeis.has(imei));
+    }) || null;
+  };
+
   const abrirSelectorFormato = (boletaData, opciones = {}) => {
     setModalBoleta({
       ...boletaData,
       historialId: opciones.historialId || null,
       guardarHistorial: opciones.guardarHistorial !== false,
+      editando: Boolean(opciones.editando),
     });
   };
 
-  const obtenerNumeroBoleta = async () => runTransaction(db, async transaction => {
-    const snap = await transaction.get(contadorBoletasRef);
-    const last = Number(snap.data()?.last || 999);
-    const next = Math.max(last + 1, 1000);
-    transaction.set(contadorBoletasRef, {last: next, updatedAt: serverTimestamp()}, {merge: true});
-    return next;
-  });
+  const prepararBoleta = (boletaData, opciones = {}) => {
+    const existente = buscarBoletaExistente(boletaData, opciones.historialId || '');
+    if (existente) {
+      setBoletaExistentePrompt({boleta: existente, draft: boletaData, opciones});
+      return;
+    }
+    abrirSelectorFormato(boletaData, opciones);
+  };
+
+  const editarBoletaExistente = boleta => {
+    setBoletaExistentePrompt(null);
+    setBoletaEnEdicion(boleta);
+    setForm(formDesdeBoleta(boleta));
+    setFechaHora(toLocalDatetimeValueBoleta(boleta.boletaData?.fechaHora || boleta.fechaHora || new Date()));
+    setModo('nueva');
+    showToast('Edita los datos y vuelve a imprimir la boleta', 'success');
+  };
+
+  const cancelarEdicionBoleta = () => {
+    setBoletaEnEdicion(null);
+    setForm({...emptyForm});
+  };
 
   const imprimirBoleta = async (data, formato) => {
     if (imprimiendoBoletaRef.current) return;
@@ -131,20 +318,15 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
 
     try {
       if (data.guardarHistorial) {
-        boletaData.nBoleta = await obtenerNumeroBoleta();
-        const totalPenBoleta = boletaData.ventas.reduce((s, v) => s + parseFloat(v.precio || 0), 0);
-        await addDoc(boletasRef, {
-          nBoleta: boletaData.nBoleta,
-          clienteDni: boletaData.cliente?.dni || '',
-          clienteNombre: boletaData.cliente?.nombre || '',
-          totalPen: totalPenBoleta,
-          totalClp: Number(boletaData.totalClp || 0),
-          fechaHora: boletaData.fechaHora || '',
+        const saved = await guardarBoletaExtranjera({
+          action: data.historialId ? 'update' : 'save',
+          historialId: data.historialId || '',
           formato,
-          origen: boletaData.ventas.some(v => v.id) ? 'ventas' : 'manual',
           boletaData: limpiarParaFirestore(boletaData),
-          createdAt: serverTimestamp(),
         });
+        boletaData.nBoleta = saved.boleta?.nBoleta || boletaData.nBoleta;
+        boletaData.emisor = saved.boleta?.boletaData?.emisor || boletaData.emisor;
+        if (data.historialId) setBoletaEnEdicion(null);
       } else if (!boletaData.nBoleta && data.nBoleta) {
         boletaData.nBoleta = data.nBoleta;
       }
@@ -153,10 +335,17 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
       if (formato === 1) await generarBoletaExtranjera(boletaData);
       else if (formato === 2) await generarBoletaExtranjera2(boletaData);
       else await generarBoletaExtranjera3(boletaData);
-      showToast(data.guardarHistorial ? 'Boleta guardada e impresa' : 'Boleta reimpresa', 'success');
+      showToast(data.guardarHistorial ? (data.historialId ? 'Boleta actualizada e impresa' : 'Boleta guardada e impresa') : 'Boleta reimpresa', 'success');
     } catch (error) {
       console.error(error);
-      showToast('No se pudo guardar o imprimir la boleta', 'error');
+      if (error.message === 'BOLETA_EQUIPO_YA_EXISTE') {
+        const duplicateId = error.payload?.details?.boletaId || error.payload?.boletaId || '';
+        const boleta = historialBoletas.find(item => item.id === duplicateId);
+        if (boleta) setBoletaExistentePrompt({boleta, draft: boletaData, opciones: {}});
+        showToast('Ese equipo ya tiene una boleta extranjera', 'error');
+      } else {
+        showToast('No se pudo guardar o imprimir la boleta', 'error');
+      }
     } finally {
       imprimiendoBoletaRef.current = false;
       setImprimiendoBoleta(false);
@@ -165,15 +354,13 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
 
   const emitirDesdeVentas = () => {
     if (!clienteEncontrado || ventasSel.length === 0) { showToast('Selecciona al menos una venta', 'error'); return; }
-    const equiposMap = {};
-    equipos.forEach(e => { equiposMap[e.idEquipo] = e; });
-    abrirSelectorFormato({ cliente: clienteEncontrado, ventas: ventasSel, equiposMap, totalClp, fechaHora: fechaDesdeVentas(ventasSel) });
+    const equiposMap = crearEquiposMapDesdeVentas(ventasSel, equipos);
+    prepararBoleta({ cliente: clienteEncontrado, ventas: ventasSel, equiposMap, totalClp, fechaHora: fechaDesdeVentas(ventasSel) });
   };
 
   // ── MODO NUEVA BOLETA MANUAL ──
   const [mostrarEscanerBoleta, setMostrarEscanerBoleta] = useState(false);
-  const emptyForm = { nombre: '', rut: '', imei1: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', memoria: '', color: '', precio: '' };
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState({...emptyForm});
   const [buscandoReniecBoleta, setBuscandoReniecBoleta] = useState(false);
 
   const handleFormChange = (e) => {
@@ -255,18 +442,14 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
       showToast('El IMEI 2 no es válido — verifica los dígitos', 'error'); return;
     }
     const clpVal = penToClp(form.precio);
-    abrirSelectorFormato({
-      cliente: { nombre: form.nombre, dni: form.rut },
-      ventas: [{
-        imeiEquipo: form.imei1, marcaEquipo: form.marca,
-        nombreComercial: form.nombreComercial, modeloEquipo: form.modelo,
-        precio: form.precio, color: form.color, memoria: form.memoria,
-      }],
-      equiposMap: { [form.imei1]: { imei2: form.imei2, sn: form.sn, color: form.color, memoria: form.memoria, nombreComercial: form.nombreComercial } },
-      totalClp: clpVal,
-      fechaHora,
+    prepararBoleta(crearBoletaDataDesdeForm(form, fechaHora, clpVal), {
+      historialId: boletaEnEdicion?.id || '',
+      editando: Boolean(boletaEnEdicion),
     });
   };
+
+  const equipoPromptExistente = obtenerResumenEquipoBoleta(boletaExistentePrompt?.boleta);
+  const imeisPromptExistente = boletaExistentePrompt ? resumirImeisBoleta(boletaExistentePrompt.boleta) : '';
 
   return (
     <div className="saas-boleta-page space-y-4">
@@ -306,6 +489,34 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
               </button>
             </div>
             <button type="button" disabled={imprimiendoBoleta} onClick={() => setModalBoleta(null)} className="saas-secondary mt-4 w-full disabled:cursor-not-allowed disabled:opacity-60">Cancelar</button>
+          </div>
+        </div>
+      )}
+      {boletaExistentePrompt && (
+        <div className="saas-modal-backdrop fixed inset-0 z-[210] flex items-center justify-center p-4">
+          <div className="saas-detail-modal w-full max-w-md p-6">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+              <AlertCircle size={22} className="text-amber-700" />
+            </div>
+            <h3 className="mb-1 text-center text-base font-bold text-slate-900">Este equipo ya tiene boleta</h3>
+            <p className="mb-4 text-center text-xs font-medium text-slate-500">No se puede generar otra boleta para el mismo IMEI. Puedes editar la boleta existente.</p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+              <p className="font-semibold text-slate-900">{boletaExistentePrompt.boleta.clienteNombre || 'Cliente sin nombre'}</p>
+              <p className="mt-1 text-xs text-slate-500">Nro {boletaExistentePrompt.boleta.nBoleta || '-'} / DNI {boletaExistentePrompt.boleta.clienteDni || '-'}</p>
+              {equipoPromptExistente && (
+                <p className="mt-1 text-sm font-semibold text-slate-800">Equipo: {equipoPromptExistente}</p>
+              )}
+              <p className="mt-1 font-mono text-xs text-slate-600">IMEI {imeisPromptExistente || '-'}</p>
+              <p className="mt-2 text-xs font-semibold text-emerald-700">${formatClp(Number(boletaExistentePrompt.boleta.totalClp || 0))} CLP / S/. {Number(boletaExistentePrompt.boleta.totalPen || 0).toFixed(2)}</p>
+            </div>
+            <div className="mt-5 grid gap-2">
+              <button type="button" onClick={() => editarBoletaExistente(boletaExistentePrompt.boleta)} className="saas-primary w-full">
+                <Edit size={16} /> Editar boleta existente
+              </button>
+              <button type="button" onClick={() => setBoletaExistentePrompt(null)} className="saas-secondary w-full">
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -411,6 +622,13 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
           <div className="space-y-4">
             {mostrarEscanerBoleta && <EscanerIA onResult={onEscanerBoleta} onClose={() => setMostrarEscanerBoleta(false)} />}
 
+            {boletaEnEdicion && (
+              <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm">
+                <p className="font-semibold text-amber-900">Editando boleta Nro {boletaEnEdicion.nBoleta || '-'}</p>
+                <p className="mt-1 text-xs font-medium text-amber-800">Los cambios se guardaran sobre esta boleta y luego se imprimira el nuevo PDF.</p>
+              </div>
+            )}
+
             {/* Cliente */}
             <p className="text-xs font-semibold text-gray-500 uppercase border-b pb-1">Datos del Cliente</p>
             <div className="grid grid-cols-2 gap-3">
@@ -467,9 +685,11 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
             </div>
 
             <div className="flex justify-between pt-2 border-t gap-3">
-              <button onClick={() => setForm(emptyForm)} className="saas-secondary">Limpiar</button>
+              <button onClick={() => boletaEnEdicion ? cancelarEdicionBoleta() : setForm({...emptyForm})} className="saas-secondary">
+                {boletaEnEdicion ? 'Cancelar edicion' : 'Limpiar'}
+              </button>
               <button onClick={emitirNueva} className="saas-primary flex-1">
-                <Printer size={16}/> Generar Boleta
+                <Printer size={16}/> {boletaEnEdicion ? 'Actualizar e imprimir' : 'Generar Boleta'}
               </button>
             </div>
           </div>
@@ -489,26 +709,45 @@ export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConf
               </div>
             ) : (
               <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
-                {historialBoletas.map(boleta => (
-                  <div key={boleta.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{boleta.clienteNombre || 'Cliente sin nombre'}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        Nro {boleta.nBoleta || '-'} · DNI {boleta.clienteDni || '-'} · {boleta.fechaHora ? new Date(boleta.fechaHora).toLocaleString('es-PE') : 'Sin fecha'}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold text-emerald-700">
-                        ${formatClp(Number(boleta.totalClp || 0))} CLP · S/. {Number(boleta.totalPen || 0).toFixed(2)}
-                      </p>
+                {historialBoletas.map(boleta => {
+                  const equipoPreview = obtenerResumenEquipoBoleta(boleta);
+                  const imeisPreview = resumirImeisBoleta(boleta);
+                  return (
+                    <div key={boleta.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{boleta.clienteNombre || 'Cliente sin nombre'}</p>
+                        {equipoPreview && (
+                          <p className="mt-1 truncate text-sm font-semibold text-slate-800">{equipoPreview}</p>
+                        )}
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Nro {boleta.nBoleta || '-'} · DNI {boleta.clienteDni || '-'} · {boleta.fechaHora ? new Date(boleta.fechaHora).toLocaleString('es-PE') : 'Sin fecha'}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-emerald-700">
+                          ${formatClp(Number(boleta.totalClp || 0))} CLP · S/. {Number(boleta.totalPen || 0).toFixed(2)}
+                        </p>
+                        <p className="mt-1 truncate font-mono text-xs text-slate-500">
+                          IMEI {imeisPreview || '-'}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => editarBoletaExistente(boleta)}
+                          className="saas-secondary"
+                        >
+                          <Edit size={15}/> Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => abrirSelectorFormato({...boleta.boletaData, nBoleta: boleta.nBoleta || boleta.boletaData?.nBoleta}, {historialId: boleta.id, guardarHistorial: false})}
+                          className="saas-secondary"
+                        >
+                          <Printer size={15}/> Reimprimir
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => abrirSelectorFormato({...boleta.boletaData, nBoleta: boleta.nBoleta || boleta.boletaData?.nBoleta}, {historialId: boleta.id, guardarHistorial: false})}
-                      className="saas-secondary shrink-0"
-                    >
-                      <Printer size={15}/> Reimprimir
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
