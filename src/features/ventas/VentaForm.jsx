@@ -8,6 +8,7 @@ import { generarTicketVentaPDF } from './ventaPdf.js';
 
 const MONEY_RE = /^\d+(\.\d{1,2})?$/;
 const clean = value => String(value || '').trim();
+const SCAN_LOADING_INPUT_CLASS = 'bg-blue-50/70 placeholder:text-blue-700 placeholder:font-semibold';
 const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
 const opcionesContacto = (cliente, campoPrincipal, campoLista) => uniqueClean([
   cliente?.[campoPrincipal],
@@ -48,6 +49,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   }, [initialData, clientes, equipos]);
 
   const [mostrarEscaner, setMostrarEscaner] = useState(false);
+  const [escaneoProcesando, setEscaneoProcesando] = useState(false);
   const [buscandoReniecV, setBuscandoReniecV] = useState(false);
   const [dniStatusV, setDniStatusV] = useState(null);
   const [contactosClienteV, setContactosClienteV] = useState({celulares: [], correos: []});
@@ -80,6 +82,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
 
   const onEscaneo = (datos) => {
     setMostrarEscaner(false);
+    setEscaneoProcesando(false);
     onDirty?.();
     setFormData(prev => ({
       ...prev,
@@ -93,8 +96,18 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
       memoria:         datos.memoria         || prev.memoria,
       color:           datos.color           || prev.color,
     }));
-    const campos = [datos.imei1, datos.marca, datos.nombreComercial].filter(Boolean).join(' · ');
+    const campos = [datos.imei1, datos.marca, datos.nombreComercial, datos.ram, datos.memoria, datos.color].filter(Boolean).join(' · ');
     showToast(campos ? `✓ ${campos}` : 'Sin datos — rellena manualmente', campos ? 'success' : 'error');
+  };
+
+  const onEscaneoProcesando = () => {
+    setMostrarEscaner(false);
+    setEscaneoProcesando(true);
+  };
+
+  const onEscaneoError = mensaje => {
+    setEscaneoProcesando(false);
+    showToast(mensaje || 'No se pudo extraer datos de la caja', 'error');
   };
 
   useEffect(() => {
@@ -132,6 +145,9 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         modelo:          prev.modelo          || e.modelo || '',
         nombreComercial: prev.nombreComercial || e.nombreComercial || '',
         sn:              prev.sn              || e.sn || '',
+        ram:             prev.ram             || e.ram || '',
+        memoria:         prev.memoria         || e.memoria || '',
+        color:           prev.color           || e.color || '',
       }));
     }
   }, [formData.imei1, equipos, initialData]);
@@ -285,6 +301,13 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
 
   const [paso, setPaso] = useState(1);
 
+  const placeholderEscaneo = (campo, fallback = '') => (
+    escaneoProcesando && !formData[campo] ? 'Extrayendo...' : fallback
+  );
+  const claseEscaneo = campo => (
+    escaneoProcesando && !formData[campo] ? SCAN_LOADING_INPUT_CLASS : ''
+  );
+
   const validarPaso1V = () => {
     if (!validarDocumento(formData.tipoDocumento, formData.dni) || !formData.nombre) {
       showToast(`Completa ${etiquetaDocumento(formData.tipoDocumento)} y nombre`, 'error'); return false;
@@ -418,12 +441,26 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
               <h4 className="saas-form-section-title border-b-0 pb-0">Equipo y Precio</h4>
               <button type="button" onClick={() => setMostrarEscaner(true)} className="saas-secondary"><ScanBarcode size={14}/> Escanear</button>
             </div>
-            {mostrarEscaner && <EscanerIA onResult={onEscaneo} onClose={() => setMostrarEscaner(false)} />}
+            {mostrarEscaner && (
+              <EscanerIA
+                onResult={onEscaneo}
+                onClose={() => setMostrarEscaner(false)}
+                onProcessingStart={onEscaneoProcesando}
+                onError={onEscaneoError}
+              />
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {escaneoProcesando && (
+                <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700" />
+                  Extrayendo datos de la caja del equipo...
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-gray-500 mb-1">IMEI 1 *</label>
                 <input required name="imei1" value={formData.imei1} onChange={handleChange}
-                  className={`w-full border rounded p-2 text-sm font-mono ${formData.imei1.length === 15 ? (luhn(formData.imei1) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} />
+                  className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('imei1')} ${formData.imei1.length === 15 ? (luhn(formData.imei1) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`}
+                  placeholder={placeholderEscaneo('imei1', '15 digitos')} />
                 {formData.imei1.length === 15 && (
                   <p className={`text-xs mt-1 font-medium ${luhn(formData.imei1) ? 'text-green-600' : 'text-red-600'}`}>
                     {luhn(formData.imei1) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
@@ -433,20 +470,21 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
               <div>
                 <label className="block text-xs text-gray-500 mb-1">IMEI 2</label>
                 <input name="imei2" value={formData.imei2} onChange={handleChange}
-                  className={`w-full border rounded p-2 text-sm font-mono ${formData.imei2.length === 15 ? (luhn(formData.imei2) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} />
+                  className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('imei2')} ${formData.imei2.length === 15 ? (luhn(formData.imei2) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`}
+                  placeholder={placeholderEscaneo('imei2')} />
                 {formData.imei2.length === 15 && (
                   <p className={`text-xs mt-1 font-medium ${luhn(formData.imei2) ? 'text-green-600' : 'text-red-600'}`}>
                     {luhn(formData.imei2) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
                   </p>
                 )}
               </div>
-              <div><label className="block text-xs text-gray-500 mb-1">N° de Serie</label><input name="sn" value={formData.sn} onChange={handleChange} className="w-full border rounded p-2 text-sm font-mono" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Nombre Comercial *</label><input required name="nombreComercial" value={formData.nombreComercial} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: GALAXY A56" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Marca</label><input name="marca" value={formData.marca} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Modelo</label><input name="modelo" value={formData.modelo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">RAM (GB)</label><input name="ram" value={formData.ram} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="ej: 8" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Memoria (GB)</label><input name="memoria" value={formData.memoria} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="ej: 256" /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">Color</label><input name="color" value={formData.color} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">N° de Serie</label><input name="sn" value={formData.sn} onChange={handleChange} className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('sn')}`} placeholder={placeholderEscaneo('sn')} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Nombre Comercial *</label><input required name="nombreComercial" value={formData.nombreComercial} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('nombreComercial')}`} placeholder={placeholderEscaneo('nombreComercial', 'Ej: GALAXY A56')} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Marca</label><input name="marca" value={formData.marca} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('marca')}`} placeholder={placeholderEscaneo('marca')} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Modelo</label><input name="modelo" value={formData.modelo} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('modelo')}`} placeholder={placeholderEscaneo('modelo')} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">RAM (GB)</label><input name="ram" value={formData.ram} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('ram')}`} placeholder={placeholderEscaneo('ram', 'ej: 8')} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Memoria (GB)</label><input name="memoria" value={formData.memoria} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('memoria')}`} placeholder={placeholderEscaneo('memoria', 'ej: 256')} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Color</label><input name="color" value={formData.color} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('color')}`} placeholder={placeholderEscaneo('color')} /></div>
               <div><label className="block text-xs text-gray-500 mb-1">Precio (S/.) *</label><input required type="number" step="0.01" name="precio" value={formData.precio} onChange={handleChange} className="w-full border rounded p-2 text-sm font-bold text-green-700" /></div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Medio de pago *</label>

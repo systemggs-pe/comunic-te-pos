@@ -9,6 +9,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MONEY_RE = /^\d+(\.\d{1,2})?$/;
 const PHONE_RE = /^9\d{8}$/;
 const clean = value => String(value || '').trim();
+const SCAN_LOADING_INPUT_CLASS = 'bg-blue-50/70 placeholder:text-blue-700 placeholder:font-semibold';
 const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
 const opcionesContacto = (cliente, campoPrincipal, campoLista) => uniqueClean([
   cliente?.[campoPrincipal],
@@ -47,7 +48,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const [formData, setFormData] = useState({
-    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
+    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', ram: '', memoria: '', color: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
   });
   const [confirmarGuardado, setConfirmarGuardado] = useState(false);
 
@@ -56,7 +57,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       const cliente = clientes.find(c => c.dni === initialData.dniCliente) || {};
       const eq = equipos.find(e => e.idEquipo === initialData.imeiEquipo) || {};
       setFormData({
-        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: cliente.direccion || '', imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', sn: eq.sn || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
+        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: cliente.direccion || '', imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', sn: eq.sn || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', ram: eq.ram || '', memoria: eq.memoria || '', color: eq.color || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
       });
       setShowManualEqForm(true);
     }
@@ -69,6 +70,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
 
   const [mostrarEscaner, setMostrarEscaner] = useState(false);
+  const [escaneoProcesando, setEscaneoProcesando] = useState(false);
   const [buscandoReniec, setBuscandoReniec] = useState(false);
   const [dniStatusReg, setDniStatusReg] = useState(null);
   const [contactosClienteReg, setContactosClienteReg] = useState({celulares: [], correos: []});
@@ -102,6 +104,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
   const onEscaneo = (datos) => {
     setMostrarEscaner(false);
+    setEscaneoProcesando(false);
     onDirty?.();
     setFormData(prev => {
       const next = {
@@ -112,11 +115,24 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         marca:           datos.marca           || prev.marca,
         modelo:          datos.modelo          || prev.modelo,
         nombreComercial: datos.nombreComercial || prev.nombreComercial,
+        ram:             datos.ram             || prev.ram,
+        memoria:         datos.memoria         || prev.memoria,
+        color:           datos.color           || prev.color,
       };
       return next;
     });
-    const campos = [datos.imei1, datos.marca, datos.nombreComercial].filter(Boolean).join(' · ');
+    const campos = [datos.imei1, datos.marca, datos.nombreComercial, datos.ram, datos.memoria, datos.color].filter(Boolean).join(' · ');
     showToast(campos ? `✓ ${campos}` : 'Sin datos — rellena manualmente', campos ? 'success' : 'error');
+  };
+
+  const onEscaneoProcesando = () => {
+    setMostrarEscaner(false);
+    setEscaneoProcesando(true);
+  };
+
+  const onEscaneoError = mensaje => {
+    setEscaneoProcesando(false);
+    showToast(mensaje || 'No se pudo extraer datos de la caja', 'error');
   };
 
   useEffect(() => {
@@ -182,6 +198,9 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           modelo:          prev.modelo          || eq.modelo          || '',
           nombreComercial: prev.nombreComercial || eq.nombreComercial || '',
           sn:              prev.sn              || eq.sn              || '',
+          ram:             prev.ram             || eq.ram             || '',
+          memoria:         prev.memoria         || eq.memoria         || '',
+          color:           prev.color           || eq.color           || '',
         }));
       }
     }
@@ -200,14 +219,17 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       imei: selectedImei,          // el IMEI exacto que eligió registrar
       imei2: selectedImei === eq.idEquipo ? (eq.imei2 || '') : (eq.idEquipo || ''),
       sn: eq.sn || '', marca: eq.marca || '', modelo: eq.modelo || '',
-      nombreComercial: eq.nombreComercial || ''
+      nombreComercial: eq.nombreComercial || '',
+      ram: eq.ram || '',
+      memoria: eq.memoria || '',
+      color: eq.color || '',
     }));
     setImeiSeleccionado(null);
     setShowManualEqForm(true);
   };
 
   const CAMPOS_SOLO_NUMEROS = ['dni', 'celular', 'celularRef', 'imei', 'imei2'];
-  const CAMPOS_MAYUSCULAS   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'sn', 'operador', 'estado', 'tipo'];
+  const CAMPOS_MAYUSCULAS   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'sn', 'color', 'operador', 'estado', 'tipo'];
   const CAMPOS_CORREO       = ['correo'];
 
   const handleChange = (e) => {
@@ -354,6 +376,9 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         marca: formData.marca,
         modelo: formData.modelo,
         nombreComercial: formData.nombreComercial,
+        ram: formData.ram,
+        memoria: formData.memoria,
+        color: formData.color,
         isRegistrado: true,
         imei1Registrado: formData.imei === imei1Real ? true : (eqExistente.imei1Registrado || false),
         imei2Registrado: formData.imei === imei2Real ? true : (eqExistente.imei2Registrado || false),
@@ -383,6 +408,13 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const [paso, setPaso] = useState(1);
+
+  const placeholderEscaneo = (campo, fallback = '') => (
+    escaneoProcesando && !formData[campo] ? 'Extrayendo...' : fallback
+  );
+  const claseEscaneo = campo => (
+    escaneoProcesando && !formData[campo] ? SCAN_LOADING_INPUT_CLASS : ''
+  );
 
   const validarPaso1 = () => {
     if (!validarDocumento(formData.tipoDocumento, clean(formData.dni))) {
@@ -537,7 +569,14 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
               <h4 className="saas-form-section-title border-b-0 pb-0">Datos del Equipo</h4>
               {showManualEqForm && <button type="button" onClick={() => setMostrarEscaner(true)} className="saas-secondary"><ScanBarcode size={14}/> Escanear</button>}
             </div>
-            {mostrarEscaner && <EscanerIA onResult={onEscaneo} onClose={() => setMostrarEscaner(false)} />}
+            {mostrarEscaner && (
+              <EscanerIA
+                onResult={onEscaneo}
+                onClose={() => setMostrarEscaner(false)}
+                onProcessingStart={onEscaneoProcesando}
+                onError={onEscaneoError}
+              />
+            )}
 
             {/* Equipos previos */}
             {!showManualEqForm && equiposCliente.length > 0 && (
@@ -579,28 +618,37 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   </div>
                 )}
                 <div className="mt-3 pt-3 border-t border-blue-200 text-right">
-                  <button type="button" onClick={() => {setShowManualEqForm(true); setFormData(prev => ({...prev, imei:'', imei2:'', marca:'', modelo:'', nombreComercial:''}))}} className="text-sm text-blue-700 hover:underline">+ Agregar equipo nuevo</button>
+                  <button type="button" onClick={() => {setShowManualEqForm(true); setFormData(prev => ({...prev, imei:'', imei2:'', marca:'', modelo:'', nombreComercial:'', ram:'', memoria:'', color:''}))}} className="text-sm text-blue-700 hover:underline">+ Agregar equipo nuevo</button>
                 </div>
               </div>
             )}
 
             {showManualEqForm && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {escaneoProcesando && (
+                  <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700" />
+                    Extrayendo datos de la caja del equipo...
+                  </div>
+                )}
                 <div>
                 <label className="block text-xs text-gray-500 mb-1">IMEI a registrar *</label>
                 <input name="imei" value={formData.imei} onChange={handleChange}
-                  className={`w-full border rounded p-2 text-sm font-mono ${formData.imei.length === 15 ? (luhn(formData.imei) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`}
-                  placeholder="15 dígitos" />
+                  className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('imei')} ${formData.imei.length === 15 ? (luhn(formData.imei) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`}
+                  placeholder={placeholderEscaneo('imei', '15 digitos')} />
                 {formData.imei.length === 15 && (
                   <p className={`text-xs mt-1 font-medium ${luhn(formData.imei) ? 'text-green-600' : 'text-red-600'}`}>
                     {luhn(formData.imei) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
                   </p>
                 )}
               </div>
-                <div><label className="block text-xs text-gray-500 mb-1">N° de Serie (S/N)</label><input name="sn" value={formData.sn} onChange={handleChange} className="w-full border rounded p-2 text-sm font-mono" /></div>
-                <div><label className="block text-xs text-gray-500 mb-1">Nombre Comercial *</label><input name="nombreComercial" value={formData.nombreComercial} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: GALAXY A56" /></div>
-                <div><label className="block text-xs text-gray-500 mb-1">Marca *</label><input name="marca" value={formData.marca} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
-                <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Modelo *</label><input name="modelo" value={formData.modelo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">N° de Serie (S/N)</label><input name="sn" value={formData.sn} onChange={handleChange} className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('sn')}`} placeholder={placeholderEscaneo('sn')} /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">Nombre Comercial *</label><input name="nombreComercial" value={formData.nombreComercial} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('nombreComercial')}`} placeholder={placeholderEscaneo('nombreComercial', 'Ej: GALAXY A56')} /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">Marca *</label><input name="marca" value={formData.marca} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('marca')}`} placeholder={placeholderEscaneo('marca')} /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">Modelo *</label><input name="modelo" value={formData.modelo} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('modelo')}`} placeholder={placeholderEscaneo('modelo')} /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">RAM (GB)</label><input name="ram" value={formData.ram} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('ram')}`} placeholder={placeholderEscaneo('ram', 'ej: 8')} /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">Memoria (GB)</label><input name="memoria" value={formData.memoria} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('memoria')}`} placeholder={placeholderEscaneo('memoria', 'ej: 256')} /></div>
+                <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Color</label><input name="color" value={formData.color} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('color')}`} placeholder={placeholderEscaneo('color')} /></div>
               </div>
             )}
 

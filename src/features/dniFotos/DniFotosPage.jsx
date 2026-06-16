@@ -1,14 +1,14 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {CheckCircle2, Clock3, Eye, ImagePlus, RefreshCw, Search, Trash2, XCircle} from 'lucide-react';
-import {consultarDniFotos, obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
 import {
-  deleteDniPhotoHistoryEntry,
-  loadDniPhotoHistory,
-  saveDniPhotoHistoryEntry,
-} from './dniFotosHistory.js';
+  consultarDniFotos,
+  eliminarDniFotoHistorial,
+  listarDniFotosHistorial,
+  obtenerDniFotoHistorial,
+  obtenerMensajeErrorFuncion,
+} from '../../services/functionsClient.js';
 
 const DNI_RE = /^\d{8}$/;
-const SUCCESS_COUNT_KEY = 'ggs_dni_photo_success_count';
 const imageLabels = ['Anverso', 'Reverso'];
 const photoTypes = [
   {
@@ -29,21 +29,6 @@ const historyDateFormatter = new Intl.DateTimeFormat('es-PE', {
   hour: '2-digit',
   minute: '2-digit',
 });
-
-function readSuccessCount() {
-  if (typeof window === 'undefined') return 0;
-  const value = Number(window.localStorage.getItem(SUCCESS_COUNT_KEY) || 0);
-  return Number.isFinite(value) && value > 0 ? value : 0;
-}
-
-function writeSuccessCount(value) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(SUCCESS_COUNT_KEY, String(value));
-}
-
-function countSuccessfulHistory(entries) {
-  return entries.filter(item => item.status === 'success').length;
-}
 
 function formatHistoryDate(value) {
   const date = new Date(value || 0);
@@ -98,7 +83,8 @@ export function DniFotosPage({showToast}) {
   const [history, setHistory] = useState([]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
-  const [successCount, setSuccessCount] = useState(readSuccessCount);
+  const [successCount, setSuccessCount] = useState(0);
+  const [openingHistoryId, setOpeningHistoryId] = useState('');
 
   const cleanDni = dni.trim();
   const canSearch = DNI_RE.test(cleanDni) && !loading;
@@ -106,22 +92,34 @@ export function DniFotosPage({showToast}) {
   const personName = [result?.apellidos, result?.nombres].filter(Boolean).join(', ');
   const images = result?.images || [];
 
+  const refreshHistory = useCallback(async ({silent = false} = {}) => {
+    if (!silent) setHistoryLoading(true);
+    try {
+      const data = await listarDniFotosHistorial();
+      setHistory(Array.isArray(data.entries) ? data.entries : []);
+      setSuccessCount(Number(data.successCount || 0));
+      setHistoryError('');
+    } catch (err) {
+      console.error('DNI photos history load error:', err);
+      setHistoryError('No se pudo cargar el historial de la DB');
+    } finally {
+      if (!silent) setHistoryLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
 
-    loadDniPhotoHistory()
-      .then(entries => {
+    listarDniFotosHistorial()
+      .then(data => {
         if (!active) return;
-        setHistory(entries);
+        setHistory(Array.isArray(data.entries) ? data.entries : []);
+        setSuccessCount(Number(data.successCount || 0));
         setHistoryError('');
-
-        const nextCount = Math.max(readSuccessCount(), countSuccessfulHistory(entries));
-        setSuccessCount(nextCount);
-        writeSuccessCount(nextCount);
       })
       .catch(err => {
         console.error('DNI photos history load error:', err);
-        if (active) setHistoryError('No se pudo cargar el historial local');
+        if (active) setHistoryError('No se pudo cargar el historial de la DB');
       })
       .finally(() => {
         if (active) setHistoryLoading(false);
@@ -150,27 +148,6 @@ export function DniFotosPage({showToast}) {
     clearResult();
   };
 
-  const saveHistory = async ({status, message = '', storedResult = null}) => {
-    try {
-      const saved = await saveDniPhotoHistoryEntry({
-        createdAt: new Date().toISOString(),
-        status,
-        dni: cleanDni,
-        tipo,
-        tipoLabel: selectedType.label,
-        message,
-        result: storedResult,
-      });
-
-      setHistory(prev => [saved, ...prev.filter(item => item.id !== saved.id)].slice(0, 30));
-      setHistoryError('');
-    } catch (err) {
-      console.error('DNI photos history save error:', err);
-      setHistoryError('No se pudo guardar el historial local');
-      showToast?.('No se pudo guardar el historial local', 'error');
-    }
-  };
-
   const consultar = async event => {
     event?.preventDefault();
     if (!DNI_RE.test(cleanDni)) {
@@ -187,37 +164,59 @@ export function DniFotosPage({showToast}) {
       const storedResult = buildStoredResult(data, cleanDni, selectedType);
       if (json.success && storedResult.images.length) {
         setResult(storedResult);
-        setSuccessCount(prev => {
-          const next = prev + 1;
-          writeSuccessCount(next);
-          return next;
-        });
-        await saveHistory({status: 'success', storedResult});
+        setSuccessCount(Number(json.successCount || 0));
+        await refreshHistory({silent: true});
         return;
       }
 
       const message = `No se encontraron imagenes de ${selectedType.label}`;
       setError(message);
       showToast?.(message, 'error');
-      await saveHistory({status: 'failed', message});
+      await refreshHistory({silent: true});
     } catch (e) {
       console.error('DNI photos error:', e);
       const message = obtenerMensajeErrorFuncion(e, `Error al consultar imagenes de ${selectedType.label}`);
       setError(message);
       showToast?.(message, 'error');
-      await saveHistory({status: 'failed', message});
+      await refreshHistory({silent: true});
     } finally {
       setLoading(false);
     }
   };
 
-  const openHistoryItem = item => {
+  const openHistoryItem = async item => {
     setTipo(item.tipo || 'azul');
     setDni(item.dni || '');
 
     if (item.status === 'success' && item.result?.images?.length) {
-      setResult(item.result);
-      setError('');
+      if (item.result.images.some(image => image.dataUri)) {
+        setResult(item.result);
+        setError('');
+        return;
+      }
+
+      setOpeningHistoryId(item.id);
+      try {
+        const data = await obtenerDniFotoHistorial(item.id);
+        const entry = data.entry || item;
+        setHistory(prev => prev.map(historyItem => historyItem.id === entry.id ? entry : historyItem));
+
+        if (entry.result?.images?.some(image => image.dataUri)) {
+          setResult(entry.result);
+          setError('');
+        } else {
+          setResult(null);
+          setError('Las imagenes de esta consulta no estan disponibles en la DB');
+        }
+      } catch (err) {
+        console.error('DNI photos history open error:', err);
+        const message = obtenerMensajeErrorFuncion(err, 'No se pudo abrir la consulta del historial');
+        setResult(null);
+        setError(message);
+        showToast?.(message, 'error');
+      } finally {
+        setOpeningHistoryId('');
+      }
       return;
     }
 
@@ -232,11 +231,12 @@ export function DniFotosPage({showToast}) {
     }
 
     try {
-      await deleteDniPhotoHistoryEntry(item.id);
+      const data = await eliminarDniFotoHistorial(item.id);
       setHistory(prev => prev.filter(entry => entry.id !== item.id));
+      setSuccessCount(Number(data.successCount || successCount));
     } catch (err) {
       console.error('DNI photos history delete error:', err);
-      showToast?.('No se pudo eliminar la consulta del historial', 'error');
+      showToast?.(obtenerMensajeErrorFuncion(err, 'No se pudo eliminar la consulta del historial'), 'error');
     }
   };
 
@@ -373,7 +373,7 @@ export function DniFotosPage({showToast}) {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h4 className="text-sm font-bold text-slate-900">Historial de consultas</h4>
-            <p className="text-xs font-medium text-slate-500">Fotos guardadas en este navegador.</p>
+            <p className="text-xs font-medium text-slate-500">Fotos guardadas en la base de datos.</p>
           </div>
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{history.length} registros</p>
         </div>
@@ -399,13 +399,15 @@ export function DniFotosPage({showToast}) {
               const styles = statusClasses(item.status);
               const StatusIcon = styles.Icon;
               const subtitle = [item.tipoLabel, formatHistoryDate(item.createdAt), item.message].filter(Boolean).join(' / ');
+              const isOpening = openingHistoryId === item.id;
 
               return (
                 <div key={item.id} className="flex items-stretch border-b border-slate-100 last:border-b-0">
                   <button
                     type="button"
                     onClick={() => openHistoryItem(item)}
-                    className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                    disabled={isOpening}
+                    className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset disabled:cursor-wait disabled:opacity-70"
                   >
                     <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${styles.icon}`}>
                       <StatusIcon size={17} />
@@ -419,7 +421,11 @@ export function DniFotosPage({showToast}) {
                       </span>
                       <span className="mt-1 block truncate text-xs font-medium text-slate-500">{subtitle}</span>
                     </span>
-                    <Eye size={16} className="hidden shrink-0 text-slate-400 sm:block" />
+                    {isOpening ? (
+                      <span className="hidden h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600 sm:block" />
+                    ) : (
+                      <Eye size={16} className="hidden shrink-0 text-slate-400 sm:block" />
+                    )}
                   </button>
                   {item.status === 'success' ? (
                     <span

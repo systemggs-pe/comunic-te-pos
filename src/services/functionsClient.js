@@ -154,6 +154,9 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'BOLETA_NOT_FOUND') return 'No se encontro la boleta para editar';
   if (error?.message === 'BOLETA_SIN_EQUIPO' || error?.message === 'BOLETA_SIN_IMEI') return 'La boleta debe tener un equipo valido';
   if (error?.message === 'CODART_TOKEN_MISSING') return 'Falta configurar CODART_TOKEN o RENIEC_TOKEN en .env local';
+  if (error?.message === 'ACTION_INVALIDA') return 'La accion solicitada no es valida';
+  if (error?.message === 'DNI_FOTO_HISTORIAL_NO_ENCONTRADO') return 'No se encontro la consulta en el historial';
+  if (error?.message === 'DNI_FOTO_SUCCESS_PROTEGIDA') return 'Las consultas exitosas no se pueden borrar';
   if (error?.message === 'DNI_FOTOS_UPSTREAM_ERROR') return 'No se pudo consultar la foto del DNI';
   if (error?.message === 'DNI_FOTO_TIPO_INVALIDO') return 'El tipo de foto DNI no es valido';
   if (error?.message === 'DNI_INVALIDO') return 'El DNI debe tener 8 digitos';
@@ -177,7 +180,19 @@ export function consultarReniecDni(dni) {
 }
 
 export function consultarDniFotos(dni, tipo = 'azul') {
-  return llamarFuncionSegura('dniFotos', {dni: String(dni), tipo});
+  return llamarFuncionSegura('dniFotos', {action: 'consult', dni: String(dni), tipo});
+}
+
+export function listarDniFotosHistorial() {
+  return llamarFuncionSegura('dniFotos', {action: 'list'});
+}
+
+export function obtenerDniFotoHistorial(id) {
+  return llamarFuncionSegura('dniFotos', {action: 'get', id});
+}
+
+export function eliminarDniFotoHistorial(id) {
+  return llamarFuncionSegura('dniFotos', {action: 'delete', id});
 }
 
 export function guardarBoletaExtranjera(payload) {
