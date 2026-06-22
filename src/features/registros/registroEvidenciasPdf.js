@@ -49,8 +49,10 @@ function drawPlaceholder(doc, slot) {
 }
 
 async function drawEvidence(doc, slot, evidencia) {
-  drawPlaceholder(doc, slot);
-  if (!evidencia?.dataUrl) return;
+  if (!evidencia?.dataUrl) {
+    drawPlaceholder(doc, slot);
+    return;
+  }
 
   const image = await loadImage(evidencia.dataUrl);
   const fitted = fitContain(image, slot.w, slot.h);
@@ -58,10 +60,6 @@ async function drawEvidence(doc, slot, evidencia) {
   const y = slot.y + (slot.h - fitted.h) / 2;
 
   doc.addImage(evidencia.dataUrl, 'JPEG', x, y, fitted.w, fitted.h, undefined, 'FAST');
-
-  doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.3);
-  doc.rect(slot.x, slot.y, slot.w, slot.h, 'S');
 }
 
 function paintPage(doc) {
