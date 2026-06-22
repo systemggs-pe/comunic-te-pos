@@ -4,6 +4,8 @@ import { actualizarRegistro, consultarReniecDni, crearRegistro, obtenerMensajeEr
 import { luhn } from '../../utils/imei.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
 import { EscanerIA } from './EscanerIA.jsx';
+import {comprimirRegistroEvidencia, emptyRegistroEvidencias, formatBytes, missingRegistroEvidencias, REGISTRO_EVIDENCIA_FIELDS} from './registroEvidencias.js';
+import {generarRegistroEvidenciasPDF} from './registroEvidenciasPdf.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MONEY_RE = /^\d+(\.\d{1,2})?$/;
@@ -51,6 +53,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', ram: '', memoria: '', color: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
   });
   const [confirmarGuardado, setConfirmarGuardado] = useState(false);
+  const [evidencias, setEvidencias] = useState(() => emptyRegistroEvidencias());
+  const [evidenciasProcesando, setEvidenciasProcesando] = useState({});
 
   useEffect(() => {
     if (initialData) {
@@ -312,6 +316,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     e.preventDefault();
 
     if (!validarFormularioCompleto()) return;
+    if (!validarEvidencias()) return;
 
     // Validar IMEI con algoritmo de Luhn
     if (!luhn(formData.imei)) {
@@ -331,6 +336,35 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     }
 
     setConfirmarGuardado(true);
+  };
+
+  const validarEvidencias = () => {
+    const faltantes = missingRegistroEvidencias(evidencias);
+    if (faltantes.length) {
+      showToast(`Falta subir: ${faltantes.map(item => item.label).join(', ')}`, 'error');
+      return false;
+    }
+    return true;
+  };
+
+  const handleEvidenciaChange = async (key, file) => {
+    if (!file) return;
+    setEvidenciasProcesando(prev => ({...prev, [key]: true}));
+    try {
+      const evidencia = await comprimirRegistroEvidencia(file);
+      setEvidencias(prev => ({...prev, [key]: evidencia}));
+      onDirty?.();
+    } catch (error) {
+      console.error(error);
+      showToast('Sube una imagen JPG, PNG o WebP valida', 'error');
+    } finally {
+      setEvidenciasProcesando(prev => ({...prev, [key]: false}));
+    }
+  };
+
+  const quitarEvidencia = key => {
+    setEvidencias(prev => ({...prev, [key]: null}));
+    onDirty?.();
   };
 
   const guardarRegistro = async () => {
@@ -385,19 +419,35 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       };
 
       if (initialData) {
-        await actualizarRegistro({
+        const saved = await actualizarRegistro({
           id: initialData.id,
           cliente: clienteData,
           equipo: equipoData,
           registro: registroData,
         });
+        await generarRegistroEvidenciasPDF({
+          ...registroData,
+          ...(saved.registro || {}),
+          nombreCliente: clienteData.nombre,
+          correoCliente: clienteData.correo,
+          celularCliente: clienteData.celular,
+          celularRef: clienteData.celularRef,
+        }, evidencias);
         showToast('Actualizado exitosamente');
       } else {
-        await crearRegistro({
+        const saved = await crearRegistro({
           cliente: clienteData,
           equipo: equipoData,
           registro: registroData,
         });
+        await generarRegistroEvidenciasPDF({
+          ...registroData,
+          ...(saved.registro || {}),
+          nombreCliente: clienteData.nombre,
+          correoCliente: clienteData.correo,
+          celularCliente: clienteData.celular,
+          celularRef: clienteData.celularRef,
+        }, evidencias);
         showToast('Guardado exitosamente');
       }
       (onSave || onCancel)();
@@ -489,7 +539,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
       {/* Indicador de pasos */}
       <div className="saas-stepper">
-        {[1,2,3].map(n => (
+        {[1,2,3,4].map(n => (
           <React.Fragment key={n}>
             <div className={`flex items-center gap-2 ${paso === n ? 'text-blue-600' : paso > n ? 'text-green-600' : 'text-gray-400'}`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors
@@ -497,10 +547,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 {paso > n ? '✓' : n}
               </div>
               <span className="text-xs font-medium hidden sm:block">
-                {n === 1 ? 'Cliente' : n === 2 ? 'Equipo' : 'Detalle'}
+                {n === 1 ? 'Cliente' : n === 2 ? 'Equipo' : n === 3 ? 'Detalle' : 'Evidencias'}
               </span>
             </div>
-            {n < 3 && <div className={`flex-1 h-0.5 ${paso > n ? 'bg-green-400' : 'bg-gray-200'}`} />}
+            {n < 4 && <div className={`flex-1 h-0.5 ${paso > n ? 'bg-green-400' : 'bg-gray-200'}`} />}
           </React.Fragment>
         ))}
       </div>
@@ -709,7 +759,87 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
             <div className="flex justify-between pt-4 border-t">
               <button type="button" onClick={() => setPaso(2)} className="saas-secondary">Atras</button>
-              <button type="submit" disabled={loading} className="saas-primary disabled:opacity-60">
+              <button type="button" onClick={() => validarFormularioCompleto() && setPaso(4)} className="saas-primary">
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* PASO 4 - EVIDENCIAS FOTOGRAFICAS */}
+        {paso === 4 && (
+          <div className="space-y-4">
+            <div>
+              <h4 className="saas-form-section-title">Evidencias fotograficas</h4>
+              <p className="mt-1 text-xs font-medium text-slate-500">
+                Sube las 5 fotos obligatorias. Se comprimiran antes de generar el PDF local del registro.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              El PDF se descarga en este dispositivo. Las fotos no se guardan en Firebase Storage en esta version.
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {REGISTRO_EVIDENCIA_FIELDS.map(field => {
+                const evidencia = evidencias[field.key];
+                const procesando = evidenciasProcesando[field.key];
+                return (
+                  <div key={field.key} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{field.label} *</p>
+                        <p className="text-xs text-slate-500">{field.hint}</p>
+                      </div>
+                      {evidencia && (
+                        <span className="rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                          Listo
+                        </span>
+                      )}
+                    </div>
+
+                    {evidencia ? (
+                      <div className="space-y-2">
+                        <div className="flex h-36 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                          <img src={evidencia.dataUrl} alt={field.label} className="h-full w-full object-contain" />
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                          <span>{evidencia.width}x{evidencia.height} px - {formatBytes(evidencia.size)}</span>
+                          <button type="button" onClick={() => quitarEvidencia(field.key)} className="font-semibold text-red-600 hover:text-red-700">
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-36 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-xs text-slate-500">
+                        <ImagePlus size={22} className="mb-2 text-slate-400" />
+                        {procesando ? 'Comprimiendo imagen...' : 'Sin foto cargada'}
+                      </div>
+                    )}
+
+                    <label className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
+                      <UploadCloud size={16} />
+                      {evidencia ? 'Reemplazar foto' : 'Subir foto'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        capture="environment"
+                        className="sr-only"
+                        disabled={procesando}
+                        onChange={event => {
+                          handleEvidenciaChange(field.key, event.target.files?.[0]);
+                          event.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-between pt-4 border-t">
+              <button type="button" onClick={() => setPaso(3)} className="saas-secondary">Atras</button>
+              <button type="submit" disabled={loading || Object.values(evidenciasProcesando).some(Boolean)} className="saas-primary disabled:opacity-60">
                 {loading ? 'Guardando...' : 'Confirmar y guardar'}
               </button>
             </div>
