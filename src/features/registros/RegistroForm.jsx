@@ -817,21 +817,37 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                       </div>
                     )}
 
-                    <label className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
-                      <UploadCloud size={16} />
-                      {evidencia ? 'Reemplazar foto' : 'Subir foto'}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        capture="environment"
-                        className="sr-only"
-                        disabled={procesando}
-                        onChange={event => {
-                          handleEvidenciaChange(field.key, event.target.files?.[0]);
-                          event.target.value = '';
-                        }}
-                      />
-                    </label>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
+                        <ImagePlus size={16} />
+                        {evidencia ? 'Tomar otra' : 'Tomar foto'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          capture="environment"
+                          className="sr-only"
+                          disabled={procesando}
+                          onChange={event => {
+                            handleEvidenciaChange(field.key, event.target.files?.[0]);
+                            event.target.value = '';
+                          }}
+                        />
+                      </label>
+                      <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+                        <UploadCloud size={16} />
+                        {evidencia ? 'Cambiar de galeria' : 'Subir galeria'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="sr-only"
+                          disabled={procesando}
+                          onChange={event => {
+                            handleEvidenciaChange(field.key, event.target.files?.[0]);
+                            event.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 );
               })}
