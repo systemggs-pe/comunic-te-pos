@@ -7,6 +7,8 @@ import {
   Database,
   Fingerprint,
   LockKeyhole,
+  Mail,
+  Phone,
   ScanLine,
   ShieldCheck,
 } from 'lucide-react';
@@ -18,6 +20,9 @@ import {
   ENGINEERING_DIVISION,
   PRODUCT_BRAND,
   SOFTWARE_BRAND,
+  SUPPORT_EMAIL,
+  SUPPORT_PHONE,
+  SUPPORT_WHATSAPP_URL,
 } from '../../config/branding.js';
 import { LEGAL_DOCUMENT_VERSION, getRequiredLegalSnapshot } from '../../config/legal.js';
 import { registrarConsentimientoLegal } from '../../services/functionsClient.js';
@@ -220,6 +225,25 @@ export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
 
               <div className="mt-5">
                 <TechnicalBadges />
+              </div>
+
+              <div className="mt-6 grid gap-2 rounded-xl border border-[oklch(0.9_0.018_250)] bg-[oklch(0.99_0.004_250)] p-3 text-sm">
+                <a
+                  href={SUPPORT_WHATSAPP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 font-semibold text-[oklch(0.34_0.03_255)] transition-colors hover:text-blue-700"
+                >
+                  <Phone size={16} className="text-emerald-600" />
+                  <span>{SUPPORT_PHONE}</span>
+                </a>
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="flex items-center gap-2 break-all font-semibold text-[oklch(0.34_0.03_255)] transition-colors hover:text-blue-700"
+                >
+                  <Mail size={16} className="text-blue-600" />
+                  <span>{SUPPORT_EMAIL}</span>
+                </a>
               </div>
 
               <div className="mt-8 space-y-2">
