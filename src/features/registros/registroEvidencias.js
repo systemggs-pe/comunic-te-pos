@@ -1,7 +1,7 @@
 export const REGISTRO_EVIDENCIA_FIELDS = [
   {key: 'dniFrente', label: 'DNI frontal', hint: 'Foto del lado frontal del documento'},
   {key: 'dniReverso', label: 'DNI reverso', hint: 'Foto del lado posterior del documento'},
-  {key: 'cajaEquipo', label: 'Caja del equipo', hint: 'Foto visible de la caja del equipo'},
+  {key: 'cajaEquipo', label: 'Caja del equipo', hint: 'Foto visible de la caja del equipo', required: false},
   {key: 'boletaVenta', label: 'Boleta de venta', hint: 'Foto completa de la boleta'},
   {key: 'imeiLogico', label: 'IMEI logico', hint: 'Foto de pantalla donde se vea el IMEI'},
 ];
@@ -35,24 +35,8 @@ function canvasToBlob(canvas) {
   });
 }
 
-export function emptyRegistroEvidencias() {
-  return REGISTRO_EVIDENCIA_FIELDS.reduce((acc, field) => {
-    acc[field.key] = null;
-    return acc;
-  }, {});
-}
-
-export function missingRegistroEvidencias(evidencias) {
-  return REGISTRO_EVIDENCIA_FIELDS.filter(field => !evidencias?.[field.key]);
-}
-
-export async function comprimirRegistroEvidencia(file) {
-  if (!file || !ACCEPTED_TYPES.has(file.type)) {
-    throw new Error('FORMATO_IMAGEN_INVALIDO');
-  }
-
-  const originalDataUrl = await readFileAsDataUrl(file);
-  const image = await loadImage(originalDataUrl);
+async function crearRegistroEvidenciaDesdeDataUrl(dataUrl, name = 'evidencia.jpg', originalSize = 0) {
+  const image = await loadImage(dataUrl);
   const scale = Math.min(1, MAX_SIDE / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
   const width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
   const height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
@@ -66,16 +50,54 @@ export async function comprimirRegistroEvidencia(file) {
   ctx.drawImage(image, 0, 0, width, height);
 
   const blob = await canvasToBlob(canvas);
-  const dataUrl = canvas.toDataURL(OUTPUT_TYPE, OUTPUT_QUALITY);
+  const compressedDataUrl = canvas.toDataURL(OUTPUT_TYPE, OUTPUT_QUALITY);
   return {
-    dataUrl,
+    dataUrl: compressedDataUrl,
     type: OUTPUT_TYPE,
-    name: file.name || 'evidencia.jpg',
-    originalSize: file.size || 0,
-    size: blob?.size || Math.round(dataUrl.length * 0.75),
+    name,
+    originalSize,
+    size: blob?.size || Math.round(compressedDataUrl.length * 0.75),
     width,
     height,
   };
+}
+
+export function emptyRegistroEvidencias() {
+  return REGISTRO_EVIDENCIA_FIELDS.reduce((acc, field) => {
+    acc[field.key] = null;
+    return acc;
+  }, {});
+}
+
+export function missingRegistroEvidencias(evidencias) {
+  return REGISTRO_EVIDENCIA_FIELDS.filter(field => field.required !== false && !evidencias?.[field.key]);
+}
+
+export async function comprimirRegistroEvidencia(file) {
+  if (!file || !ACCEPTED_TYPES.has(file.type)) {
+    throw new Error('FORMATO_IMAGEN_INVALIDO');
+  }
+
+  const originalDataUrl = await readFileAsDataUrl(file);
+  return crearRegistroEvidenciaDesdeDataUrl(originalDataUrl, file.name || 'evidencia.jpg', file.size || 0);
+}
+
+export async function leerRegistroEvidenciaFile(file) {
+  if (!file || !ACCEPTED_TYPES.has(file.type)) {
+    throw new Error('FORMATO_IMAGEN_INVALIDO');
+  }
+  return {
+    dataUrl: await readFileAsDataUrl(file),
+    name: file.name || 'evidencia.jpg',
+    originalSize: file.size || 0,
+  };
+}
+
+export async function comprimirRegistroEvidenciaDataUrl(dataUrl, name = 'evidencia.jpg', originalSize = 0) {
+  if (!String(dataUrl || '').startsWith('data:image/')) {
+    throw new Error('FORMATO_IMAGEN_INVALIDO');
+  }
+  return crearRegistroEvidenciaDesdeDataUrl(dataUrl, name, originalSize);
 }
 
 export function formatBytes(bytes) {

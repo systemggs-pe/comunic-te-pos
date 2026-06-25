@@ -3,8 +3,10 @@ import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2,
 import { actualizarRegistro, consultarReniecDni, crearRegistro, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
+import {PERU_DEPARTAMENTOS, separarDireccionDepartamento, unirDireccionDepartamento} from '../../utils/peruDepartamentos.js';
+import { ImageCropModal } from '../../components/ui/ImageCropModal.jsx';
 import { EscanerIA } from './EscanerIA.jsx';
-import {comprimirRegistroEvidencia, emptyRegistroEvidencias, formatBytes, missingRegistroEvidencias, REGISTRO_EVIDENCIA_FIELDS} from './registroEvidencias.js';
+import {comprimirRegistroEvidenciaDataUrl, emptyRegistroEvidencias, formatBytes, leerRegistroEvidenciaFile, missingRegistroEvidencias, REGISTRO_EVIDENCIA_FIELDS} from './registroEvidencias.js';
 import {generarRegistroEvidenciasPDF} from './registroEvidenciasPdf.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,18 +52,21 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const [formData, setFormData] = useState({
-    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', ram: '', memoria: '', color: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
+    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', departamento: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', ram: '', memoria: '', color: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
   });
   const [confirmarGuardado, setConfirmarGuardado] = useState(false);
   const [evidencias, setEvidencias] = useState(() => emptyRegistroEvidencias());
   const [evidenciasProcesando, setEvidenciasProcesando] = useState({});
+  const [recorteEvidencia, setRecorteEvidencia] = useState(null);
+  const direccionFinalCliente = useMemo(() => unirDireccionDepartamento(formData.direccion, formData.departamento), [formData.direccion, formData.departamento]);
 
   useEffect(() => {
     if (initialData) {
       const cliente = clientes.find(c => c.dni === initialData.dniCliente) || {};
       const eq = equipos.find(e => e.idEquipo === initialData.imeiEquipo) || {};
+      const direccionCliente = separarDireccionDepartamento(cliente.direccion || '');
       setFormData({
-        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: cliente.direccion || '', imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', sn: eq.sn || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', ram: eq.ram || '', memoria: eq.memoria || '', color: eq.color || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
+        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: direccionCliente.direccion, departamento: direccionCliente.departamento, imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', sn: eq.sn || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', ram: eq.ram || '', memoria: eq.memoria || '', color: eq.color || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
       });
       setShowManualEqForm(true);
     }
@@ -86,12 +91,16 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       const json = await consultarReniecDni(dni);
       if (json.success && json.result) {
         const r = json.result;
-        setFormData(prev => ({
-          ...prev,
-          nombre:    r.full_name  ? r.full_name  : prev.nombre,
-          direccion: r.address && !r.address.includes('*') ? r.address : prev.direccion,
-          correo:    r.email   && !r.email.includes('*')   ? r.email   : prev.correo,
-        }));
+        setFormData(prev => {
+          const direccionReniec = r.address && !r.address.includes('*') ? separarDireccionDepartamento(r.address) : null;
+          return {
+            ...prev,
+            nombre:    r.full_name  ? r.full_name  : prev.nombre,
+            direccion: direccionReniec?.direccion || prev.direccion,
+            departamento: direccionReniec?.departamento || prev.departamento,
+            correo:    r.email   && !r.email.includes('*')   ? r.email   : prev.correo,
+          };
+        });
         setDniStatusReg({type: 'reniec', text: 'Encontrado RENIEC'});
       } else {
         setDniStatusReg(null);
@@ -145,6 +154,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       if (clienteExistente) {
         const celulares = opcionesContacto(clienteExistente, 'celular', 'celulares');
         const correos = opcionesContacto(clienteExistente, 'correo', 'correos');
+        const direccionCliente = separarDireccionDepartamento(clienteExistente.direccion || '');
         setContactosClienteReg({celulares, correos});
         setDniStatusReg({type: 'db', text: 'Cliente COMUNIC@TE'});
         setFormData(prev => ({
@@ -153,7 +163,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           celular: prev.celular || celulares[0] || '',
           celularRef: prev.celularRef || celulares[0] || '',
           correo: prev.correo || correos[0] || '',
-          direccion: clienteExistente.direccion || '',
+          direccion: direccionCliente.direccion,
+          departamento: direccionCliente.departamento || prev.departamento,
         }));
       } else {
         setContactosClienteReg({celulares: [], correos: []});
@@ -233,7 +244,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const CAMPOS_SOLO_NUMEROS = ['dni', 'celular', 'celularRef', 'imei', 'imei2'];
-  const CAMPOS_MAYUSCULAS   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'sn', 'color', 'operador', 'estado', 'tipo'];
+  const CAMPOS_MAYUSCULAS   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'sn', 'color', 'operador', 'estado', 'tipo', 'departamento'];
   const CAMPOS_CORREO       = ['correo'];
 
   const handleChange = (e) => {
@@ -280,6 +291,12 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     }
     if (!clean(formData.direccion)) {
       showToast('La direccion es obligatoria', 'error'); return false;
+    }
+    if (!clean(formData.departamento)) {
+      showToast('Selecciona el departamento', 'error'); return false;
+    }
+    if (direccionFinalCliente.length > 300) {
+      showToast('La direccion final no debe superar 300 caracteres', 'error'); return false;
     }
     if (!EMAIL_RE.test(clean(formData.correo))) {
       showToast('Ingresa un correo electronico valido', 'error'); return false;
@@ -347,11 +364,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     return true;
   };
 
-  const handleEvidenciaChange = async (key, file) => {
-    if (!file) return;
+  const guardarEvidenciaProcesada = async (key, dataUrl, name, originalSize) => {
     setEvidenciasProcesando(prev => ({...prev, [key]: true}));
     try {
-      const evidencia = await comprimirRegistroEvidencia(file);
+      const evidencia = await comprimirRegistroEvidenciaDataUrl(dataUrl, name, originalSize);
       setEvidencias(prev => ({...prev, [key]: evidencia}));
       onDirty?.();
     } catch (error) {
@@ -360,6 +376,35 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     } finally {
       setEvidenciasProcesando(prev => ({...prev, [key]: false}));
     }
+  };
+
+  const handleEvidenciaChange = async (key, file) => {
+    if (!file) return;
+    setEvidenciasProcesando(prev => ({...prev, [key]: true}));
+    try {
+      const imagen = await leerRegistroEvidenciaFile(file);
+      const field = REGISTRO_EVIDENCIA_FIELDS.find(item => item.key === key);
+      setRecorteEvidencia({key, label: field?.label || 'Evidencia', ...imagen});
+    } catch (error) {
+      console.error(error);
+      showToast('Sube una imagen JPG, PNG o WebP valida', 'error');
+    } finally {
+      setEvidenciasProcesando(prev => ({...prev, [key]: false}));
+    }
+  };
+
+  const confirmarRecorteEvidencia = async dataUrl => {
+    if (!recorteEvidencia) return;
+    const actual = recorteEvidencia;
+    setRecorteEvidencia(null);
+    await guardarEvidenciaProcesada(actual.key, dataUrl, actual.name, actual.originalSize);
+  };
+
+  const usarOriginalEvidencia = async () => {
+    if (!recorteEvidencia) return;
+    const actual = recorteEvidencia;
+    setRecorteEvidencia(null);
+    await guardarEvidenciaProcesada(actual.key, actual.dataUrl, actual.name, actual.originalSize);
   };
 
   const quitarEvidencia = key => {
@@ -400,7 +445,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         celular: formData.celular,
         celularRef: formData.celularRef || formData.celular,
         correo: formData.correo,
-        direccion: formData.direccion,
+        direccion: direccionFinalCliente,
       };
       const equipoData = {
         idEquipo: imei1Real,
@@ -482,6 +527,12 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     if (!formData.direccion.trim()) {
       showToast('La dirección es obligatoria', 'error'); return false;
     }
+    if (!clean(formData.departamento)) {
+      showToast('Selecciona el departamento', 'error'); return false;
+    }
+    if (direccionFinalCliente.length > 300) {
+      showToast('La direccion final no debe superar 300 caracteres', 'error'); return false;
+    }
     if (!EMAIL_RE.test(clean(formData.correo))) {
       showToast('Ingresa un correo electronico valido', 'error'); return false;
     }
@@ -511,6 +562,13 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
   return (
     <div className="saas-form-shell">
+      <ImageCropModal
+        dataUrl={recorteEvidencia?.dataUrl}
+        title={recorteEvidencia ? `Recortar ${recorteEvidencia.label}` : 'Recortar foto'}
+        onCancel={() => setRecorteEvidencia(null)}
+        onUseOriginal={usarOriginalEvidencia}
+        onConfirm={confirmarRecorteEvidencia}
+      />
       {confirmarGuardado && (
         <div className="saas-modal-backdrop fixed inset-0 z-[210] flex items-center justify-center p-4">
           <div className="saas-detail-modal w-full max-w-sm p-6 text-center">
@@ -592,7 +650,32 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 )}
               </div>
               <div><label className="block text-xs text-gray-500 mb-1">N° Referencia</label><input name="celularRef" value={formData.celularRef} onChange={handleChange} placeholder={formData.celular || 'Igual al celular'} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} /></div>
-              <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Dirección *</label><input name="direccion" value={formData.direccion} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Av. / Jr. / Calle..." /></div>
+              <div className="sm:col-span-2 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Dirección *</label>
+                  <input name="direccion" value={formData.direccion} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Av. / Jr. / Calle..." maxLength={260} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Departamento *</label>
+                  <input
+                    name="departamento"
+                    value={formData.departamento}
+                    onChange={handleChange}
+                    list="departamentos-peru"
+                    className="w-full border rounded bg-white p-2 text-sm"
+                    placeholder="Ej: TACNA"
+                    autoComplete="off"
+                  />
+                  <datalist id="departamentos-peru">
+                    {PERU_DEPARTAMENTOS.map(departamento => <option key={departamento} value={departamento} />)}
+                  </datalist>
+                </div>
+              </div>
+              {clean(formData.direccion) && clean(formData.departamento) && (
+                <div className="sm:col-span-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <span className="font-semibold text-slate-700">Direccion final: </span>{direccionFinalCliente}
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <label className="block text-xs text-gray-500 mb-1">Correo Electronico *</label>
                 <input type="email" name="correo" value={formData.correo} onChange={handleChange} className="w-full border rounded p-2 text-sm" />
@@ -772,7 +855,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             <div>
               <h4 className="saas-form-section-title">Evidencias fotograficas</h4>
               <p className="mt-1 text-xs font-medium text-slate-500">
-                Sube las 5 fotos obligatorias. Se comprimiran antes de generar el PDF local del registro.
+                Sube las fotos obligatorias. La caja del equipo es opcional.
               </p>
             </div>
 
@@ -788,7 +871,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   <div key={field.key} className="rounded-lg border border-slate-200 bg-white p-3">
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{field.label} *</p>
+                        <p className="text-sm font-semibold text-slate-900">{field.label}{field.required === false ? '' : ' *'}</p>
                         <p className="text-xs text-slate-500">{field.hint}</p>
                       </div>
                       {evidencia && (

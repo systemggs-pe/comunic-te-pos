@@ -173,28 +173,31 @@ const formDesdeBoleta = boleta => {
   };
 };
 
-export function BoletaExtranjera({ clientes, equipos, ventas, boletaEmisoresConfig, showToast, onSearchVentas, searchingVentas = false }) {
+export function BoletaExtranjera({ clientes, equipos, ventas, boletasExtranjeras = null, cargandoBoletasExtranjeras = false, boletaEmisoresConfig, showToast, onSearchVentas, searchingVentas = false }) {
   const [modo, setModo] = useState('buscar');
   const [fechaHora, setFechaHora] = useState(toLocalDatetimeValueBoleta(new Date()));
   const [modalBoleta, setModalBoleta] = useState(null);
   const [boletaExistentePrompt, setBoletaExistentePrompt] = useState(null);
   const [boletaEnEdicion, setBoletaEnEdicion] = useState(null);
-  const [historialBoletas, setHistorialBoletas] = useState([]);
-  const [cargandoHistorial, setCargandoHistorial] = useState(true);
+  const [historialBoletasLocal, setHistorialBoletasLocal] = useState([]);
+  const [cargandoHistorialLocal, setCargandoHistorialLocal] = useState(true);
+  const historialBoletas = Array.isArray(boletasExtranjeras) ? boletasExtranjeras : historialBoletasLocal;
+  const cargandoHistorial = Array.isArray(boletasExtranjeras) ? cargandoBoletasExtranjeras : cargandoHistorialLocal;
   const [imprimiendoBoleta, setImprimiendoBoleta] = useState(false);
   const imprimiendoBoletaRef = useRef(false);
 
   useEffect(() => {
+    if (Array.isArray(boletasExtranjeras)) return undefined;
     const q = query(boletasRef, orderBy('createdAt', 'desc'));
     return onSnapshot(q, snap => {
-      setHistorialBoletas(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
-      setCargandoHistorial(false);
+      setHistorialBoletasLocal(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
+      setCargandoHistorialLocal(false);
     }, error => {
       console.error('Error historial boletas:', error);
-      setCargandoHistorial(false);
+      setCargandoHistorialLocal(false);
       showToast('No se pudo cargar historial de boletas', 'error');
     });
-  }, [showToast]);
+  }, [boletasExtranjeras, showToast]);
 
   // ── MODO BUSCAR ──
   const [searchDni, setSearchDni] = useState('');

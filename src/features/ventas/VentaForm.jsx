@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
-import { actualizarVenta, consultarReniecDni, crearVenta, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
+import { actualizarVenta, consultarReniecDni, crearVenta, guardarBoletaExtranjera, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
 import { EscanerIA } from '../registros/EscanerIA.jsx';
+import { penToClp, formatClp } from '../../utils/currency.js';
+import {getBoletaExtranjeraEmisor} from '../../config/boletaExtranjera.js';
+import {buscarBoletaPorVenta, crearBoletaDataDesdeVentas, fechaBoletaDesdeVentas, formatearChipBoleta} from '../boletas/boletaHelpers.js';
+import { generarBoletaExtranjera, generarBoletaExtranjera2, generarBoletaExtranjera3 } from '../boletas/boletaPdf.js';
 import { generarTicketVentaPDF } from './ventaPdf.js';
 
 const MONEY_RE = /^\d+(\.\d{1,2})?$/;
@@ -21,7 +25,7 @@ const createAccessoryItem = () => ({
   precio: '',
 });
 
-export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel, onSave, onDirty, showToast }) {
+export function VentaForm({ clientes, equipos, boletasExtranjeras = [], boletaEmisoresConfig, logoVentas, initialData, onCancel, onSave, onDirty, showToast }) {
   const [loading, setLoading] = useState(false);
 
   const toLocalDatetimeValue = (isoString) => {
@@ -34,7 +38,9 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   const [formData, setFormData] = useState({ tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', correo: '', imei1: '', imei2: '', sn: '', nombreComercial: '', ram: '', memoria: '', marca: '', modelo: '', color: '', precio: '', medioPago: 'EFECTIVO', fecha: toLocalDatetimeValue(new Date().toISOString()) });
   const [itemsAdicionales, setItemsAdicionales] = useState([]);
   const [confirmarGuardado, setConfirmarGuardado] = useState(false);
-  const [ticketPendienteForm, setTicketPendienteForm] = useState(null);
+  const [cierreVenta, setCierreVenta] = useState(null);
+  const [modalBoletaVenta, setModalBoletaVenta] = useState(null);
+  const [imprimiendoBoletaVenta, setImprimiendoBoletaVenta] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -290,13 +296,78 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
           venta: ventaData,
         });
         const ventaGuardada = resultado.venta || ventaData;
-        showToast('Venta registrada — generando ticket...');
-        const tData = { ...ventaGuardada, tipoDocumentoCliente: formData.tipoDocumento, nombreCliente: formData.nombre, dniCliente: formData.dni, imei2Equipo: formData.imei2, sn: formData.sn, precioEquipo: precioEquipo.toFixed(2), itemsAdicionales: itemsVenta, medioPago: formData.medioPago };
-        setTicketPendienteForm(tData);
-        return; // no llamar onSave todavía, se llama desde el modal
+        showToast('Venta registrada');
+        const tData = { ...ventaGuardada, tipoDocumentoCliente: formData.tipoDocumento, nombreCliente: formData.nombre, dniCliente: formData.dni, imei2Equipo: formData.imei2, sn: formData.sn, marcaEquipo: formData.marca, modeloEquipo: formData.modelo, nombreComercial: formData.nombreComercial, ram: formData.ram, memoria: formData.memoria, color: formData.color, precioEquipo: precioEquipo.toFixed(2), precio: totalVenta, itemsAdicionales: itemsVenta, medioPago: formData.medioPago, fecha: ventaGuardada.fecha || ventaData.fecha };
+        setCierreVenta({venta: tData, cliente: clienteData, equipo: equipoData});
+        return; // el cierre operativo decide ticket, boleta o finalizar
       }
       (onSave || onCancel)();
     } catch (error) { console.error(error); showToast(obtenerMensajeErrorFuncion(error, 'Error al procesar venta'), 'error'); } finally { setLoading(false); }
+  };
+  const finalizarCierreVenta = () => {
+    setCierreVenta(null);
+    setModalBoletaVenta(null);
+    (onSave || onCancel)();
+  };
+
+  const imprimirTicketCierre = (ancho) => {
+    if (!cierreVenta?.venta) return;
+    generarTicketVentaPDF(cierreVenta.venta, ancho, logoVentas);
+    showToast(`Ticket ${ancho} mm generado`, 'success');
+  };
+
+  const abrirBoletaDesdeVenta = () => {
+    if (!cierreVenta?.venta) return;
+    const existente = buscarBoletaPorVenta(boletasExtranjeras, cierreVenta.venta, cierreVenta.equipo);
+    if (existente) {
+      showToast(`${formatearChipBoleta(existente)} ya fue generada para este equipo`, 'error');
+      return;
+    }
+
+    const totalClp = penToClp(cierreVenta.venta.precio || 0);
+    const boletaData = crearBoletaDataDesdeVentas({
+      cliente: cierreVenta.cliente,
+      ventasSeleccionadas: [cierreVenta.venta],
+      equipos: [cierreVenta.equipo],
+      totalClp,
+      fechaHora: fechaBoletaDesdeVentas([cierreVenta.venta], cierreVenta.venta.fecha || new Date()),
+    });
+    setModalBoletaVenta(boletaData);
+  };
+
+  const imprimirBoletaDesdeVenta = async formato => {
+    if (!modalBoletaVenta || imprimiendoBoletaVenta) return;
+    setImprimiendoBoletaVenta(true);
+    const boletaData = {
+      cliente: modalBoletaVenta.cliente,
+      ventas: modalBoletaVenta.ventas,
+      equiposMap: modalBoletaVenta.equiposMap,
+      totalClp: modalBoletaVenta.totalClp,
+      fechaHora: modalBoletaVenta.fechaHora,
+      emisor: getBoletaExtranjeraEmisor(boletaEmisoresConfig, formato),
+    };
+
+    try {
+      const saved = await guardarBoletaExtranjera({
+        action: 'save',
+        formato,
+        boletaData: JSON.parse(JSON.stringify(boletaData)),
+      });
+      boletaData.nBoleta = saved.boleta?.nBoleta || boletaData.nBoleta;
+      boletaData.emisor = saved.boleta?.boletaData?.emisor || boletaData.emisor;
+
+      if (formato === 1) await generarBoletaExtranjera(boletaData);
+      else if (formato === 2) await generarBoletaExtranjera2(boletaData);
+      else await generarBoletaExtranjera3(boletaData);
+
+      showToast(`Boleta extranjera F${formato} N°${boletaData.nBoleta || '-'} generada`, 'success');
+      finalizarCierreVenta();
+    } catch (error) {
+      console.error(error);
+      showToast(obtenerMensajeErrorFuncion(error, 'No se pudo generar la boleta extranjera'), 'error');
+    } finally {
+      setImprimiendoBoletaVenta(false);
+    }
   };
 
   const [paso, setPaso] = useState(1);
@@ -320,22 +391,39 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
 
   return (
     <div className="saas-form-shell">
-      {/* Modal tamaño papel */}
-      {ticketPendienteForm && (
+      {/* Cierre operativo de venta */}
+      {cierreVenta && (
         <div className="saas-modal-backdrop fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="saas-detail-modal w-full max-w-xs p-6 text-center">
-            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Printer size={22} className="text-purple-600" />
+          <div className="saas-detail-modal w-full max-w-md p-6 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-700">
+              <CheckCircle2 size={22} />
             </div>
-            <h3 className="text-base font-bold text-gray-800 mb-1">¿Tamaño de impresora?</h3>
-            <p className="text-xs text-gray-400 mb-5">Elige el ancho del papel de tu impresora térmica</p>
-            <div className="flex gap-3">
-              <button onClick={() => { generarTicketVentaPDF(ticketPendienteForm, 58, logoVentas); setTicketPendienteForm(null); (onSave || onCancel)(); }}
-                className="saas-primary flex-1">58 mm</button>
-              <button onClick={() => { generarTicketVentaPDF(ticketPendienteForm, 80, logoVentas); setTicketPendienteForm(null); (onSave || onCancel)(); }}
-                className="saas-secondary flex-1">80 mm</button>
+            <h3 className="text-base font-bold text-gray-800 mb-1">Venta registrada</h3>
+            <p className="text-xs text-gray-500 mb-5">Elige el comprobante que quieres generar para esta venta.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => imprimirTicketCierre(58)} className="saas-secondary justify-center"><Printer size={16}/> Ticket 58 mm</button>
+              <button type="button" onClick={() => imprimirTicketCierre(80)} className="saas-secondary justify-center"><Printer size={16}/> Ticket 80 mm</button>
             </div>
-            <button onClick={() => { setTicketPendienteForm(null); (onSave || onCancel)(); }} className="saas-secondary mt-3 w-full">Omitir ticket</button>
+            <button type="button" onClick={abrirBoletaDesdeVenta} className="saas-primary mt-3 w-full justify-center"><FileText size={16}/> Generar boleta extranjera</button>
+            <button type="button" onClick={finalizarCierreVenta} className="saas-secondary mt-3 w-full justify-center">Finalizar sin boleta</button>
+          </div>
+        </div>
+      )}
+      {modalBoletaVenta && (
+        <div className="saas-modal-backdrop fixed inset-0 z-[220] flex items-center justify-center p-4">
+          <div className="saas-detail-modal w-full max-w-sm p-6">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700">
+              <FileText size={22} />
+            </div>
+            <h3 className="text-center text-base font-bold text-gray-800 mb-1">Boleta extranjera</h3>
+            <p className="text-center text-xs text-gray-500 mb-2">Fecha: {new Date(modalBoletaVenta.fechaHora).toLocaleDateString('es-PE')}</p>
+            <p className="text-center text-xs text-gray-500 mb-5">Total CLP aprox. ${formatClp(Number(modalBoletaVenta.totalClp || 0))}</p>
+            <div className="space-y-3">
+              <button type="button" disabled={imprimiendoBoletaVenta} onClick={() => imprimirBoletaDesdeVenta(1)} className="saas-primary w-full justify-center disabled:opacity-60">Formato 1</button>
+              <button type="button" disabled={imprimiendoBoletaVenta} onClick={() => imprimirBoletaDesdeVenta(2)} className="saas-secondary w-full justify-center disabled:opacity-60">Formato 2</button>
+              <button type="button" disabled={imprimiendoBoletaVenta} onClick={() => imprimirBoletaDesdeVenta(3)} className="saas-secondary w-full justify-center disabled:opacity-60">Formato 3</button>
+            </div>
+            <button type="button" disabled={imprimiendoBoletaVenta} onClick={() => setModalBoletaVenta(null)} className="saas-secondary mt-4 w-full justify-center disabled:opacity-60">Cancelar</button>
           </div>
         </div>
       )}

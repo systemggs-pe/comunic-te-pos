@@ -92,6 +92,8 @@ function App() {
   const [equipos, setEquipos]   = useState([]);
   const [registros, setRegistros] = useState([]);
   const [ventas, setVentas]       = useState([]);
+  const [boletasExtranjeras, setBoletasExtranjeras] = useState([]);
+  const [cargandoBoletasExtranjeras, setCargandoBoletasExtranjeras] = useState(true);
   const [cargandoRegistros, setCargandoRegistros] = useState(true);
   const [cargandoVentas, setCargandoVentas]       = useState(true);
   const [cargandoMasRegistros, setCargandoMasRegistros] = useState(false);
@@ -261,7 +263,19 @@ function App() {
       (err) => clientLogger.error('app.boleta_emisores.snapshot_error', err, {collection: 'configuracion/boletaExtranjeraEmisores'})
     );
 
-    return () => { unsubClientes(); unsubEquipos(); unsubLogo(); unsubBoletaEmisores(); };
+    const unsubBoletasExtranjeras = onSnapshot(
+      query(collection(db, 'artifacts', appId, 'users', 'shared', 'boletasExtranjeras'), orderBy('createdAt', 'desc')),
+      (snap) => {
+        setBoletasExtranjeras(snap.docs.map(documento => ({id: documento.id, ...documento.data()})));
+        setCargandoBoletasExtranjeras(false);
+      },
+      (err) => {
+        clientLogger.error('app.boletas_extranjeras.snapshot_error', err, {collection: 'boletasExtranjeras'});
+        setCargandoBoletasExtranjeras(false);
+      }
+    );
+
+    return () => { unsubClientes(); unsubEquipos(); unsubLogo(); unsubBoletaEmisores(); unsubBoletasExtranjeras(); };
   }, [user]);
 
   useEffect(() => {
@@ -793,14 +807,14 @@ function App() {
           {currentView === 'registros_list' && <RegistrosList data={registros} cargando={cargandoRegistros} clientes={clientes} equipos={equipos} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('registros_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('registros_edit'); }} showToast={showToast} onDeleted={quitarRegistroLocal} onLoadMore={cargarMasRegistros} hasMore={hayMasRegistros} loadingMore={cargandoMasRegistros} total={totales.registros} onSearchAll={buscarRegistrosEnHistorial} searchingAll={buscandoHistorial.registros} />}
           {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={currentView === 'registros_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('registros_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('registros_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
-          {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} onSearchAll={buscarVentasEnHistorial} searchingAll={buscandoHistorial.ventas} />}
-          {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
+          {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} boletasExtranjeras={boletasExtranjeras} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} onSearchAll={buscarVentasEnHistorial} searchingAll={buscandoHistorial.ventas} />}
+          {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} boletasExtranjeras={boletasExtranjeras} boletaEmisoresConfig={boletaEmisoresConfig} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
-          {currentView === 'clientes_list' && <ClientesList showToast={showToast} />}
+          {currentView === 'clientes_list' && <ClientesList boletasExtranjeras={boletasExtranjeras} showToast={showToast} />}
 
           {currentView === 'foto_dni' && <DniFotosPage showToast={showToast} />}
 
-          {currentView === 'boleta_extranjera' && <BoletaExtranjera clientes={clientes} equipos={equipos} ventas={ventas} boletaEmisoresConfig={boletaEmisoresConfig} showToast={showToast} onSearchVentas={buscarVentasEnHistorial} searchingVentas={buscandoHistorial.ventas} />}
+          {currentView === 'boleta_extranjera' && <BoletaExtranjera clientes={clientes} equipos={equipos} ventas={ventas} boletasExtranjeras={boletasExtranjeras} cargandoBoletasExtranjeras={cargandoBoletasExtranjeras} boletaEmisoresConfig={boletaEmisoresConfig} showToast={showToast} onSearchVentas={buscarVentasEnHistorial} searchingVentas={buscandoHistorial.ventas} />}
 
           {currentView === 'problemas_app' && <ProblemasApp user={user} showToast={showToast} />}
 

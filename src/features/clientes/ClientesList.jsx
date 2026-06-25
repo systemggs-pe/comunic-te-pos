@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {CalendarClock, ClipboardList, Edit, Eye, Search, ShoppingCart, Smartphone, Trash2, Users, X} from 'lucide-react';
+import {CalendarClock, ClipboardList, Edit, Eye, FileText, Search, ShoppingCart, Smartphone, Trash2, Users, X} from 'lucide-react';
 import {actualizarCliente, consultarClientesOperativos, eliminarCliente, obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento} from '../../utils/documentos.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
@@ -21,6 +21,14 @@ const fechaHora = value => {
 };
 const monto = value => Number(value || 0);
 const soles = value => `S/. ${monto(value).toFixed(2)}`;
+const boletaChipText = boleta => `BE F${boleta?.formato || '-'} N°${boleta?.nBoleta || '-'}`;
+const imeisBoleta = boleta => Array.isArray(boleta?.boletaEquipoKeys) ? boleta.boletaEquipoKeys.filter(Boolean) : [];
+const resumenEquipoBoleta = boleta => {
+  const data = boleta?.boletaData || {};
+  const venta = Array.isArray(data.ventas) ? data.ventas[0] || {} : {};
+  const equipo = venta.imeiEquipo ? data.equiposMap?.[venta.imeiEquipo] || {} : {};
+  return `${venta.marcaEquipo || equipo.marca || ''} ${venta.nombreComercial || equipo.nombreComercial || venta.modeloEquipo || equipo.modelo || ''}`.trim();
+};
 const CLIENTES_LIMIT = 25;
 const TOP_CLIENTES_LIMIT = 10;
 
@@ -208,6 +216,15 @@ export function ClientesList({showToast}) {
         imei: registro.imeiRegistrado || registro.imeiEquipo,
         monto: registro.precio,
       })),
+      ...(selectedClient.boletas || []).map(boleta => ({
+        id: `boleta-${boleta.id || boleta.nBoleta}`,
+        tipo: 'Boleta extranjera',
+        fecha: boleta.fecha || boleta.fechaHora || boleta.createdAt,
+        codigo: `N° ${boleta.nBoleta || '-'}`,
+        equipo: resumenEquipoBoleta(boleta) || 'Equipo con boleta extranjera',
+        imei: imeisBoleta(boleta).join(' / '),
+        monto: boleta.totalPen,
+      })),
     ].sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
   }, [selectedClient]);
 
@@ -233,7 +250,7 @@ export function ClientesList({showToast}) {
               ? 'Cargando clientes...'
               : searchTerm
                 ? `${totalResultados} resultado${totalResultados !== 1 ? 's' : ''}`
-                : `${clientesVisibles.length} de ${totalResultados} cliente${totalResultados !== 1 ? 's' : ''} con ventas o registros`}
+                : `${clientesVisibles.length} de ${totalResultados} cliente${totalResultados !== 1 ? 's' : ''} con ventas, registros o boletas`}
           </p>
         </div>
         <div className="saas-toolbar-actions">
@@ -288,6 +305,7 @@ export function ClientesList({showToast}) {
             const historial = [
               ...cliente.ventas.map(item => item.fecha),
               ...cliente.registros.map(item => item.fecha),
+              ...(cliente.boletas || []).map(item => item.fecha || item.fechaHora),
             ].filter(Boolean).sort((a, b) => new Date(b) - new Date(a));
             return (
               <button key={cliente.dni} type="button" onClick={() => setSelectedDni(cliente.dni)} className="saas-mobile-row w-full text-left">
@@ -299,9 +317,10 @@ export function ClientesList({showToast}) {
                   </div>
                   <p className="shrink-0 text-right text-sm font-bold text-emerald-700">{soles(cliente.totalIngreso)}</p>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                   <span className="rounded-md bg-emerald-50 px-2 py-2 text-xs font-semibold text-emerald-700">{cliente.ventas.length} ventas</span>
                   <span className="rounded-md bg-blue-50 px-2 py-2 text-xs font-semibold text-blue-700">{cliente.registros.length} reg.</span>
+                  <span className="rounded-md bg-violet-50 px-2 py-2 text-xs font-semibold text-violet-700">{(cliente.boletas || []).length} BE</span>
                   <span className="rounded-md bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700">{cliente.equipos.length} equipos</span>
                 </div>
                 <p className="mt-3 text-xs text-slate-500">Ultimo movimiento: {fechaHora(historial[0])}</p>
@@ -327,6 +346,7 @@ export function ClientesList({showToast}) {
                 const historial = [
                   ...cliente.ventas.map(item => item.fecha),
                   ...cliente.registros.map(item => item.fecha),
+                  ...(cliente.boletas || []).map(item => item.fecha || item.fechaHora),
                 ].filter(Boolean).sort((a, b) => new Date(b) - new Date(a));
                 return (
                   <tr key={cliente.dni} className="hover:bg-slate-50">
@@ -339,6 +359,7 @@ export function ClientesList({showToast}) {
                       <div className="flex flex-wrap gap-2">
                         <span className="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{cliente.ventas.length} venta{cliente.ventas.length !== 1 ? 's' : ''}</span>
                         <span className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">{cliente.registros.length} registro{cliente.registros.length !== 1 ? 's' : ''}</span>
+                        <span className="rounded-md border border-violet-100 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700">{(cliente.boletas || []).length} BE</span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -454,7 +475,7 @@ export function ClientesList({showToast}) {
                 )}
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen</p>
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                     <div className="rounded-lg bg-white p-3">
                       <p className="text-lg font-semibold text-slate-900">{selectedClient.ventas.length}</p>
                       <p className="text-[10px] uppercase text-slate-400">Ventas</p>
@@ -464,6 +485,10 @@ export function ClientesList({showToast}) {
                       <p className="text-[10px] uppercase text-slate-400">Registros</p>
                     </div>
                     <div className="rounded-lg bg-white p-3">
+                      <p className="text-lg font-semibold text-slate-900">{(selectedClient.boletas || []).length}</p>
+                      <p className="text-[10px] uppercase text-slate-400">Boletas</p>
+                    </div>
+                    <div className="rounded-lg bg-white p-3">
                       <p className="text-lg font-semibold text-slate-900">{selectedClient.equipos.length}</p>
                       <p className="text-[10px] uppercase text-slate-400">Equipos</p>
                     </div>
@@ -471,7 +496,7 @@ export function ClientesList({showToast}) {
                   <div className="mt-3 rounded-lg bg-white p-3">
                     <p className="text-xs font-semibold uppercase text-slate-400">Ingreso generado</p>
                     <p className="mt-1 text-2xl font-bold text-emerald-700">{soles(selectedClient.totalIngreso)}</p>
-                    <p className="mt-1 text-xs text-slate-500">Ventas {soles(selectedClient.totalVentas)} · Registros {soles(selectedClient.totalRegistros)}</p>
+                    <p className="mt-1 text-xs text-slate-500">Ventas {soles(selectedClient.totalVentas)} · Registros {soles(selectedClient.totalRegistros)} · BE {soles(selectedClient.totalBoletas)}</p>
                   </div>
                 </div>
 
@@ -486,6 +511,11 @@ export function ClientesList({showToast}) {
                         <p className="mt-1 font-mono text-xs text-slate-500">{equipo.idEquipo}</p>
                         {equipo.imei2 && <p className="font-mono text-xs text-slate-500">{equipo.imei2}</p>}
                         {equipo.sn && <p className="mt-1 text-xs text-slate-500">S/N {equipo.sn}</p>}
+                        {equipo.boletaExtranjera ? (
+                          <span className="mt-2 inline-flex rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">{boletaChipText(equipo.boletaExtranjera)}</span>
+                        ) : (
+                          <span className="mt-2 inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-500">Sin BE</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -494,7 +524,7 @@ export function ClientesList({showToast}) {
 
               <section className="rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-900">Historial de ventas y registros</p>
+                  <p className="text-sm font-semibold text-slate-900">Historial operativo</p>
                   <CalendarClock size={17} className="text-slate-400" />
                 </div>
                 <div className="divide-y divide-slate-100">
@@ -502,8 +532,8 @@ export function ClientesList({showToast}) {
                     <div className="p-6 text-sm text-slate-500">Sin historial registrado.</div>
                   ) : historialSeleccionado.map(item => (
                     <div key={item.id} className="flex items-start gap-3 px-4 py-3">
-                      <span className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg ${item.tipo === 'Venta' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>
-                        {item.tipo === 'Venta' ? <ShoppingCart size={16}/> : <ClipboardList size={16}/>}
+                      <span className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg ${item.tipo === 'Venta' ? 'bg-emerald-50 text-emerald-700' : item.tipo === 'Boleta extranjera' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+                        {item.tipo === 'Venta' ? <ShoppingCart size={16}/> : item.tipo === 'Boleta extranjera' ? <FileText size={16}/> : <ClipboardList size={16}/>}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
