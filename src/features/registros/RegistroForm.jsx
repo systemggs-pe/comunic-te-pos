@@ -400,11 +400,11 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     await guardarEvidenciaProcesada(actual.key, dataUrl, actual.name, actual.originalSize);
   };
 
-  const usarOriginalEvidencia = async () => {
+  const usarOriginalEvidencia = async dataUrlAjustada => {
     if (!recorteEvidencia) return;
     const actual = recorteEvidencia;
     setRecorteEvidencia(null);
-    await guardarEvidenciaProcesada(actual.key, actual.dataUrl, actual.name, actual.originalSize);
+    await guardarEvidenciaProcesada(actual.key, dataUrlAjustada || actual.dataUrl, actual.name, actual.originalSize);
   };
 
   const quitarEvidencia = key => {
