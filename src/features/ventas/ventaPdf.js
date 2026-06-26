@@ -145,8 +145,8 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
     y += 1;
     center('VENTA DE CELULARES Y ACCESORIOS', SZ.xs, {muted: true});
     center('Av. Patricio Melendez 234', SZ.xs, {muted: true});
-    center('Galerias Gamarra Int. 1B, Tacna', SZ.xs, {muted: true});
-    center('Tel. 052 607 065', SZ.xs, {muted: true});
+    center('Galerias Gamarra - Tacna', SZ.xs, {muted: true});
+    center('Tel. 052 587 432', SZ.xs, {muted: true});
 
     section('CLIENTE');
     wrap('Nombre: ', data.nombreCliente || '');
