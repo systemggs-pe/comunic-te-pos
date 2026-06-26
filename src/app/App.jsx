@@ -28,6 +28,7 @@ const VentaForm = lazyNamed(() => import('../features/ventas/VentaForm.jsx'), 'V
 const ClientesList = lazyNamed(() => import('../features/clientes/ClientesList.jsx'), 'ClientesList');
 const DniFotosPage = lazyNamed(() => import('../features/dniFotos/DniFotosPage.jsx'), 'DniFotosPage');
 const BoletaExtranjera = lazyNamed(() => import('../features/boletas/BoletaExtranjera.jsx'), 'BoletaExtranjera');
+const BoletaPublicaPage = lazyNamed(() => import('../features/boletas/BoletaPublicaPage.jsx'), 'BoletaPublicaPage');
 const ProblemasApp = lazyNamed(() => import('../features/problemas/ProblemasApp.jsx'), 'ProblemasApp');
 
 const INTRO_LOGIN_KEY = 'ggs_intro_after_login_uid';
@@ -35,6 +36,8 @@ const INTRO_SEEN_PREFIX = 'ggs_intro_seen_at_';
 const INTRO_REPEAT_AFTER_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 40;
 const SEARCH_PAGE_SIZE = 300;
+const MAX_HISTORY_SEARCH_DOCS = 600;
+const BOLETAS_EXTRANJERAS_PAGE_SIZE = 200;
 
 function sortByDateDesc(items) {
   return [...items].sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
@@ -72,6 +75,11 @@ function applySnapshotChanges(realtimeMap, changes) {
 }
 
 function App() {
+  const publicBoletaRoute = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    return path === '/boleta' || path === '/boleta-publica';
+  }, []);
   const legalSlug = useMemo(() => {
     if (typeof window === 'undefined') return null;
     return isLegalPath(window.location.pathname) ? slugFromPath(window.location.pathname) : null;
@@ -113,6 +121,7 @@ function App() {
   const ventasCacheRef = React.useRef(new Map());
   const searchCacheRef = React.useRef({registros: new Map(), ventas: new Map()});
   const searchRequestRef = React.useRef({registros: 0, ventas: 0});
+  const unsubBoletasRef = React.useRef(null);
 
   const rebuildRegistrosState = React.useCallback(() => {
     setRegistros(mergeRealtimeWithCache(registrosRealtimeRef.current, registrosCacheRef.current));
@@ -213,6 +222,10 @@ function App() {
     () => collection(db, 'artifacts', appId, 'users', 'shared', 'ventas'),
     []
   );
+  const boletasExtranjerasRef = useMemo(
+    () => collection(db, 'artifacts', appId, 'users', 'shared', 'boletasExtranjeras'),
+    []
+  );
 
   const refrescarTotales = React.useCallback(async () => {
     if (!auth.currentUser) return;
@@ -263,8 +276,23 @@ function App() {
       (err) => clientLogger.error('app.boleta_emisores.snapshot_error', err, {collection: 'configuracion/boletaExtranjeraEmisores'})
     );
 
-    const unsubBoletasExtranjeras = onSnapshot(
-      query(collection(db, 'artifacts', appId, 'users', 'shared', 'boletasExtranjeras'), orderBy('createdAt', 'desc')),
+    return () => { unsubClientes(); unsubEquipos(); unsubLogo(); unsubBoletaEmisores(); };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refrescarTotales();
+  }, [user, refrescarTotales]);
+
+  useEffect(() => {
+    const necesitaBoletas = currentView.startsWith('ventas') || currentView === 'boleta_extranjera';
+    if (!user || !necesitaBoletas) return;
+    if (unsubBoletasRef.current) return;
+
+    setCargandoBoletasExtranjeras(true);
+    unsubBoletasRef.current = onSnapshot(
+      query(boletasExtranjerasRef, orderBy('createdAt', 'desc'), limit(BOLETAS_EXTRANJERAS_PAGE_SIZE)),
       (snap) => {
         setBoletasExtranjeras(snap.docs.map(documento => ({id: documento.id, ...documento.data()})));
         setCargandoBoletasExtranjeras(false);
@@ -274,15 +302,7 @@ function App() {
         setCargandoBoletasExtranjeras(false);
       }
     );
-
-    return () => { unsubClientes(); unsubEquipos(); unsubLogo(); unsubBoletaEmisores(); unsubBoletasExtranjeras(); };
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refrescarTotales();
-  }, [user, refrescarTotales]);
+  }, [user, currentView, boletasExtranjerasRef]);
 
   // Suscribir/desuscribir registros según la vista
   useEffect(() => {
@@ -420,16 +440,19 @@ function App() {
   const leerCoincidenciasHistorial = React.useCallback(async (collectionRef, term, matchesItem) => {
     const resultados = [];
     let cursor = null;
-    for (;;) {
+    let revisados = 0;
+    while (revisados < MAX_HISTORY_SEARCH_DOCS) {
+      const pageSize = Math.min(SEARCH_PAGE_SIZE, MAX_HISTORY_SEARCH_DOCS - revisados);
       const pageQuery = cursor
-        ? query(collectionRef, orderBy('fecha', 'desc'), startAfter(cursor), limit(SEARCH_PAGE_SIZE))
-        : query(collectionRef, orderBy('fecha', 'desc'), limit(SEARCH_PAGE_SIZE));
+        ? query(collectionRef, orderBy('fecha', 'desc'), startAfter(cursor), limit(pageSize))
+        : query(collectionRef, orderBy('fecha', 'desc'), limit(pageSize));
       const snap = await getDocs(pageQuery);
+      revisados += snap.size;
       snap.docs.forEach(documento => {
         const item = {id: documento.id, ...documento.data()};
         if (matchesItem(item)) resultados.push(item);
       });
-      if (snap.size < SEARCH_PAGE_SIZE) break;
+      if (snap.size < pageSize) break;
       cursor = snap.docs.at(-1);
     }
     return resultados;
@@ -437,7 +460,7 @@ function App() {
 
   const buscarRegistrosEnHistorial = React.useCallback(async (term) => {
     const needle = normalizeSearchTerm(term);
-    if (needle.length < 2) return [];
+    if (needle.length < 3) return [];
     const cached = searchCacheRef.current.registros.get(needle);
     if (cached) {
       if (cached.length) {
@@ -473,7 +496,7 @@ function App() {
 
   const buscarVentasEnHistorial = React.useCallback(async (term) => {
     const needle = normalizeSearchTerm(term);
-    if (needle.length < 2) return [];
+    if (needle.length < 3) return [];
     const cached = searchCacheRef.current.ventas.get(needle);
     if (cached) {
       if (cached.length) {
@@ -518,6 +541,7 @@ function App() {
     if (!user) {
       if (unsubRegistrosRef.current) { unsubRegistrosRef.current(); unsubRegistrosRef.current = null; }
       if (unsubVentasRef.current)    { unsubVentasRef.current();    unsubVentasRef.current    = null; }
+      if (unsubBoletasRef.current)   { unsubBoletasRef.current();   unsubBoletasRef.current   = null; }
       lastRegistroDocRef.current = null;
       lastVentaDocRef.current = null;
       registrosRealtimeRef.current.clear();
@@ -527,7 +551,7 @@ function App() {
       searchCacheRef.current.registros.clear();
       searchCacheRef.current.ventas.clear();
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setRegistros([]); setVentas([]); setClientes([]); setEquipos([]);
+      setRegistros([]); setVentas([]); setClientes([]); setEquipos([]); setBoletasExtranjeras([]);
       setBuscandoHistorial({registros: false, ventas: false});
       setHayMasRegistros(false); setHayMasVentas(false); setTotales({registros: 0, ventas: 0});
     }
@@ -577,7 +601,7 @@ function App() {
   // ── BUSCADOR GLOBAL ──
   const resultadosBusqueda = useMemo(() => {
     const q = normalizeSearchTerm(busquedaGlobal);
-    if (q.length < 2) return [];
+    if (q.length < 3) return [];
     const res = [];
     // Buscar en registros
     registros.forEach(r => {
@@ -616,15 +640,26 @@ function App() {
 
   useEffect(() => {
     const term = busquedaGlobal.trim();
-    if (!mostrarBusqueda || term.length < 2) return undefined;
+    if (!mostrarBusqueda || term.length < 3) return undefined;
     const timeoutId = window.setTimeout(() => {
       if (!totales.registros || registros.length < totales.registros) buscarRegistrosEnHistorial(term);
       if (!totales.ventas || ventas.length < totales.ventas) buscarVentasEnHistorial(term);
-    }, 450);
+    }, 700);
     return () => window.clearTimeout(timeoutId);
   }, [busquedaGlobal, buscarRegistrosEnHistorial, buscarVentasEnHistorial, mostrarBusqueda, registros.length, totales.registros, totales.ventas, ventas.length]);
 
   const buscandoBusquedaGlobal = buscandoHistorial.registros || buscandoHistorial.ventas;
+
+  if (publicBoletaRoute) {
+    return (
+      <>
+        <Suspense fallback={<div className="min-h-screen bg-[var(--ggs-bg)] p-6 text-sm font-semibold text-slate-600">Cargando consulta...</div>}>
+          <BoletaPublicaPage />
+        </Suspense>
+        <CookieConsentBanner />
+      </>
+    );
+  }
 
   if (legalSlug) {
     return (

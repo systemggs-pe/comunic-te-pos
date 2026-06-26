@@ -7,6 +7,10 @@ import {parseClienteUpdatePayload, parseDniPayload} from './_validators.mjs';
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
 const QUERY_PAGE_SIZE = 500;
+const DEFAULT_ACTIVITY_SCAN_LIMIT = 120;
+const SEARCH_ACTIVITY_SCAN_LIMIT = 300;
+const SUPPORT_COLLECTION_SCAN_LIMIT = 300;
+const MIN_SEARCH_LENGTH = 3;
 const DEFAULT_CLIENT_LIMIT = 10;
 const MAX_CLIENT_LIMIT = 50;
 const SEARCH_FIELDS = new Set(['todo', 'dni', 'imei', 'modelo', 'nombreComercial', 'sn', 'nombre']);
@@ -217,16 +221,55 @@ function equiposFromBoleta(boleta = {}) {
   return Array.from(salida.values());
 }
 
-async function readMovements(collectionRef) {
+function docsFromSnap(snap) {
+  if (!snap) return [];
+  if (Array.isArray(snap.docs)) return snap.docs;
+  return snap.exists ? [snap] : [];
+}
+
+function docsToItems(docs) {
+  return docs.map(doc => ({id: doc.id, ...doc.data()}));
+}
+
+function uniqueDocs(...groups) {
+  const docs = new Map();
+  groups.flat().filter(Boolean).forEach(doc => docs.set(doc.id, doc));
+  return Array.from(docs.values());
+}
+
+async function readDocs(queryRef) {
+  const snap = await queryRef.get();
+  return snap.docs;
+}
+
+async function readCollectionDocs(collectionRef, maxDocs) {
+  return readDocs(collectionRef.limit(Math.max(Number(maxDocs || 1), 1)));
+}
+
+async function readRecentDocs(collectionRef, field, maxDocs) {
+  return readDocs(collectionRef.orderBy(field, 'desc').limit(Math.max(Number(maxDocs || 1), 1)));
+}
+
+async function readByField(collectionRef, field, value, maxDocs) {
+  return readDocs(collectionRef.where(field, '==', value).limit(Math.max(Number(maxDocs || 1), 1)));
+}
+
+async function readByArrayContains(collectionRef, field, value, maxDocs) {
+  return readDocs(collectionRef.where(field, 'array-contains', value).limit(Math.max(Number(maxDocs || 1), 1)));
+}
+
+async function readMovements(collectionRef, maxDocs = QUERY_PAGE_SIZE) {
   const items = [];
   let cursor = null;
-  for (;;) {
+  const cap = Math.max(Number(maxDocs || QUERY_PAGE_SIZE), 1);
+  while (items.length < cap) {
+    const pageSize = Math.min(QUERY_PAGE_SIZE, cap - items.length);
     const pageQuery = cursor
-      ? collectionRef.orderBy('fecha', 'desc').startAfter(cursor).limit(QUERY_PAGE_SIZE)
-      : collectionRef.orderBy('fecha', 'desc').limit(QUERY_PAGE_SIZE);
+      ? collectionRef.orderBy('fecha', 'desc').startAfter(cursor).limit(pageSize)
+      : collectionRef.orderBy('fecha', 'desc').limit(pageSize);
     const snap = await pageQuery.get();
-    items.push(...snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
-    if (snap.size < QUERY_PAGE_SIZE) break;
+    items.push(...docsToItems(snap.docs));
+    if (snap.size < pageSize) break;
     cursor = snap.docs.at(-1);
   }
   return items;
@@ -277,16 +320,70 @@ async function queryOperationalClientes(db, payload) {
   const limit = Math.min(Math.max(Number(payload?.limit || DEFAULT_CLIENT_LIMIT), 1), MAX_CLIENT_LIMIT);
   const offset = decodeCursor(payload?.cursor);
 
-  const [clientesSnap, equiposSnap, ventas, registros, boletasSnap] = await Promise.all([
-    base.collection('clientes').get(),
-    base.collection('equipos').get(),
-    readMovements(base.collection('ventas')),
-    readMovements(base.collection('registros')),
-    base.collection('boletasExtranjeras').get(),
-  ]);
+  if (searchTerm && searchTerm.length < MIN_SEARCH_LENGTH) {
+    const empty = summarize([]);
+    return {
+      clientes: [],
+      total: 0,
+      nextCursor: null,
+      stats: empty,
+      filteredStats: empty,
+      minSearchLength: MIN_SEARCH_LENGTH,
+    };
+  }
+
+  const activityScanLimit = searchTerm ? SEARCH_ACTIVITY_SCAN_LIMIT : DEFAULT_ACTIVITY_SCAN_LIMIT;
+  const exactDniSearch = searchTerm && /^\d{6,12}$/.test(searchTerm) && (searchField === 'todo' || searchField === 'dni');
+  const exactImeiSearch = searchTerm && /^\d{14,15}$/.test(searchTerm) && (searchField === 'todo' || searchField === 'imei');
+  let clientesDocs = [];
+  let equiposDocs = [];
+  let ventas = [];
+  let registros = [];
+  let boletasDocs = [];
+
+  if (exactDniSearch) {
+    const [clienteSnap, equiposResult, ventasResult, registrosResult, boletasResult] = await Promise.all([
+      base.collection('clientes').doc(searchTerm).get(),
+      readByField(base.collection('equipos'), 'idDuenio', searchTerm, SUPPORT_COLLECTION_SCAN_LIMIT),
+      readByField(base.collection('ventas'), 'dniCliente', searchTerm, activityScanLimit),
+      readByField(base.collection('registros'), 'dniCliente', searchTerm, activityScanLimit),
+      readByField(base.collection('boletasExtranjeras'), 'clienteDni', searchTerm, activityScanLimit),
+    ]);
+    clientesDocs = docsFromSnap(clienteSnap);
+    equiposDocs = equiposResult;
+    ventas = sortByDateDesc(docsToItems(ventasResult));
+    registros = sortByDateDesc(docsToItems(registrosResult));
+    boletasDocs = boletasResult;
+  } else if (exactImeiSearch) {
+    const [equipoSnap, equiposImei2Result, ventasResult, registrosImeiResult, registrosImeiRegistradoResult, boletasResult] = await Promise.all([
+      base.collection('equipos').doc(searchTerm).get(),
+      readByField(base.collection('equipos'), 'imei2', searchTerm, SUPPORT_COLLECTION_SCAN_LIMIT),
+      readByField(base.collection('ventas'), 'imeiEquipo', searchTerm, activityScanLimit),
+      readByField(base.collection('registros'), 'imeiEquipo', searchTerm, activityScanLimit),
+      readByField(base.collection('registros'), 'imeiRegistrado', searchTerm, activityScanLimit),
+      readByArrayContains(base.collection('boletasExtranjeras'), 'boletaEquipoKeys', searchTerm, activityScanLimit),
+    ]);
+    equiposDocs = uniqueDocs(docsFromSnap(equipoSnap), equiposImei2Result);
+    ventas = sortByDateDesc(docsToItems(ventasResult));
+    registros = sortByDateDesc(docsToItems(uniqueDocs(registrosImeiResult, registrosImeiRegistradoResult)));
+    boletasDocs = boletasResult;
+  } else {
+    const [clientesResult, equiposResult, ventasResult, registrosResult, boletasResult] = await Promise.all([
+      readCollectionDocs(base.collection('clientes'), SUPPORT_COLLECTION_SCAN_LIMIT),
+      readCollectionDocs(base.collection('equipos'), SUPPORT_COLLECTION_SCAN_LIMIT),
+      readMovements(base.collection('ventas'), activityScanLimit),
+      readMovements(base.collection('registros'), activityScanLimit),
+      readRecentDocs(base.collection('boletasExtranjeras'), 'createdAt', activityScanLimit),
+    ]);
+    clientesDocs = clientesResult;
+    equiposDocs = equiposResult;
+    ventas = ventasResult;
+    registros = registrosResult;
+    boletasDocs = boletasResult;
+  }
 
   const mapa = new Map();
-  clientesSnap.docs.forEach(doc => {
+  clientesDocs.forEach(doc => {
     const data = doc.data() || {};
     const dni = clean(data.dni || doc.id);
     if (!dni) return;
@@ -304,7 +401,7 @@ async function queryOperationalClientes(db, payload) {
     });
   });
 
-  equiposSnap.docs.forEach(doc => {
+  equiposDocs.forEach(doc => {
     const equipo = {id: doc.id, ...doc.data()};
     const dni = clean(equipo.idDuenio);
     if (!dni) return;
@@ -337,7 +434,7 @@ async function queryOperationalClientes(db, payload) {
     addEquipo(cliente, equipoFromRegistro(registro));
   });
 
-  boletasSnap.docs.forEach(doc => {
+  boletasDocs.forEach(doc => {
     const raw = {id: doc.id, ...doc.data()};
     const boletaData = raw.boletaData || {};
     const dni = clean(raw.clienteDni || boletaData.cliente?.dni);
@@ -405,6 +502,9 @@ async function queryOperationalClientes(db, payload) {
     nextCursor: nextOffset < filtrados.length ? encodeCursor(nextOffset) : null,
     stats: summarize(clientesOperativos),
     filteredStats: summarize(filtrados),
+    scanLimited: true,
+    activityScanLimit,
+    supportCollectionScanLimit: SUPPORT_COLLECTION_SCAN_LIMIT,
   };
 }
 
@@ -484,5 +584,9 @@ async function dispatchClientes(body, user, context) {
 }
 
 export const handler = event => handlePost(event, dispatchClientes, {
-  rateLimit: {name: 'clientes', max: 120, windowMs: 60 * 1000},
+  rateLimit: {name: 'clientes', max: 30, windowMs: 60 * 1000},
 });
+
+export const __test = {
+  queryOperationalClientes,
+};

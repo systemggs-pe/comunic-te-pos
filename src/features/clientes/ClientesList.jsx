@@ -31,6 +31,7 @@ const resumenEquipoBoleta = boleta => {
 };
 const CLIENTES_LIMIT = 25;
 const TOP_CLIENTES_LIMIT = 10;
+const MIN_SEARCH_LENGTH = 3;
 
 export function ClientesList({showToast}) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,24 +49,52 @@ export function ClientesList({showToast}) {
   const [errorCarga, setErrorCarga] = useState('');
   const showToastRef = useRef(showToast);
   const requestIdRef = useRef(0);
+  const clientesCacheRef = useRef(new Map());
 
   useEffect(() => {
     showToastRef.current = showToast;
   }, [showToast]);
 
   useEffect(() => {
+    const term = searchTerm.trim();
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
+
+    if (term && term.length < MIN_SEARCH_LENGTH) {
+      const timeoutId = window.setTimeout(() => {
+        if (requestId !== requestIdRef.current) return;
+        setCargando(false);
+        setErrorCarga('');
+        setClientesOperativos([]);
+        setTotalResultados(0);
+        setNextCursor(null);
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
+    }
+
     let active = true;
+    const limit = term ? CLIENTES_LIMIT : TOP_CLIENTES_LIMIT;
+    const cacheKey = `${searchField}|${term}|${limit}|inicio`;
     const timeoutId = window.setTimeout(async () => {
+      const cached = clientesCacheRef.current.get(cacheKey);
+      if (cached) {
+        setClientesOperativos(Array.isArray(cached.clientes) ? cached.clientes : []);
+        setTotalResultados(Number(cached.total || 0));
+        setNextCursor(cached.nextCursor || null);
+        setErrorCarga('');
+        setCargando(false);
+        return;
+      }
+
       setCargando(true);
       setErrorCarga('');
       try {
         const response = await consultarClientesOperativos({
-          searchTerm,
+          searchTerm: term,
           searchField,
-          limit: searchTerm.trim() ? CLIENTES_LIMIT : TOP_CLIENTES_LIMIT,
+          limit,
         });
+        clientesCacheRef.current.set(cacheKey, response);
         if (!active || requestId !== requestIdRef.current) return;
         setClientesOperativos(Array.isArray(response.clientes) ? response.clientes : []);
         setTotalResultados(Number(response.total || 0));
@@ -78,7 +107,7 @@ export function ClientesList({showToast}) {
       } finally {
         if (active && requestId === requestIdRef.current) setCargando(false);
       }
-    }, searchTerm.trim() ? 350 : 0);
+    }, term ? 700 : 0);
 
     return () => {
       active = false;
@@ -88,15 +117,20 @@ export function ClientesList({showToast}) {
 
   const cargarMasClientes = async () => {
     if (!nextCursor || cargandoMas) return;
+    const term = searchTerm.trim();
+    if (term && term.length < MIN_SEARCH_LENGTH) return;
+    const cacheKey = `${searchField}|${term}|${CLIENTES_LIMIT}|${nextCursor}`;
     setCargandoMas(true);
     setErrorCarga('');
     try {
-      const response = await consultarClientesOperativos({
-        searchTerm,
+      const cached = clientesCacheRef.current.get(cacheKey);
+      const response = cached || await consultarClientesOperativos({
+        searchTerm: term,
         searchField,
         limit: CLIENTES_LIMIT,
         cursor: nextCursor,
       });
+      if (!cached) clientesCacheRef.current.set(cacheKey, response);
       const nuevos = Array.isArray(response.clientes) ? response.clientes : [];
       setClientesOperativos(prev => {
         const mapa = new Map(prev.map(cliente => [cliente.dni, cliente]));
@@ -161,6 +195,7 @@ export function ClientesList({showToast}) {
           correos,
         },
       });
+      clientesCacheRef.current.clear();
       if (response?.cliente) {
         setClientesOperativos(prev => prev.map(cliente => (
           cliente.dni === selectedClient.dni ? {...cliente, ...response.cliente} : cliente
@@ -181,6 +216,7 @@ export function ClientesList({showToast}) {
     setGuardando(true);
     try {
       await eliminarCliente(selectedClient.dni);
+      clientesCacheRef.current.clear();
       showToast?.('Cliente eliminado');
       setClientesOperativos(prev => prev.filter(cliente => cliente.dni !== selectedClient.dni));
       setTotalResultados(prev => Math.max(prev - 1, 0));

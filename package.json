@@ -10,7 +10,7 @@
     "dev:vite": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/dniFotos.test.mjs",
+    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/publicBoleta.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

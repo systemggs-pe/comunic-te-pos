@@ -40,6 +40,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/publicBoleta"
+  to = "/.netlify/functions/publicBoleta"
+  status = 200
+
+[[redirects]]
   from = "/api/registros"
   to = "/.netlify/functions/registros"
   status = 200

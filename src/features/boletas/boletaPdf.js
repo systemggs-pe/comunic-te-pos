@@ -14,9 +14,31 @@ function nombreCortoEmisor(nombre) {
   };
 }
 
-export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor }) {
+function entregarPdf(docFinal, nombre, output = 'download') {
+  const blob = docFinal.output('blob');
+  const url = URL.createObjectURL(blob);
+
+  if (output === 'bloburl') {
+    return {blob, url, nombre};
+  }
+
+  window.open(url, '_blank');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  return {blob, url, nombre};
+}
+
+function getBoletaVerificationUrl() {
+  return 'https://comunicate-registros-v2.netlify.app/boleta';
+}
+
+export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor, output = 'download' }) {
   const {jsPDF, JsBarcode} = getPdfTools();
   const emisorInfo = emisor || getBoletaExtranjeraEmisor({}, 1);
+  const verificationUrl = getBoletaVerificationUrl();
   const mmW = 48;
   const FONT = 'courier';
   // Courier es ancho — sin escala, tamaños pequeños para que quepan en 48mm
@@ -167,6 +189,9 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
     tc('para', 6.5);
     tc('cambios y devoluciones.', 6.5);
     tc('********************************', 5.5);
+    y += 1;
+    tc('Corrobore autenticidad en:', 5.8);
+    tc(verificationUrl, 5.4);
     y += 4;
 
     return y;
@@ -178,19 +203,15 @@ export async function generarBoletaExtranjera({ cliente, ventas, equiposMap, tot
   renderPDF(docFinal, true);
 
   const nombre = `BOLETA-${nBoleta}.pdf`;
-  const blob = docFinal.output('blob');
-  const url  = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  const a = document.createElement('a');
-  a.href = url; a.download = nombre; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  return entregarPdf(docFinal, nombre, output);
 }
 
 
-export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor }) {
+export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor, output = 'download' }) {
   const {jsPDF} = getPdfTools();
   const gen417 = await getPdf417Generator();
   const emisorInfo = emisor || getBoletaExtranjeraEmisor({}, 2);
+  const verificationUrl = getBoletaVerificationUrl();
   const mmW  = 80;
   const M    = 5;
   const FONT = 'courier';
@@ -291,6 +312,9 @@ export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, to
     tl('Timbre Electrónico SII', FS);
     tl('Res. 99 de 2014', FS);
     tl('Verifique documento en sii.cl', FS);
+    nl(2);
+    tl('Corrobore autenticidad en:', 7);
+    tl(verificationUrl, 7);
     tl('                               ', FS);
     tl('                               ', FS);
     nl(6);
@@ -303,17 +327,13 @@ export async function generarBoletaExtranjera2({ cliente, ventas, equiposMap, to
   renderPDF(docFinal, true);
 
   const nombre2 = `BOLETA2-${nBoleta}.pdf`;
-  const blob2   = docFinal.output('blob');
-  const url2    = URL.createObjectURL(blob2);
-  window.open(url2, '_blank');
-  const a2 = document.createElement('a');
-  a2.href = url2; a2.download = nombre2; a2.click();
-  setTimeout(() => URL.revokeObjectURL(url2), 15000);
+  return entregarPdf(docFinal, nombre2, output);
 }
 
-export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor: emisorConfig }) {
+export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, totalClp, fechaHora, nBoleta: numeroBoleta, emisor: emisorConfig, output = 'download' }) {
   const {jsPDF} = getPdfTools();
   const gen417 = await getPdf417Generator();
+  const verificationUrl = getBoletaVerificationUrl();
   const mmW = 80;
   const M = 5;
   const FONT = 'helvetica';
@@ -600,6 +620,9 @@ export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, to
     center('Timbre Electronico S.I.I.', 8.2, true);
     center('Res. 99 de 2014', 7.8);
     center('Verifique documento en sii.cl', 7.8);
+    y += 1.5;
+    center('Corrobore autenticidad en:', 7.4, true);
+    center(verificationUrl, 7);
     y += 4;
 
     return Math.max(y, 188);
@@ -611,11 +634,5 @@ export async function generarBoletaExtranjera3({ cliente, ventas, equiposMap, to
   renderPDF(docFinal, true);
 
   const nombre3 = `BOLETA3-${nBoleta}.pdf`;
-  const blob3 = docFinal.output('blob');
-  const url3 = URL.createObjectURL(blob3);
-  window.open(url3, '_blank');
-  const a3 = document.createElement('a');
-  a3.href = url3; a3.download = nombre3; a3.click();
-  setTimeout(() => URL.revokeObjectURL(url3), 15000);
+  return entregarPdf(docFinal, nombre3, output);
 }
-

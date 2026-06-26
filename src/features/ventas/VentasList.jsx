@@ -45,8 +45,8 @@ export function VentasList({ data, cargando, clientes, equipos, boletasExtranjer
 
   useEffect(() => {
     const term = searchTerm.trim();
-    if (term.length < 2 || !onSearchAll || (total && data.length >= total)) return undefined;
-    const timeoutId = window.setTimeout(() => onSearchAll(term), 350);
+    if (term.length < 3 || !onSearchAll || (total && data.length >= total)) return undefined;
+    const timeoutId = window.setTimeout(() => onSearchAll(term), 700);
     return () => window.clearTimeout(timeoutId);
   }, [data.length, onSearchAll, searchTerm, total]);
 
