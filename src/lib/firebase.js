@@ -3,13 +3,13 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 export const firebaseConfig = {
-  apiKey: 'AIzaSyBLosM4ocr9OBLcpcRUc5QF3k8eVc4h5mA',
-  authDomain: 'comunicate-tacna.firebaseapp.com',
-  projectId: 'comunicate-tacna',
-  storageBucket: 'comunicate-tacna.firebasestorage.app',
-  messagingSenderId: '769900776082',
-  appId: '1:769900776082:web:2ab9cf77e2ac793fe2344b',
-  measurementId: 'G-KNYEG7V0KW',
+  apiKey: 'AIzaSyAHMYkEpa1NMvUiQA7wXBV3pTGY0aMhICE',
+  authDomain: 'comunicate-aafcd.firebaseapp.com',
+  projectId: 'comunicate-aafcd',
+  storageBucket: 'comunicate-aafcd.firebasestorage.app',
+  messagingSenderId: '362502368262',
+  appId: ':362502368262:web:cb928ec9d43957a448e787',
+  //measurementId: 'G-KNYEG7V0KW',"
 };
 
 export const firebaseApp = initializeApp(firebaseConfig);

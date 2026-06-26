@@ -126,7 +126,6 @@ function seedOperationalData(count = 500) {
     equipos: {},
     ventas: {},
     registros: {},
-    boletasExtranjeras: {},
   };
 
   for (let i = 1; i <= count; i += 1) {
@@ -136,13 +135,6 @@ function seedOperationalData(count = 500) {
     collections.equipos[imei] = {idEquipo: imei, idDuenio: dni, imei2: `88000000000${String(i).padStart(4, '0')}`.slice(0, 15), modelo: `Modelo ${i}`};
     collections.ventas[`venta-${i}`] = {dniCliente: dni, imeiEquipo: imei, precio: 100, fecha: `2026-06-${String((i % 28) + 1).padStart(2, '0')}T10:00:00.000Z`};
     collections.registros[`registro-${i}`] = {dniCliente: dni, imeiEquipo: imei, imeiRegistrado: imei, precio: 10, fecha: `2026-06-${String((i % 28) + 1).padStart(2, '0')}T09:00:00.000Z`};
-    collections.boletasExtranjeras[`boleta-${i}`] = {
-      clienteDni: dni,
-      clienteNombre: `Cliente ${i}`,
-      boletaEquipoKeys: [imei],
-      createdAt: `2026-06-${String((i % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
-      totalPen: 100,
-    };
   }
   return collections;
 }
@@ -163,26 +155,26 @@ test('queryOperational default load uses capped collection reads', async () => {
   await __test.queryOperationalClientes(db, {searchTerm: '', searchField: 'todo', limit: 10});
 
   const byCollection = Object.groupBy(db.store.calls, call => call.collection);
-  assert.equal(db.store.calls.length, 5);
+  assert.equal(db.store.calls.length, 4);
   assert.equal(byCollection.clientes[0].limit, 300);
   assert.equal(byCollection.equipos[0].limit, 300);
   assert.equal(byCollection.ventas[0].limit, 120);
   assert.equal(byCollection.registros[0].limit, 120);
-  assert.equal(byCollection.boletasExtranjeras[0].limit, 120);
+  assert.equal(byCollection.boletasExtranjeras, undefined);
   assert.ok(db.store.calls.every(call => Number.isFinite(call.limit)));
 });
 
 test('queryOperational exact DNI/IMEI searches use targeted limited queries', async () => {
   const dbDni = createFakeDb(seedOperationalData(500));
   await __test.queryOperationalClientes(dbDni, {searchTerm: '40000010', searchField: 'dni', limit: 10});
-  assert.equal(dbDni.store.calls.length, 5);
-  assert.deepEqual(dbDni.store.calls.map(call => call.collection).sort(), ['boletasExtranjeras', 'clientes', 'equipos', 'registros', 'ventas']);
+  assert.equal(dbDni.store.calls.length, 4);
+  assert.deepEqual(dbDni.store.calls.map(call => call.collection).sort(), ['clientes', 'equipos', 'registros', 'ventas']);
   assert.ok(dbDni.store.calls.every(call => Number.isFinite(call.limit)));
 
   const dbImei = createFakeDb(seedOperationalData(500));
   await __test.queryOperationalClientes(dbImei, {searchTerm: '990000000000010', searchField: 'imei', limit: 10});
-  assert.equal(dbImei.store.calls.length, 6);
-  assert.deepEqual(dbImei.store.calls.map(call => call.collection).sort(), ['boletasExtranjeras', 'equipos', 'equipos', 'registros', 'registros', 'ventas']);
+  assert.equal(dbImei.store.calls.length, 5);
+  assert.deepEqual(dbImei.store.calls.map(call => call.collection).sort(), ['equipos', 'equipos', 'registros', 'registros', 'ventas']);
   assert.ok(dbImei.store.calls.every(call => Number.isFinite(call.limit)));
 });
 

@@ -6,17 +6,8 @@ import { eliminarVenta } from '../../services/functionsClient.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
 import {ventaMatchesSearch} from '../../utils/searchRecords.js';
-import {buscarBoletaPorVenta, formatearChipBoleta} from '../boletas/boletaHelpers.js';
 
-function BoletaChip({boleta}) {
-  return (
-    <span className={`inline-flex w-fit items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${boleta ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-      {formatearChipBoleta(boleta)}
-    </span>
-  );
-}
-
-export function VentasList({ data, cargando, clientes, equipos, boletasExtranjeras = [], logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
+export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingVenta, setViewingVenta] = useState(null);
   const [ticketVentaData, setTicketVentaData] = useState(null);
@@ -26,7 +17,6 @@ export function VentasList({ data, cargando, clientes, equipos, boletasExtranjer
 
   const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
   const getEquipo  = (imei) => equipos.find(e => e.idEquipo === imei) || {};
-  const boletaDeVenta = venta => buscarBoletaPorVenta(boletasExtranjeras, venta, getEquipo(venta?.imeiEquipo));
   const ticketData = (row) => {
     const eq = getEquipo(row.imeiEquipo);
     return {
@@ -167,7 +157,6 @@ export function VentasList({ data, cargando, clientes, equipos, boletasExtranjer
                   <p><strong className="text-gray-700">IMEI 1:</strong></p><p className="font-mono text-gray-600">{viewingVenta.imeiEquipo}</p>
                   {(viewingVenta.imei2Equipo || getEquipo(viewingVenta.imeiEquipo).imei2) && <><p><strong className="text-gray-700">IMEI 2:</strong></p><p className="font-mono text-gray-600">{viewingVenta.imei2Equipo || getEquipo(viewingVenta.imeiEquipo).imei2}</p></>}
                   {(viewingVenta.sn || getEquipo(viewingVenta.imeiEquipo).sn) && <><p><strong className="text-gray-700">S/N:</strong></p><p className="font-mono text-gray-600">{viewingVenta.sn || getEquipo(viewingVenta.imeiEquipo).sn}</p></>}
-                  <p><strong className="text-gray-700">Boleta extranjera:</strong></p><p><BoletaChip boleta={boletaDeVenta(viewingVenta)} /></p>
                 </div>
               </div>
               {Array.isArray(viewingVenta.itemsAdicionales) && viewingVenta.itemsAdicionales.length > 0 && (
@@ -232,9 +221,6 @@ export function VentasList({ data, cargando, clientes, equipos, boletasExtranjer
             <p className="text-xs text-gray-600 mb-1">
               {row.marcaEquipo} {row.nombreComercial || getEquipo(row.imeiEquipo).nombreComercial || row.modeloEquipo}
             </p>
-            <div className="mb-2">
-              <BoletaChip boleta={boletaDeVenta(row)} />
-            </div>
             <div className="mb-3 space-y-0.5">
               {(() => {
                 const eq = getEquipo(row.imeiEquipo);
@@ -295,7 +281,6 @@ export function VentasList({ data, cargando, clientes, equipos, boletasExtranjer
                     return (
                       <>
                         <div className="font-medium text-gray-800">{row.marcaEquipo} {nombre}</div>
-                        <div className="mt-1"><BoletaChip boleta={boletaDeVenta(row)} /></div>
                         <div className={`text-xs font-mono mt-0.5 ${reg1 ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
                           {reg1 && <span className="mr-0.5">✓</span>}{row.imeiEquipo}
                         </div>

@@ -68,45 +68,6 @@ function sortByDateDesc(items) {
   return [...items].sort((a, b) => movementDate(b.fecha || b.fechaHora || b.createdAt) - movementDate(a.fecha || a.fechaHora || a.createdAt));
 }
 
-function isoFromDate(value) {
-  const time = movementDate(value);
-  return time ? new Date(time).toISOString() : '';
-}
-
-function normalizarImei(value) {
-  const imei = String(value || '').replace(/\D/g, '').slice(0, 15);
-  return /^\d{15}$/.test(imei) ? imei : '';
-}
-
-function obtenerImeisBoleta(boleta = {}) {
-  const data = boleta.boletaData || {};
-  const keys = new Set();
-  (Array.isArray(data.ventas) ? data.ventas : []).forEach(venta => {
-    const imei1 = normalizarImei(venta.imeiEquipo);
-    const imei2 = normalizarImei(venta.imei2Equipo);
-    if (imei1) keys.add(imei1);
-    if (imei2) keys.add(imei2);
-    const equipo = imei1 ? data.equiposMap?.[imei1] : null;
-    const imei2Equipo = normalizarImei(equipo?.imei2);
-    if (imei2Equipo) keys.add(imei2Equipo);
-  });
-  if (data.equiposMap && typeof data.equiposMap === 'object' && !Array.isArray(data.equiposMap)) {
-    Object.entries(data.equiposMap).forEach(([key, equipo]) => {
-      const imei1 = normalizarImei(key);
-      const imei2 = normalizarImei(equipo?.imei2);
-      if (imei1) keys.add(imei1);
-      if (imei2) keys.add(imei2);
-    });
-  }
-  (Array.isArray(boleta.boletaEquipoKeys) ? boleta.boletaEquipoKeys : []).forEach(imei => {
-    const normalizado = normalizarImei(imei);
-    if (normalizado) keys.add(normalizado);
-  });
-  const key = normalizarImei(boleta.boletaEquipoKey);
-  if (key) keys.add(key);
-  return Array.from(keys);
-}
-
 function mergeClienteFallback(cliente, fallback = {}) {
   if (!cliente.tipoDocumento && fallback.tipoDocumento) cliente.tipoDocumento = fallback.tipoDocumento;
   if (!cliente.nombre && fallback.nombre) cliente.nombre = fallback.nombre;
@@ -133,10 +94,8 @@ function ensureCliente(mapa, dni, fallback = {}) {
       correos: uniqueClean([fallback.correo]).map(correo => correo.toLowerCase()),
       ventas: [],
       registros: [],
-      boletas: [],
       totalVentas: 0,
       totalRegistros: 0,
-      totalBoletas: 0,
       equiposMap: new Map(),
     });
   } else {
@@ -179,48 +138,6 @@ function equipoFromRegistro(registro = {}) {
   };
 }
 
-function equiposFromBoleta(boleta = {}) {
-  const data = boleta.boletaData || {};
-  const ventas = Array.isArray(data.ventas) ? data.ventas : [];
-  const equiposMap = data.equiposMap && typeof data.equiposMap === 'object' && !Array.isArray(data.equiposMap) ? data.equiposMap : {};
-  const salida = new Map();
-
-  Object.entries(equiposMap).forEach(([key, equipo]) => {
-    const imei = normalizarImei(key);
-    if (!imei) return;
-    salida.set(imei, {
-      idEquipo: imei,
-      imei2: normalizarImei(equipo?.imei2),
-      sn: equipo?.sn || '',
-      marca: equipo?.marca || '',
-      modelo: equipo?.modelo || '',
-      nombreComercial: equipo?.nombreComercial || '',
-      color: equipo?.color || '',
-      memoria: equipo?.memoria || '',
-      ram: equipo?.ram || '',
-    });
-  });
-
-  ventas.forEach(venta => {
-    const imei = normalizarImei(venta.imeiEquipo);
-    if (!imei) return;
-    const actual = salida.get(imei) || {idEquipo: imei};
-    salida.set(imei, {
-      ...actual,
-      imei2: actual.imei2 || normalizarImei(venta.imei2Equipo),
-      sn: actual.sn || venta.sn || '',
-      marca: actual.marca || venta.marcaEquipo || '',
-      modelo: actual.modelo || venta.modeloEquipo || '',
-      nombreComercial: actual.nombreComercial || venta.nombreComercial || '',
-      color: actual.color || venta.color || '',
-      memoria: actual.memoria || venta.memoria || '',
-      ram: actual.ram || venta.ram || '',
-    });
-  });
-
-  return Array.from(salida.values());
-}
-
 function docsFromSnap(snap) {
   if (!snap) return [];
   if (Array.isArray(snap.docs)) return snap.docs;
@@ -246,16 +163,8 @@ async function readCollectionDocs(collectionRef, maxDocs) {
   return readDocs(collectionRef.limit(Math.max(Number(maxDocs || 1), 1)));
 }
 
-async function readRecentDocs(collectionRef, field, maxDocs) {
-  return readDocs(collectionRef.orderBy(field, 'desc').limit(Math.max(Number(maxDocs || 1), 1)));
-}
-
 async function readByField(collectionRef, field, value, maxDocs) {
   return readDocs(collectionRef.where(field, '==', value).limit(Math.max(Number(maxDocs || 1), 1)));
-}
-
-async function readByArrayContains(collectionRef, field, value, maxDocs) {
-  return readDocs(collectionRef.where(field, 'array-contains', value).limit(Math.max(Number(maxDocs || 1), 1)));
 }
 
 async function readMovements(collectionRef, maxDocs = QUERY_PAGE_SIZE) {
@@ -278,7 +187,7 @@ async function readMovements(collectionRef, maxDocs = QUERY_PAGE_SIZE) {
 function clienteMatchesSearch(cliente, searchField, term) {
   if (!term) return true;
   const equipos = Array.isArray(cliente.equipos) ? cliente.equipos : [];
-  const movimientos = [...(cliente.ventas || []), ...(cliente.registros || []), ...(cliente.boletas || [])];
+  const movimientos = [...(cliente.ventas || []), ...(cliente.registros || [])];
   const campos = {
     dni: [cliente.dni],
     nombre: [cliente.nombre],
@@ -293,7 +202,7 @@ function clienteMatchesSearch(cliente, searchField, term) {
       cliente.celularRef,
       cliente.correo,
       ...equipos.flatMap(equipo => [equipo.idEquipo, equipo.imei2, equipo.modelo, equipo.nombreComercial, equipo.sn, equipo.marca]),
-      ...movimientos.flatMap(item => [item.nVenta, item.nRegistro, item.nBoleta, item.imeiEquipo, item.imeiRegistrado, item.imei2Equipo, item.modeloEquipo, item.nombreComercial, item.nombreComercialEquipo, item.marcaEquipo, ...(Array.isArray(item.boletaEquipoKeys) ? item.boletaEquipoKeys : [])]),
+      ...movimientos.flatMap(item => [item.nVenta, item.nRegistro, item.imeiEquipo, item.imeiRegistrado, item.imei2Equipo, item.modeloEquipo, item.nombreComercial, item.nombreComercialEquipo, item.marcaEquipo]),
     ],
   };
   const valores = searchField === 'todo' ? campos.todo : campos[searchField] || [];
@@ -305,12 +214,10 @@ function summarize(items) {
     clientes: total.clientes + 1,
     ventas: total.ventas + cliente.ventas.length,
     registros: total.registros + cliente.registros.length,
-    boletas: total.boletas + (cliente.boletas?.length || 0),
     totalVentas: total.totalVentas + cliente.totalVentas,
     totalRegistros: total.totalRegistros + cliente.totalRegistros,
-    totalBoletas: total.totalBoletas + (cliente.totalBoletas || 0),
     totalIngreso: total.totalIngreso + cliente.totalIngreso,
-  }), {clientes: 0, ventas: 0, registros: 0, boletas: 0, totalVentas: 0, totalRegistros: 0, totalBoletas: 0, totalIngreso: 0});
+  }), {clientes: 0, ventas: 0, registros: 0, totalVentas: 0, totalRegistros: 0, totalIngreso: 0});
 }
 
 async function queryOperationalClientes(db, payload) {
@@ -339,47 +246,40 @@ async function queryOperationalClientes(db, payload) {
   let equiposDocs = [];
   let ventas = [];
   let registros = [];
-  let boletasDocs = [];
 
   if (exactDniSearch) {
-    const [clienteSnap, equiposResult, ventasResult, registrosResult, boletasResult] = await Promise.all([
+    const [clienteSnap, equiposResult, ventasResult, registrosResult] = await Promise.all([
       base.collection('clientes').doc(searchTerm).get(),
       readByField(base.collection('equipos'), 'idDuenio', searchTerm, SUPPORT_COLLECTION_SCAN_LIMIT),
       readByField(base.collection('ventas'), 'dniCliente', searchTerm, activityScanLimit),
       readByField(base.collection('registros'), 'dniCliente', searchTerm, activityScanLimit),
-      readByField(base.collection('boletasExtranjeras'), 'clienteDni', searchTerm, activityScanLimit),
     ]);
     clientesDocs = docsFromSnap(clienteSnap);
     equiposDocs = equiposResult;
     ventas = sortByDateDesc(docsToItems(ventasResult));
     registros = sortByDateDesc(docsToItems(registrosResult));
-    boletasDocs = boletasResult;
   } else if (exactImeiSearch) {
-    const [equipoSnap, equiposImei2Result, ventasResult, registrosImeiResult, registrosImeiRegistradoResult, boletasResult] = await Promise.all([
+    const [equipoSnap, equiposImei2Result, ventasResult, registrosImeiResult, registrosImeiRegistradoResult] = await Promise.all([
       base.collection('equipos').doc(searchTerm).get(),
       readByField(base.collection('equipos'), 'imei2', searchTerm, SUPPORT_COLLECTION_SCAN_LIMIT),
       readByField(base.collection('ventas'), 'imeiEquipo', searchTerm, activityScanLimit),
       readByField(base.collection('registros'), 'imeiEquipo', searchTerm, activityScanLimit),
       readByField(base.collection('registros'), 'imeiRegistrado', searchTerm, activityScanLimit),
-      readByArrayContains(base.collection('boletasExtranjeras'), 'boletaEquipoKeys', searchTerm, activityScanLimit),
     ]);
     equiposDocs = uniqueDocs(docsFromSnap(equipoSnap), equiposImei2Result);
     ventas = sortByDateDesc(docsToItems(ventasResult));
     registros = sortByDateDesc(docsToItems(uniqueDocs(registrosImeiResult, registrosImeiRegistradoResult)));
-    boletasDocs = boletasResult;
   } else {
-    const [clientesResult, equiposResult, ventasResult, registrosResult, boletasResult] = await Promise.all([
+    const [clientesResult, equiposResult, ventasResult, registrosResult] = await Promise.all([
       readCollectionDocs(base.collection('clientes'), SUPPORT_COLLECTION_SCAN_LIMIT),
       readCollectionDocs(base.collection('equipos'), SUPPORT_COLLECTION_SCAN_LIMIT),
       readMovements(base.collection('ventas'), activityScanLimit),
       readMovements(base.collection('registros'), activityScanLimit),
-      readRecentDocs(base.collection('boletasExtranjeras'), 'createdAt', activityScanLimit),
     ]);
     clientesDocs = clientesResult;
     equiposDocs = equiposResult;
     ventas = ventasResult;
     registros = registrosResult;
-    boletasDocs = boletasResult;
   }
 
   const mapa = new Map();
@@ -393,10 +293,8 @@ async function queryOperationalClientes(db, payload) {
       ...data,
       ventas: [],
       registros: [],
-      boletas: [],
       totalVentas: 0,
       totalRegistros: 0,
-      totalBoletas: 0,
       equiposMap: new Map(),
     });
   });
@@ -434,39 +332,12 @@ async function queryOperationalClientes(db, payload) {
     addEquipo(cliente, equipoFromRegistro(registro));
   });
 
-  boletasDocs.forEach(doc => {
-    const raw = {id: doc.id, ...doc.data()};
-    const boletaData = raw.boletaData || {};
-    const dni = clean(raw.clienteDni || boletaData.cliente?.dni);
-    const cliente = ensureCliente(mapa, dni, {
-      tipoDocumento: boletaData.cliente?.tipoDocumento || 'DNI',
-      nombre: raw.clienteNombre || boletaData.cliente?.nombre || '',
-    });
-    if (!cliente) return;
-
-    const boleta = {
-      ...raw,
-      boletaData,
-      clienteDni: dni,
-      clienteNombre: raw.clienteNombre || boletaData.cliente?.nombre || cliente.nombre || '',
-      fecha: raw.fechaHora || boletaData.fechaHora || isoFromDate(raw.updatedAt || raw.createdAt),
-      boletaEquipoKeys: obtenerImeisBoleta(raw),
-    };
-    cliente.boletas.push(boleta);
-    cliente.totalBoletas += money(raw.totalPen);
-    equiposFromBoleta(boleta).forEach(equipo => addEquipo(cliente, {
-      ...equipo,
-      boletaExtranjera: {id: boleta.id, nBoleta: boleta.nBoleta || '', formato: boleta.formato || '', fecha: boleta.fecha},
-    }));
-  });
-
   const clientesOperativos = Array.from(mapa.values()).map(cliente => {
     const ventasOrdenadas = sortByDateDesc(cliente.ventas);
     const registrosOrdenados = sortByDateDesc(cliente.registros);
-    const boletasOrdenadas = sortByDateDesc(cliente.boletas || []);
     const equipos = Array.from(cliente.equiposMap.values());
-    const actividad = ventasOrdenadas.length + registrosOrdenados.length + boletasOrdenadas.length;
-    const ultimoMovimiento = [...ventasOrdenadas, ...registrosOrdenados, ...boletasOrdenadas]
+    const actividad = ventasOrdenadas.length + registrosOrdenados.length;
+    const ultimoMovimiento = [...ventasOrdenadas, ...registrosOrdenados]
       .map(item => item.fecha)
       .filter(Boolean)
       .sort((a, b) => movementDate(b) - movementDate(a))[0] || '';
@@ -476,10 +347,8 @@ async function queryOperationalClientes(db, payload) {
       ...clienteData,
       ventas: ventasOrdenadas,
       registros: registrosOrdenados,
-      boletas: boletasOrdenadas,
       totalVentas: cliente.totalVentas,
       totalRegistros: cliente.totalRegistros,
-      totalBoletas: cliente.totalBoletas || 0,
       totalIngreso,
       equipos,
       actividad,

@@ -6,7 +6,7 @@ import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumen
 import { EscanerIA } from '../registros/EscanerIA.jsx';
 import { penToClp, formatClp } from '../../utils/currency.js';
 import {getBoletaExtranjeraEmisor} from '../../config/boletaExtranjera.js';
-import {buscarBoletaPorVenta, crearBoletaDataDesdeVentas, fechaBoletaDesdeVentas, formatearChipBoleta} from '../boletas/boletaHelpers.js';
+import {crearBoletaDataDesdeVentas, fechaBoletaDesdeVentas} from '../boletas/boletaHelpers.js';
 import { generarBoletaExtranjera, generarBoletaExtranjera2, generarBoletaExtranjera3 } from '../boletas/boletaPdf.js';
 import { generarTicketVentaPDF } from './ventaPdf.js';
 
@@ -25,7 +25,7 @@ const createAccessoryItem = () => ({
   precio: '',
 });
 
-export function VentaForm({ clientes, equipos, boletasExtranjeras = [], boletaEmisoresConfig, logoVentas, initialData, onCancel, onSave, onDirty, showToast }) {
+export function VentaForm({ clientes, equipos, boletaEmisoresConfig, logoVentas, initialData, onCancel, onSave, onDirty, showToast }) {
   const [loading, setLoading] = useState(false);
 
   const toLocalDatetimeValue = (isoString) => {
@@ -318,12 +318,6 @@ export function VentaForm({ clientes, equipos, boletasExtranjeras = [], boletaEm
 
   const abrirBoletaDesdeVenta = () => {
     if (!cierreVenta?.venta) return;
-    const existente = buscarBoletaPorVenta(boletasExtranjeras, cierreVenta.venta, cierreVenta.equipo);
-    if (existente) {
-      showToast(`${formatearChipBoleta(existente)} ya fue generada para este equipo`, 'error');
-      return;
-    }
-
     const totalClp = penToClp(cierreVenta.venta.precio || 0);
     const boletaData = crearBoletaDataDesdeVentas({
       cliente: cierreVenta.cliente,
