@@ -25,11 +25,6 @@
   status = 200
 
 [[redirects]]
-  from = "/api/boletasExtranjeras"
-  to = "/.netlify/functions/boletasExtranjeras"
-  status = 200
-
-[[redirects]]
   from = "/api/clientes"
   to = "/.netlify/functions/clientes"
   status = 200
@@ -37,11 +32,6 @@
 [[redirects]]
   from = "/api/legalConsent"
   to = "/.netlify/functions/legalConsent"
-  status = 200
-
-[[redirects]]
-  from = "/api/publicBoleta"
-  to = "/.netlify/functions/publicBoleta"
   status = 200
 
 [[redirects]]
@@ -53,6 +43,18 @@
   from = "/api/ventas"
   to = "/.netlify/functions/ventas"
   status = 200
+
+[[redirects]]
+  from = "/boleta"
+  to = "https://comunicate-boletas-extranjeras.netlify.app/boleta"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/boleta-publica"
+  to = "https://comunicate-boletas-extranjeras.netlify.app/boleta"
+  status = 302
+  force = true
 
 [[redirects]]
   from = "/*"

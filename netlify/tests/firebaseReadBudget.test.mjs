@@ -185,11 +185,26 @@ test('client Firestore subscriptions and history searches keep explicit caps', a
   const clientesFunction = await readFile(new URL('../functions/clientes.mjs', import.meta.url), 'utf8');
 
   assert.match(app, /const MAX_HISTORY_SEARCH_DOCS = 600;/);
-  assert.match(app, /const BOLETAS_EXTRANJERAS_PAGE_SIZE = 200;/);
-  assert.match(app, /limit\(BOLETAS_EXTRANJERAS_PAGE_SIZE\)/);
   assert.match(app, /while \(revisados < MAX_HISTORY_SEARCH_DOCS\)/);
-  assert.doesNotMatch(app, /boletasExtranjeras'\), orderBy\('createdAt', 'desc'\)\)/);
+  assert.doesNotMatch(app, /boletasExtranjeras|boleta_extranjera|BoletaExtranjera/);
   assert.match(ventasList, /term\.length < 3/);
   assert.match(registrosList, /term\.length < 3/);
   assert.match(clientesFunction, /rateLimit: \{name: 'clientes', max: 30/);
+});
+
+test('main app has no foreign receipt runtime access', async () => {
+  const [app, ventaForm, settings, functionsClient, netlifyConfig, rules] = await Promise.all([
+    readFile(new URL('../../src/app/App.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/ventas/VentaForm.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/settings/ConfiguracionLogo.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/services/functionsClient.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../netlify.toml', import.meta.url), 'utf8'),
+    readFile(new URL('../../firestore.rules', import.meta.url), 'utf8'),
+  ]);
+
+  const runtimeSource = [app, ventaForm, settings, functionsClient].join('\n');
+  assert.doesNotMatch(runtimeSource, /boletasExtranjeras|boleta_extranjera|guardarBoletaExtranjera|publicBoleta/i);
+  assert.doesNotMatch(netlifyConfig, /api\/boletasExtranjeras|api\/publicBoleta/);
+  assert.match(netlifyConfig, /from = "\/boleta"[\s\S]*comunicate-boletas-extranjeras\.netlify\.app\/boleta/);
+  assert.match(rules, /match \/artifacts\/\{appId\}\/users\/\{scope\}\/boletasExtranjeras\/\{boletaId\} \{\s*allow read, write: if false;/);
 });

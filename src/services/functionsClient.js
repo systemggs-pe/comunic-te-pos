@@ -195,10 +195,6 @@ export function eliminarDniFotoHistorial(id) {
   return llamarFuncionSegura('dniFotos', {action: 'delete', id});
 }
 
-export function guardarBoletaExtranjera(payload) {
-  return llamarFuncionSegura('boletasExtranjeras', payload);
-}
-
 export function crearRegistro(payload) {
   return llamarFuncionSegura('registros', {action: 'create', ...payload});
 }

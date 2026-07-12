@@ -296,15 +296,11 @@ service cloud.firestore {
     }
 
     match /artifacts/{appId}/users/{scope}/configuracion/contadorBoletas {
-      allow read: if canUseSharedData(appId, scope);
-      allow create, update: if canUseSharedData(appId, scope) && validContadorBoletas();
-      allow delete: if false;
+      allow read, write: if false;
     }
 
     match /artifacts/{appId}/users/{scope}/configuracion/boletaExtranjeraEmisores {
-      allow read: if canUseSharedData(appId, scope);
-      allow create, update: if canUseSharedData(appId, scope) && validBoletaExtranjeraEmisores();
-      allow delete: if false;
+      allow read, write: if false;
     }
 
     match /artifacts/{appId}/users/{scope}/problemasApp/{problemaId} {
@@ -320,9 +316,7 @@ service cloud.firestore {
     }
 
     match /artifacts/{appId}/users/{scope}/boletasExtranjeras/{boletaId} {
-      allow read: if canUseSharedData(appId, scope);
-      allow create: if canUseSharedData(appId, scope) && validBoletaExtranjera();
-      allow update, delete: if false;
+      allow read, write: if false;
     }
 
     match /{document=**} {

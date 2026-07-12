@@ -1,10 +1,9 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
-import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, AlertTriangle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, AlertTriangle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, Share2, Settings, ImagePlus } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, orderBy, limit, startAfter, getDocs, getCountFromServer } from 'firebase/firestore';
 import { EMAILS_PERMITIDOS } from '../config/auth.js';
 import { PRODUCT_BRAND, SOFTWARE_BRAND } from '../config/branding.js';
-import {mergeBoletaExtranjeraEmisores} from '../config/boletaExtranjera.js';
 import { auth, db, appId } from '../lib/firebase.js';
 import { LoginScreen } from '../features/auth/LoginScreen.jsx';
 import { TopNavItem } from '../components/navigation/TopNavItem.jsx';
@@ -27,8 +26,6 @@ const VentasList = lazyNamed(() => import('../features/ventas/VentasList.jsx'), 
 const VentaForm = lazyNamed(() => import('../features/ventas/VentaForm.jsx'), 'VentaForm');
 const ClientesList = lazyNamed(() => import('../features/clientes/ClientesList.jsx'), 'ClientesList');
 const DniFotosPage = lazyNamed(() => import('../features/dniFotos/DniFotosPage.jsx'), 'DniFotosPage');
-const BoletaExtranjera = lazyNamed(() => import('../features/boletas/BoletaExtranjera.jsx'), 'BoletaExtranjera');
-const BoletaPublicaPage = lazyNamed(() => import('../features/boletas/BoletaPublicaPage.jsx'), 'BoletaPublicaPage');
 const ProblemasApp = lazyNamed(() => import('../features/problemas/ProblemasApp.jsx'), 'ProblemasApp');
 
 const INTRO_LOGIN_KEY = 'ggs_intro_after_login_uid';
@@ -37,7 +34,6 @@ const INTRO_REPEAT_AFTER_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 40;
 const SEARCH_PAGE_SIZE = 300;
 const MAX_HISTORY_SEARCH_DOCS = 600;
-const BOLETAS_EXTRANJERAS_PAGE_SIZE = 200;
 
 function sortByDateDesc(items) {
   return [...items].sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
@@ -75,11 +71,6 @@ function applySnapshotChanges(realtimeMap, changes) {
 }
 
 function App() {
-  const publicBoletaRoute = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    const path = window.location.pathname.replace(/\/+$/, '') || '/';
-    return path === '/boleta' || path === '/boleta-publica';
-  }, []);
   const legalSlug = useMemo(() => {
     if (typeof window === 'undefined') return null;
     return isLegalPath(window.location.pathname) ? slugFromPath(window.location.pathname) : null;
@@ -92,7 +83,6 @@ function App() {
   const [busquedaGlobal, setBusquedaGlobal] = useState('');
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [logoVentas, setLogoVentas] = useState(null);
-  const [boletaEmisoresConfig, setBoletaEmisoresConfig] = useState(() => mergeBoletaExtranjeraEmisores());
   const [showIntro, setShowIntro] = useState(false);
   const [pendingView, setPendingView] = useState(null);
 
@@ -100,8 +90,6 @@ function App() {
   const [equipos, setEquipos]   = useState([]);
   const [registros, setRegistros] = useState([]);
   const [ventas, setVentas]       = useState([]);
-  const [boletasExtranjeras, setBoletasExtranjeras] = useState([]);
-  const [cargandoBoletasExtranjeras, setCargandoBoletasExtranjeras] = useState(true);
   const [cargandoRegistros, setCargandoRegistros] = useState(true);
   const [cargandoVentas, setCargandoVentas]       = useState(true);
   const [cargandoMasRegistros, setCargandoMasRegistros] = useState(false);
@@ -121,7 +109,6 @@ function App() {
   const ventasCacheRef = React.useRef(new Map());
   const searchCacheRef = React.useRef({registros: new Map(), ventas: new Map()});
   const searchRequestRef = React.useRef({registros: 0, ventas: 0});
-  const unsubBoletasRef = React.useRef(null);
 
   const rebuildRegistrosState = React.useCallback(() => {
     setRegistros(mergeRealtimeWithCache(registrosRealtimeRef.current, registrosCacheRef.current));
@@ -222,10 +209,6 @@ function App() {
     () => collection(db, 'artifacts', appId, 'users', 'shared', 'ventas'),
     []
   );
-  const boletasExtranjerasRef = useMemo(
-    () => collection(db, 'artifacts', appId, 'users', 'shared', 'boletasExtranjeras'),
-    []
-  );
 
   const refrescarTotales = React.useCallback(async () => {
     if (!auth.currentUser) return;
@@ -268,15 +251,7 @@ function App() {
       (err) => clientLogger.error('app.logo.snapshot_error', err, {collection: 'configuracion/logoVentas'})
     );
 
-    const unsubBoletaEmisores = onSnapshot(
-      doc(db, 'artifacts', appId, 'users', 'shared', 'configuracion', 'boletaExtranjeraEmisores'),
-      (snap) => {
-        setBoletaEmisoresConfig(mergeBoletaExtranjeraEmisores(snap.exists() ? snap.data() : {}));
-      },
-      (err) => clientLogger.error('app.boleta_emisores.snapshot_error', err, {collection: 'configuracion/boletaExtranjeraEmisores'})
-    );
-
-    return () => { unsubClientes(); unsubEquipos(); unsubLogo(); unsubBoletaEmisores(); };
+    return () => { unsubClientes(); unsubEquipos(); unsubLogo(); };
   }, [user]);
 
   useEffect(() => {
@@ -285,34 +260,9 @@ function App() {
     refrescarTotales();
   }, [user, refrescarTotales]);
 
-  useEffect(() => {
-    const necesitaBoletas = currentView === 'boleta_extranjera';
-    if (!user || !necesitaBoletas) {
-      if (unsubBoletasRef.current) {
-        unsubBoletasRef.current();
-        unsubBoletasRef.current = null;
-      }
-      return;
-    }
-    if (unsubBoletasRef.current) return;
-
-    setCargandoBoletasExtranjeras(true);
-    unsubBoletasRef.current = onSnapshot(
-      query(boletasExtranjerasRef, orderBy('createdAt', 'desc'), limit(BOLETAS_EXTRANJERAS_PAGE_SIZE)),
-      (snap) => {
-        setBoletasExtranjeras(snap.docs.map(documento => ({id: documento.id, ...documento.data()})));
-        setCargandoBoletasExtranjeras(false);
-      },
-      (err) => {
-        clientLogger.error('app.boletas_extranjeras.snapshot_error', err, {collection: 'boletasExtranjeras'});
-        setCargandoBoletasExtranjeras(false);
-      }
-    );
-  }, [user, currentView, boletasExtranjerasRef]);
-
   // Suscribir/desuscribir registros según la vista
   useEffect(() => {
-    const necesitaRegistros = currentView.startsWith('registros') || currentView === 'boleta_extranjera';
+    const necesitaRegistros = currentView.startsWith('registros');
     if (!user || !necesitaRegistros) return;
     if (unsubRegistrosRef.current) return; // ya suscrito
 
@@ -341,7 +291,7 @@ function App() {
 
   // Suscribir/desuscribir ventas según la vista
   useEffect(() => {
-    const necesitaVentas = currentView.startsWith('ventas') || currentView === 'boleta_extranjera';
+    const necesitaVentas = currentView.startsWith('ventas');
     if (!user || !necesitaVentas) return;
     if (unsubVentasRef.current) return; // ya suscrito
 
@@ -547,7 +497,6 @@ function App() {
     if (!user) {
       if (unsubRegistrosRef.current) { unsubRegistrosRef.current(); unsubRegistrosRef.current = null; }
       if (unsubVentasRef.current)    { unsubVentasRef.current();    unsubVentasRef.current    = null; }
-      if (unsubBoletasRef.current)   { unsubBoletasRef.current();   unsubBoletasRef.current   = null; }
       lastRegistroDocRef.current = null;
       lastVentaDocRef.current = null;
       registrosRealtimeRef.current.clear();
@@ -557,7 +506,7 @@ function App() {
       searchCacheRef.current.registros.clear();
       searchCacheRef.current.ventas.clear();
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setRegistros([]); setVentas([]); setClientes([]); setEquipos([]); setBoletasExtranjeras([]);
+      setRegistros([]); setVentas([]); setClientes([]); setEquipos([]);
       setBuscandoHistorial({registros: false, ventas: false});
       setHayMasRegistros(false); setHayMasVentas(false); setTotales({registros: 0, ventas: 0});
     }
@@ -656,17 +605,6 @@ function App() {
 
   const buscandoBusquedaGlobal = buscandoHistorial.registros || buscandoHistorial.ventas;
 
-  if (publicBoletaRoute) {
-    return (
-      <>
-        <Suspense fallback={<div className="min-h-screen bg-[var(--ggs-bg)] p-6 text-sm font-semibold text-slate-600">Cargando consulta...</div>}>
-          <BoletaPublicaPage />
-        </Suspense>
-        <CookieConsentBanner />
-      </>
-    );
-  }
-
   if (legalSlug) {
     return (
       <>
@@ -727,7 +665,6 @@ function App() {
           <TopNavItem Icon={ShoppingCart}  label="Ventas"            active={currentView.startsWith('ventas')}    onClick={() => navegarA('ventas_list')} tone="emerald" />
           <TopNavItem Icon={Users}         label="Clientes"          active={currentView === 'clientes_list'}     onClick={() => navegarA('clientes_list')} />
           <TopNavItem Icon={ImagePlus}     label="Foto DNI"          active={currentView === 'foto_dni'}          onClick={() => navegarA('foto_dni')} />
-          <TopNavItem Icon={FileText}      label="Boleta Extranjera" active={currentView === 'boleta_extranjera'} onClick={() => navegarA('boleta_extranjera')} />
           <TopNavItem iconOnly Icon={AlertTriangle} label="Problemas" active={currentView === 'problemas_app'} onClick={() => navegarA('problemas_app')} tone="amber" className="ml-auto" />
           <TopNavItem iconOnly Icon={Settings} label="Configuracion" active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} />
         </nav>
@@ -806,7 +743,6 @@ function App() {
         <MobileNavIcon showLabel Icon={ShoppingCart}  active={currentView.startsWith('ventas')}       onClick={() => navegarA('ventas_list')}              title="Ventas" tone="emerald" />
         <MobileNavIcon showLabel Icon={Users}         active={currentView === 'clientes_list'}        onClick={() => navegarA('clientes_list')}            title="Clientes" />
         <MobileNavIcon showLabel Icon={ImagePlus}     active={currentView === 'foto_dni'}             onClick={() => navegarA('foto_dni')}                 title="Foto DNI" />
-        <MobileNavIcon showLabel Icon={FileText}      active={currentView === 'boleta_extranjera'}    onClick={() => navegarA('boleta_extranjera')}        title="Boleta" />
       </nav>
 
       {/* Buscador móvil desplegable */}
@@ -849,28 +785,21 @@ function App() {
           {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={currentView === 'registros_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('registros_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('registros_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
           {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} onSearchAll={buscarVentasEnHistorial} searchingAll={buscandoHistorial.ventas} />}
-          {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} boletaEmisoresConfig={boletaEmisoresConfig} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
+          {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
           {currentView === 'clientes_list' && <ClientesList showToast={showToast} />}
 
           {currentView === 'foto_dni' && <DniFotosPage showToast={showToast} />}
-
-          {currentView === 'boleta_extranjera' && <BoletaExtranjera clientes={clientes} equipos={equipos} ventas={ventas} boletasExtranjeras={boletasExtranjeras} cargandoBoletasExtranjeras={cargandoBoletasExtranjeras} boletaEmisoresConfig={boletaEmisoresConfig} showToast={showToast} onSearchVentas={buscarVentasEnHistorial} searchingVentas={buscandoHistorial.ventas} />}
 
           {currentView === 'problemas_app' && <ProblemasApp user={user} showToast={showToast} />}
 
           {currentView === 'configuracion' && (
             <ConfiguracionLogo
               logoVentas={logoVentas}
-              boletaEmisoresConfig={boletaEmisoresConfig}
               onLogoChange={async (dataUrl) => {
                 const logoRef = doc(db, 'artifacts', appId, 'users', 'shared', 'configuracion', 'logoVentas');
                 if (dataUrl) await setDoc(logoRef, { dataUrl });
                 else await deleteDoc(logoRef);
-              }}
-              onBoletaEmisoresChange={async (config) => {
-                const emisoresRef = doc(db, 'artifacts', appId, 'users', 'shared', 'configuracion', 'boletaExtranjeraEmisores');
-                await setDoc(emisoresRef, mergeBoletaExtranjeraEmisores(config), {merge: true});
               }}
               showToast={showToast}
             />
