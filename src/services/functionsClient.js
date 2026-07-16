@@ -123,6 +123,7 @@ const FIELD_LABELS = {
   'registro.nombreComercialEquipo': 'Nombre comercial',
   'registro.operador': 'Operador',
   'registro.precio': 'Precio',
+  'registro.tieneCaja': 'Tiene caja',
   'registro.tipo': 'Tipo',
   'venta.precio': 'Precio',
   'venta.precioEquipo': 'Precio del equipo',

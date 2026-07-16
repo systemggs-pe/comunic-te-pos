@@ -123,6 +123,7 @@ const registroSchema = z.object({
   estado: z.enum(['NO BLOQUEADO', 'BLOQUEADO'], {message: 'ESTADO_INVALIDO'}),
   operador: z.enum(['CLARO', 'MOVISTAR', 'ENTEL', 'BITEL'], {message: 'OPERADOR_INVALIDO'}),
   tipo: z.enum(['TIENDA', 'EXTERNO', 'PASE'], {message: 'TIPO_INVALIDO'}),
+  tieneCaja: z.boolean({message: 'TIENE_CAJA_INVALIDO'}),
   precio: moneySchema,
   fecha: dateSchema,
   pdfDniUrl: optionalText(1200),

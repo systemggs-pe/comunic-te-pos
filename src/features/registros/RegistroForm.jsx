@@ -14,6 +14,16 @@ const MONEY_RE = /^\d+(\.\d{1,2})?$/;
 const PHONE_RE = /^9\d{8}$/;
 const clean = value => String(value || '').trim();
 const SCAN_LOADING_INPUT_CLASS = 'bg-blue-50/70 placeholder:text-blue-700 placeholder:font-semibold';
+const REGISTRO_MARCAS = ['APPLE', 'SAMSUNG', 'HONOR', 'XIAOMI', 'OPPO', 'VIVO', 'TECNO', 'INFINIX', 'ZTE', 'MOTOROLA', 'PIXEL', 'HTC'];
+const normalizarMarcaRegistro = value => {
+  const marca = clean(value).toUpperCase();
+  return REGISTRO_MARCAS.includes(marca) ? marca : '';
+};
+const normalizarTieneCaja = value => {
+  if (value === true || value === 'SI') return 'SI';
+  if (value === false || value === 'NO') return 'NO';
+  return '';
+};
 const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
 const opcionesContacto = (cliente, campoPrincipal, campoLista) => uniqueClean([
   cliente?.[campoPrincipal],
@@ -52,7 +62,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const [formData, setFormData] = useState({
-    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', departamento: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', ram: '', memoria: '', color: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
+    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', departamento: '', imei: '', imei2: '', marca: '', modelo: '', nombreComercial: '', estado: 'NO BLOQUEADO', operador: 'BITEL', tipo: 'TIENDA', tieneCaja: '', precio: '', fecha: toLocalDatetimeValue(new Date().toISOString())
   });
   const [confirmarGuardado, setConfirmarGuardado] = useState(false);
   const [evidencias, setEvidencias] = useState(() => emptyRegistroEvidencias());
@@ -66,7 +76,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       const eq = equipos.find(e => e.idEquipo === initialData.imeiEquipo) || {};
       const direccionCliente = separarDireccionDepartamento(cliente.direccion || '');
       setFormData({
-        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: direccionCliente.direccion, departamento: direccionCliente.departamento, imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', sn: eq.sn || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', ram: eq.ram || '', memoria: eq.memoria || '', color: eq.color || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
+        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', celularRef: cliente.celularRef || cliente.celular || '', correo: cliente.correo || '', direccion: direccionCliente.direccion, departamento: direccionCliente.departamento, imei: initialData.imeiEquipo || '', imei2: eq.imei2 || '', marca: normalizarMarcaRegistro(initialData.marcaEquipo), modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', estado: initialData.estado || 'NO BLOQUEADO', operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', tieneCaja: normalizarTieneCaja(initialData.tieneCaja), precio: initialData.precio || '', fecha: toLocalDatetimeValue(initialData.fecha)
       });
       setShowManualEqForm(true);
     }
@@ -124,17 +134,13 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         ...prev,
         imei:            datos.imei1           || prev.imei,
         imei2:           datos.imei2           || prev.imei2,
-        sn:              datos.sn              || prev.sn,
-        marca:           datos.marca           || prev.marca,
+        marca:           normalizarMarcaRegistro(datos.marca) || prev.marca,
         modelo:          datos.modelo          || prev.modelo,
         nombreComercial: datos.nombreComercial || prev.nombreComercial,
-        ram:             datos.ram             || prev.ram,
-        memoria:         datos.memoria         || prev.memoria,
-        color:           datos.color           || prev.color,
       };
       return next;
     });
-    const campos = [datos.imei1, datos.marca, datos.nombreComercial, datos.ram, datos.memoria, datos.color].filter(Boolean).join(' · ');
+    const campos = [datos.imei1, datos.marca, datos.nombreComercial].filter(Boolean).join(' · ');
     showToast(campos ? `✓ ${campos}` : 'Sin datos — rellena manualmente', campos ? 'success' : 'error');
   };
 
@@ -209,13 +215,9 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         setFormData(prev => ({
           ...prev,
           imei2:           prev.imei2 || (formData.imei === eq.idEquipo ? (eq.imei2 || '') : eq.idEquipo),
-          marca:           prev.marca           || eq.marca           || '',
+          marca:           prev.marca           || normalizarMarcaRegistro(eq.marca),
           modelo:          prev.modelo          || eq.modelo          || '',
           nombreComercial: prev.nombreComercial || eq.nombreComercial || '',
-          sn:              prev.sn              || eq.sn              || '',
-          ram:             prev.ram             || eq.ram             || '',
-          memoria:         prev.memoria         || eq.memoria         || '',
-          color:           prev.color           || eq.color           || '',
         }));
       }
     }
@@ -233,18 +235,15 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       ...prev,
       imei: selectedImei,          // el IMEI exacto que eligió registrar
       imei2: selectedImei === eq.idEquipo ? (eq.imei2 || '') : (eq.idEquipo || ''),
-      sn: eq.sn || '', marca: eq.marca || '', modelo: eq.modelo || '',
+      marca: normalizarMarcaRegistro(eq.marca), modelo: eq.modelo || '',
       nombreComercial: eq.nombreComercial || '',
-      ram: eq.ram || '',
-      memoria: eq.memoria || '',
-      color: eq.color || '',
     }));
     setImeiSeleccionado(null);
     setShowManualEqForm(true);
   };
 
   const CAMPOS_SOLO_NUMEROS = ['dni', 'celular', 'celularRef', 'imei', 'imei2'];
-  const CAMPOS_MAYUSCULAS   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'sn', 'color', 'operador', 'estado', 'tipo', 'departamento'];
+  const CAMPOS_MAYUSCULAS   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'operador', 'estado', 'tipo', 'departamento'];
   const CAMPOS_CORREO       = ['correo'];
 
   const handleChange = (e) => {
@@ -267,6 +266,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     if (name === 'precio') {
       val = val.replace(',', '.');
       if (val && !/^\d*\.?\d{0,2}$/.test(val)) return;
+    }
+    if (name === 'tieneCaja' && val === 'NO') {
+      setEvidencias(prev => ({...prev, cajaEquipo: null}));
+      if (recorteEvidencia?.key === 'cajaEquipo') setRecorteEvidencia(null);
     }
     onDirty?.();
     setFormData(prev => {
@@ -307,11 +310,17 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     if (clean(formData.imei2) && !luhn(clean(formData.imei2))) {
       showToast('El IMEI 2 no es valido; verifica los digitos', 'error'); return false;
     }
-    if (!clean(formData.marca) || !clean(formData.modelo)) {
-      showToast('Completa marca y modelo', 'error'); return false;
+    if (!REGISTRO_MARCAS.includes(formData.marca)) {
+      showToast('Selecciona una marca de la lista', 'error'); return false;
+    }
+    if (!clean(formData.modelo)) {
+      showToast('Completa el modelo', 'error'); return false;
     }
     if (!clean(formData.nombreComercial)) {
       showToast('El nombre comercial es obligatorio', 'error'); return false;
+    }
+    if (!normalizarTieneCaja(formData.tieneCaja)) {
+      showToast('Indica si el cliente tiene la caja del equipo', 'error'); return false;
     }
     if (!initialData && imeiYaRegistrado(formData.imei)) {
       showToast(`El IMEI ${formData.imei} ya tiene un registro activo`, 'error'); return false;
@@ -380,6 +389,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
   const handleEvidenciaChange = async (key, file) => {
     if (!file) return;
+    if (key === 'cajaEquipo' && formData.tieneCaja !== 'SI') return;
     setEvidenciasProcesando(prev => ({...prev, [key]: true}));
     try {
       const imagen = await leerRegistroEvidenciaFile(file);
@@ -434,9 +444,12 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         modeloEquipo: formData.modelo, marcaEquipo: formData.marca,
         nombreComercialEquipo: formData.nombreComercial,
         estado: formData.estado, operador: formData.operador,
-        tipo: formData.tipo, precio: formData.precio,
+        tipo: formData.tipo, tieneCaja: formData.tieneCaja === 'SI', precio: formData.precio,
         fecha: new Date(formData.fecha).toISOString(),
       };
+      const evidenciasParaPdf = formData.tieneCaja === 'SI'
+        ? evidencias
+        : {...evidencias, cajaEquipo: null};
 
       const clienteData = {
         dni: formData.dni,
@@ -451,13 +464,9 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         idEquipo: imei1Real,
         idDuenio: formData.dni,
         imei2: imei2Real,
-        sn: formData.sn,
         marca: formData.marca,
         modelo: formData.modelo,
         nombreComercial: formData.nombreComercial,
-        ram: formData.ram,
-        memoria: formData.memoria,
-        color: formData.color,
         isRegistrado: true,
         imei1Registrado: formData.imei === imei1Real ? true : (eqExistente.imei1Registrado || false),
         imei2Registrado: formData.imei === imei2Real ? true : (eqExistente.imei2Registrado || false),
@@ -477,7 +486,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           correoCliente: clienteData.correo,
           celularCliente: clienteData.celular,
           celularRef: clienteData.celularRef,
-        }, evidencias);
+        }, evidenciasParaPdf);
         showToast('Actualizado exitosamente');
       } else {
         const saved = await crearRegistro({
@@ -492,7 +501,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           correoCliente: clienteData.correo,
           celularCliente: clienteData.celular,
           celularRef: clienteData.celularRef,
-        }, evidencias);
+        }, evidenciasParaPdf);
         showToast('Guardado exitosamente');
       }
       (onSave || onCancel)();
@@ -744,14 +753,13 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                         <div className="space-y-0.5 mt-1">
                           <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono">IMEI 1: {eq.idEquipo}{imeisRegistrados.has(eq.idEquipo) && <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">reg</span>}</div>
                           {eq.imei2 && <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono">IMEI 2: {eq.imei2}{imeisRegistrados.has(eq.imei2) && <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">reg</span>}</div>}
-                          {eq.sn && <div className="text-xs text-gray-500 font-mono">S/N: {eq.sn}</div>}
                         </div>
                       </button>
                     ))}
                   </div>
                 )}
                 <div className="mt-3 pt-3 border-t border-blue-200 text-right">
-                  <button type="button" onClick={() => {setShowManualEqForm(true); setFormData(prev => ({...prev, imei:'', imei2:'', marca:'', modelo:'', nombreComercial:'', ram:'', memoria:'', color:''}))}} className="text-sm text-blue-700 hover:underline">+ Agregar equipo nuevo</button>
+                  <button type="button" onClick={() => {setShowManualEqForm(true); setFormData(prev => ({...prev, imei:'', imei2:'', marca:'', modelo:'', nombreComercial:''}))}} className="text-sm text-blue-700 hover:underline">+ Agregar equipo nuevo</button>
                 </div>
               </div>
             )}
@@ -775,13 +783,21 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   </p>
                 )}
               </div>
-                <div><label className="block text-xs text-gray-500 mb-1">N° de Serie (S/N)</label><input name="sn" value={formData.sn} onChange={handleChange} className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('sn')}`} placeholder={placeholderEscaneo('sn')} /></div>
                 <div><label className="block text-xs text-gray-500 mb-1">Nombre Comercial *</label><input name="nombreComercial" value={formData.nombreComercial} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('nombreComercial')}`} placeholder={placeholderEscaneo('nombreComercial', 'Ej: GALAXY A56')} /></div>
-                <div><label className="block text-xs text-gray-500 mb-1">Marca *</label><input name="marca" value={formData.marca} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('marca')}`} placeholder={placeholderEscaneo('marca')} /></div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Marca *</label>
+                  <select
+                    name="marca"
+                    value={formData.marca}
+                    onChange={handleChange}
+                    className={`w-full border rounded bg-white p-2 text-sm ${claseEscaneo('marca')}`}
+                    required
+                  >
+                    <option value="">{escaneoProcesando ? 'Extrayendo...' : 'Selecciona una marca'}</option>
+                    {REGISTRO_MARCAS.map(marca => <option key={marca} value={marca}>{marca}</option>)}
+                  </select>
+                </div>
                 <div><label className="block text-xs text-gray-500 mb-1">Modelo *</label><input name="modelo" value={formData.modelo} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('modelo')}`} placeholder={placeholderEscaneo('modelo')} /></div>
-                <div><label className="block text-xs text-gray-500 mb-1">RAM (GB)</label><input name="ram" value={formData.ram} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('ram')}`} placeholder={placeholderEscaneo('ram', 'ej: 8')} /></div>
-                <div><label className="block text-xs text-gray-500 mb-1">Memoria (GB)</label><input name="memoria" value={formData.memoria} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('memoria')}`} placeholder={placeholderEscaneo('memoria', 'ej: 256')} /></div>
-                <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Color</label><input name="color" value={formData.color} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('color')}`} placeholder={placeholderEscaneo('color')} /></div>
               </div>
             )}
 
@@ -835,6 +851,34 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   <p className="text-xs text-red-500 mt-1">⚠ El precio mínimo para BLOQUEADO es S/. 50.00</p>
                 )}
               </div>
+              <fieldset className="sm:col-span-2" aria-describedby="tiene-caja-ayuda">
+                <legend className="mb-2 block text-xs text-gray-500">¿Tiene caja? *</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {['SI', 'NO'].map(opcion => {
+                    const seleccionada = formData.tieneCaja === opcion;
+                    return (
+                      <label
+                        key={opcion}
+                        className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold transition-colors focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 ${seleccionada ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        <input
+                          type="radio"
+                          name="tieneCaja"
+                          value={opcion}
+                          checked={seleccionada}
+                          onChange={handleChange}
+                          className="sr-only"
+                          required
+                        />
+                        {opcion === 'SI' ? 'Sí' : 'No'}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p id="tiene-caja-ayuda" className="mt-1.5 text-xs text-slate-500">
+                  Si seleccionas No, la foto de la caja se deshabilitará.
+                </p>
+              </fieldset>
               <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Fecha y hora *</label>
                 <input required type="datetime-local" name="fecha" value={formData.fecha} onChange={handleChange} className="w-full border rounded p-2 text-sm" />
               </div>
@@ -855,7 +899,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             <div>
               <h4 className="saas-form-section-title">Evidencias fotograficas</h4>
               <p className="mt-1 text-xs font-medium text-slate-500">
-                Sube las fotos obligatorias. La caja del equipo es opcional.
+                Sube las fotos obligatorias. La foto de la caja es opcional cuando el cliente sí tiene caja.
               </p>
             </div>
 
@@ -865,16 +909,21 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {REGISTRO_EVIDENCIA_FIELDS.map(field => {
-                const evidencia = evidencias[field.key];
-                const procesando = evidenciasProcesando[field.key];
+                const cajaDeshabilitada = field.key === 'cajaEquipo' && formData.tieneCaja === 'NO';
+                const evidencia = cajaDeshabilitada ? null : evidencias[field.key];
+                const procesando = !cajaDeshabilitada && evidenciasProcesando[field.key];
                 return (
-                  <div key={field.key} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div key={field.key} className={`rounded-lg border p-3 ${cajaDeshabilitada ? 'border-slate-200 bg-slate-100/70' : 'border-slate-200 bg-white'}`}>
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{field.label}{field.required === false ? '' : ' *'}</p>
-                        <p className="text-xs text-slate-500">{field.hint}</p>
+                        <p className="text-xs text-slate-500">{cajaDeshabilitada ? 'Deshabilitada porque el cliente no tiene caja' : field.hint}</p>
                       </div>
-                      {evidencia && (
+                      {cajaDeshabilitada ? (
+                        <span className="rounded-md bg-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                          No aplica
+                        </span>
+                      ) : evidencia && (
                         <span className="rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
                           Listo
                         </span>
@@ -896,12 +945,12 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                     ) : (
                       <div className="flex h-36 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-xs text-slate-500">
                         <ImagePlus size={22} className="mb-2 text-slate-400" />
-                        {procesando ? 'Comprimiendo imagen...' : 'Sin foto cargada'}
+                        {cajaDeshabilitada ? 'El cliente indicó que no tiene caja' : procesando ? 'Comprimiendo imagen...' : 'Sin foto cargada'}
                       </div>
                     )}
 
                     <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
+                      <label className={`inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold transition-colors ${cajaDeshabilitada ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'cursor-pointer bg-slate-50 text-slate-700 hover:bg-slate-100'}`}>
                         <ImagePlus size={16} />
                         {evidencia ? 'Tomar otra' : 'Tomar foto'}
                         <input
@@ -909,21 +958,21 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                           accept="image/jpeg,image/png,image/webp"
                           capture="environment"
                           className="sr-only"
-                          disabled={procesando}
+                          disabled={procesando || cajaDeshabilitada}
                           onChange={event => {
                             handleEvidenciaChange(field.key, event.target.files?.[0]);
                             event.target.value = '';
                           }}
                         />
                       </label>
-                      <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+                      <label className={`inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold transition-colors ${cajaDeshabilitada ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'cursor-pointer bg-white text-slate-700 hover:bg-slate-50'}`}>
                         <UploadCloud size={16} />
                         {evidencia ? 'Cambiar de galeria' : 'Subir galeria'}
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
                           className="sr-only"
-                          disabled={procesando}
+                          disabled={procesando || cajaDeshabilitada}
                           onChange={event => {
                             handleEvidenciaChange(field.key, event.target.files?.[0]);
                             event.target.value = '';

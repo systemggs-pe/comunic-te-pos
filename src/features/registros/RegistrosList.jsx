@@ -6,6 +6,9 @@ import { desbloquearRegistro, eliminarRegistro } from '../../services/functionsC
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
 import {registroMatchesSearch} from '../../utils/searchRecords.js';
+
+const etiquetaTieneCaja = value => value === true || value === 'SI' ? 'SI' : 'NO';
+
 export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [ticketData, setTicketData] = useState(null);
@@ -33,7 +36,7 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
     const cliente = getCliente(item.dniCliente);
     const imeiRegistrado = item.imeiRegistrado || item.imeiEquipo;
     const docLabel = item.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI';
-    const text = `IMEI: ${imeiRegistrado}\n${docLabel}: ${item.dniCliente}\nCELULAR: ${cliente.celular || ''}\nNOMBRE CLIENTE: ${cliente.nombre || ''}\nDIRECCION: ${cliente.direccion || ''}\nCORREO ELECTRONICO: ${cliente.correo || ''}`;
+    const text = `IMEI: ${imeiRegistrado}\nTIENE CAJA: ${etiquetaTieneCaja(item.tieneCaja)}\n${docLabel}: ${item.dniCliente}\nCELULAR: ${cliente.celular || ''}\nNOMBRE CLIENTE: ${cliente.nombre || ''}\nDIRECCION: ${cliente.direccion || ''}\nCORREO ELECTRONICO: ${cliente.correo || ''}`;
     navigator.clipboard.writeText(text).then(() => showToast('Datos copiados')).catch(() => showToast('Error al copiar', 'error'));
   };
 
@@ -47,6 +50,7 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
     const texto = `${encabezado}
 
 IMEI: ${imeiRegistrado}
+TIENE CAJA: ${etiquetaTieneCaja(row.tieneCaja)}
 ${docLabel}: ${row.dniCliente}
 CELULAR: ${cliente.celular || ''}
 NOMBRE CLIENTE: ${cliente.nombre || ''}
@@ -197,6 +201,8 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                   <p className="text-gray-600">{viewingRegistro.modeloEquipo || '-'}</p>
                   <p><strong className="text-gray-700">Nombre comercial:</strong></p>
                   <p className="text-gray-600">{viewingRegistro.nombreComercialEquipo || '-'}</p>
+                  <p><strong className="text-gray-700">Tiene caja:</strong></p>
+                  <p className="text-gray-600">{etiquetaTieneCaja(viewingRegistro.tieneCaja)}</p>
                   <p><strong className="text-gray-700">Estado:</strong></p>
                   <p><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${viewingRegistro.estado === 'BLOQUEADO' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{viewingRegistro.estado || '-'}</span></p>
                   <p><strong className="text-gray-700">Operador:</strong></p>
