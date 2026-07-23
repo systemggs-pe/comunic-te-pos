@@ -151,6 +151,7 @@ export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
     section('CLIENTE');
     wrap('Nombre: ', data.nombreCliente || '');
     wrap(`${data.tipoDocumentoCliente || 'DNI'}:    `, data.dniCliente || '');
+    if (data.celularCliente) wrap('Celular: ', data.celularCliente);
 
     section('EQUIPO');
     wrap('Marca:   ', data.marcaEquipo || '');

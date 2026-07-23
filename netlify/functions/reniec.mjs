@@ -16,18 +16,11 @@ function normalizeReniecResponse(data, dni) {
   );
 
   return {
-    success: Boolean(data?.success ?? fullName),
+    success: Boolean(fullName),
     source: data?.source || 'RENIEC_NETLIFY',
     result: {
-      ...result,
       document_number: valueOrEmpty(result.document_number || result.dni || dni),
-      first_name: nombres,
-      first_last_name: apellidoPaterno,
-      second_last_name: apellidoMaterno,
       full_name: fullName,
-      address: valueOrEmpty(result.address || result.direccion),
-      phone: valueOrEmpty(result.phone || result.telefono),
-      email: valueOrEmpty(result.email || result.correo),
     },
   };
 }
@@ -49,6 +42,8 @@ async function consultarReniec(body) {
   }
   return normalizeReniecResponse(data, dni);
 }
+
+export const __test = {normalizeReniecResponse};
 
 export const handler = event => handlePost(event, consultarReniec, {
   rateLimit: {name: 'reniec', max: 60, windowMs: 60 * 1000},

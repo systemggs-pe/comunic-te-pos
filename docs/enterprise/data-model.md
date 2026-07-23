@@ -159,7 +159,8 @@ Fields:
 | `modeloEquipo` | string | Model. |
 | `marcaEquipo` | string | Brand. |
 | `nombreComercialEquipo` | string | Commercial name. |
-| `estado` | string | `NO BLOQUEADO` or `BLOQUEADO`. |
+| `estado` | string | Technical state: `NO BLOQUEADO` or `BLOQUEADO`. |
+| `estadoSolicitud` | string | Operational state for non-blocked equipment: `PENDIENTE` or `REALIZADO`; empty for blocked equipment. |
 | `operador` | string | `CLARO`, `MOVISTAR`, `ENTEL` or `BITEL`. |
 | `tipo` | string | `TIENDA`, `EXTERNO` or `PASE`. |
 | `precio` | string | Decimal money string. |
@@ -188,6 +189,7 @@ Fields:
 | `nVenta` | string | Business sequence, e.g. `VEN-0001`. |
 | `tipoDocumentoCliente` | string | Customer document type. |
 | `dniCliente` | string | Customer document number. |
+| `celularCliente` | string | Customer phone used for this sale. |
 | `imeiEquipo` | string | Sold equipment IMEI. |
 | `imei2Equipo` | string | Secondary IMEI. |
 | `sn` | string | Serial number. |

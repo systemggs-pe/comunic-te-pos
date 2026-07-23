@@ -1,9 +1,11 @@
+import {FieldPath} from 'firebase-admin/firestore';
 import {handlePost} from './_shared.mjs';
 import {getAdminDb} from './_firebaseAdmin.mjs';
 import {withContactHistory} from './_clientesShared.mjs';
 import {normalizeImeiList, releaseImeiLocks, syncImeiLocks} from './_imeiLocks.mjs';
 import {queueAuditEvent} from './_observability.mjs';
-import {parseIdPayload, parseRegistroPayload} from './_validators.mjs';
+import {parseEstadoSolicitudPayload, parseIdPayload, parseRegistroPayload} from './_validators.mjs';
+import {findComprobanteAppleByIdAndImei} from './_comprobanteApple.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
@@ -18,6 +20,30 @@ function imeiLocksRef(base) {
 
 function registroLockImeis(registro) {
   return normalizeImeiList([registro?.imeiRegistrado || registro?.imeiEquipo]);
+}
+
+function resolveEstadoSolicitud(current, next) {
+  if (next?.estado === 'BLOQUEADO') return '';
+  if (current?.estado === 'BLOQUEADO' && next?.estado === 'NO BLOQUEADO') return 'REALIZADO';
+  return next?.estadoSolicitud || 'PENDIENTE';
+}
+
+async function assertComprobanteApple(db, registro) {
+  if (String(registro?.marcaEquipo || '').toUpperCase() !== 'APPLE') return;
+  const comprobante = await findComprobanteAppleByIdAndImei(
+    baseRef(db).collection('boletasExtranjeras'),
+    registro.boletaExtranjeraId,
+    registro.imeiRegistrado || registro.imeiEquipo,
+  );
+  if (!comprobante) {
+    throw Object.assign(new Error('BOLETA_APPLE_NO_ENCONTRADA'), {
+      status: 409,
+      payload: {imei: registro.imeiRegistrado || registro.imeiEquipo},
+    });
+  }
+  registro.marcaEquipo = 'APPLE';
+  registro.boletaExtranjeraId = comprobante.id;
+  registro.boletaExtranjeraNro = String(comprobante.nBoleta || '');
 }
 
 async function hasOther(collectionRef, field, value, excludeId, transaction) {
@@ -59,6 +85,7 @@ function getNextFromExisting(snapshot, field, prefix) {
 
 async function createRegistro(db, payload, context) {
   const {cliente, equipo, registro} = parseRegistroPayload(payload);
+  await assertComprobanteApple(db, registro);
   const base = baseRef(db);
   const counterRef = db.collection('_counters').doc('registros');
   const registroRef = base.collection('registros').doc();
@@ -102,7 +129,9 @@ async function createRegistro(db, payload, context) {
         imeiEquipo: registroData.imeiEquipo,
         imeiRegistrado: registroData.imeiRegistrado,
         estado: registroData.estado,
+        estadoSolicitud: registroData.estadoSolicitud,
         tipo: registroData.tipo,
+        boletaExtranjeraId: registroData.boletaExtranjeraId,
       },
     });
 
@@ -113,6 +142,7 @@ async function createRegistro(db, payload, context) {
 async function updateRegistro(db, payload, context) {
   const {id} = parseIdPayload(payload);
   const {cliente, equipo, registro} = parseRegistroPayload(payload);
+  await assertComprobanteApple(db, registro);
 
   const base = baseRef(db);
   const registrosRef = base.collection('registros');
@@ -142,7 +172,11 @@ async function updateRegistro(db, payload, context) {
     if (oldDniChanged) {
       oldOtherEquipo = await hasOther(equiposRef, 'idDuenio', oldDni, oldImei, transaction);
     }
-    const registroData = {...registro, nRegistro: current.nRegistro || registro.nRegistro || ''};
+    const registroData = {
+      ...registro,
+      estadoSolicitud: resolveEstadoSolicitud(current, registro),
+      nRegistro: current.nRegistro || registro.nRegistro || '',
+    };
     const oldLockImeis = registroLockImeis(current);
     const lockImeis = registroLockImeis(registroData);
     await assertNoOtherRegistroWithImeis(registrosRef, lockImeis, id, transaction);
@@ -180,6 +214,8 @@ async function updateRegistro(db, payload, context) {
         oldLockImeis,
         lockImeis,
         estado: registroData.estado,
+        estadoSolicitud: registroData.estadoSolicitud,
+        boletaExtranjeraId: registroData.boletaExtranjeraId,
       },
     });
 
@@ -275,7 +311,8 @@ async function unlockRegistro(db, payload, context) {
   return db.runTransaction(async transaction => {
     const snap = await transaction.get(ref);
     if (!snap.exists) throw Object.assign(new Error('REGISTRO_NOT_FOUND'), {status: 404});
-    transaction.update(ref, {estado: 'NO BLOQUEADO'});
+    const estadoSolicitud = resolveEstadoSolicitud(snap.data() || {}, {estado: 'NO BLOQUEADO'});
+    transaction.update(ref, {estado: 'NO BLOQUEADO', estadoSolicitud});
     queueAuditEvent(transaction, base, context, {
       entityType: 'registro',
       entityId: id,
@@ -284,10 +321,86 @@ async function unlockRegistro(db, payload, context) {
         nRegistro: snap.data()?.nRegistro || '',
         previousEstado: snap.data()?.estado || '',
         nextEstado: 'NO BLOQUEADO',
+        nextEstadoSolicitud: estadoSolicitud,
       },
     });
-    return {id, estado: 'NO BLOQUEADO'};
+    return {id, estado: 'NO BLOQUEADO', estadoSolicitud};
   });
+}
+
+function shouldCompleteRequestStatus(registro) {
+  return registro?.estado === 'NO BLOQUEADO' && registro?.estadoSolicitud !== 'REALIZADO';
+}
+
+async function updateEstadoSolicitud(db, payload, context) {
+  const {id, estadoSolicitud} = parseEstadoSolicitudPayload(payload);
+  const base = baseRef(db);
+  const ref = base.collection('registros').doc(id);
+  return db.runTransaction(async transaction => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists) throw Object.assign(new Error('REGISTRO_NOT_FOUND'), {status: 404});
+    const registro = snap.data() || {};
+    if (registro.estado !== 'NO BLOQUEADO') {
+      throw Object.assign(new Error('ESTADO_SOLICITUD_NO_APLICA'), {status: 409});
+    }
+    const previousEstadoSolicitud = registro.estadoSolicitud || 'PENDIENTE';
+    transaction.update(ref, {estadoSolicitud});
+    queueAuditEvent(transaction, base, context, {
+      entityType: 'registro',
+      entityId: id,
+      action: 'request-status-update',
+      metadata: {
+        nRegistro: registro.nRegistro || '',
+        previousEstadoSolicitud,
+        nextEstadoSolicitud: estadoSolicitud,
+      },
+    });
+    return {id, estadoSolicitud};
+  });
+}
+
+async function completeAllRequestStatuses(db, context) {
+  const base = baseRef(db);
+  const registrosRef = base.collection('registros');
+  let cursor = null;
+  let scannedCount = 0;
+  let updatedCount = 0;
+
+  while (true) {
+    let query = registrosRef
+      .where('estado', '==', 'NO BLOQUEADO')
+      .orderBy(FieldPath.documentId())
+      .limit(400);
+    if (cursor) query = query.startAfter(cursor);
+
+    const snapshot = await query.get();
+    if (snapshot.empty) break;
+
+    const batch = db.batch();
+    let writes = 0;
+    snapshot.docs.forEach(doc => {
+      if (!shouldCompleteRequestStatus(doc.data() || {})) return;
+      batch.update(doc.ref, {estadoSolicitud: 'REALIZADO'});
+      writes += 1;
+    });
+    if (writes > 0) await batch.commit();
+
+    scannedCount += snapshot.size;
+    updatedCount += writes;
+    cursor = snapshot.docs[snapshot.docs.length - 1];
+    if (snapshot.size < 400) break;
+  }
+
+  const auditBatch = db.batch();
+  queueAuditEvent(auditBatch, base, context, {
+    entityType: 'registro',
+    entityId: 'all-pending',
+    action: 'request-status-bulk-complete',
+    metadata: {scannedCount, updatedCount, nextEstadoSolicitud: 'REALIZADO'},
+  });
+  await auditBatch.commit();
+
+  return {estadoSolicitud: 'REALIZADO', scannedCount, updatedCount};
 }
 
 async function dispatchRegistros(body, user, context) {
@@ -297,8 +410,12 @@ async function dispatchRegistros(body, user, context) {
   if (action === 'update') return updateRegistro(db, body, context);
   if (action === 'delete') return deleteRegistro(db, body, context);
   if (action === 'unlock') return unlockRegistro(db, body, context);
+  if (action === 'updateRequestStatus') return updateEstadoSolicitud(db, body, context);
+  if (action === 'completeAllRequestStatuses') return completeAllRequestStatuses(db, context);
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
+
+export const __test = {resolveEstadoSolicitud, shouldCompleteRequestStatus};
 
 export const handler = event => handlePost(event, dispatchRegistros, {
   rateLimit: {name: 'registros', max: 120, windowMs: 60 * 1000},

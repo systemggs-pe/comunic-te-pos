@@ -121,11 +121,14 @@ const registroSchema = z.object({
   marcaEquipo: requiredText('MARCA_REQUERIDA', 80),
   nombreComercialEquipo: requiredText('NOMBRE_COMERCIAL_REQUERIDO', 140),
   estado: z.enum(['NO BLOQUEADO', 'BLOQUEADO'], {message: 'ESTADO_INVALIDO'}),
+  estadoSolicitud: z.enum(['', 'PENDIENTE', 'REALIZADO'], {message: 'ESTADO_SOLICITUD_INVALIDO'}).default(''),
   operador: z.enum(['CLARO', 'MOVISTAR', 'ENTEL', 'BITEL'], {message: 'OPERADOR_INVALIDO'}),
   tipo: z.enum(['TIENDA', 'EXTERNO', 'PASE'], {message: 'TIPO_INVALIDO'}),
   tieneCaja: z.boolean({message: 'TIENE_CAJA_INVALIDO'}),
   precio: moneySchema,
   fecha: dateSchema,
+  boletaExtranjeraId: optionalText(180),
+  boletaExtranjeraNro: optionalText(30),
   pdfDniUrl: optionalText(1200),
   pdfCajaUrl: optionalText(1200),
   pdfReciboUrl: optionalText(1200),
@@ -138,11 +141,33 @@ const registroSchema = z.object({
       message: 'PRECIO_MINIMO_BLOQUEADO',
     });
   }
+  if (registro.estado === 'NO BLOQUEADO' && !['PENDIENTE', 'REALIZADO'].includes(registro.estadoSolicitud)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['estadoSolicitud'],
+      message: 'ESTADO_SOLICITUD_REQUERIDO',
+    });
+  }
+  if (registro.estado === 'BLOQUEADO' && registro.estadoSolicitud) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['estadoSolicitud'],
+      message: 'ESTADO_SOLICITUD_NO_APLICA',
+    });
+  }
+  if (registro.marcaEquipo.toUpperCase() === 'APPLE' && !registro.boletaExtranjeraId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['boletaExtranjeraId'],
+      message: 'BOLETA_APPLE_REQUERIDA',
+    });
+  }
 });
 
 const ventaSchema = z.object({
   tipoDocumentoCliente: tipoDocumentoSchema,
   dniCliente: documentoSchema,
+  celularCliente: phoneOptionalSchema,
   imeiEquipo: imeiSchema,
   imei2Equipo: optionalImeiSchema,
   sn: optionalText(80),
@@ -189,6 +214,10 @@ const ventaPayloadSchema = z.object({
 });
 
 const idPayloadSchema = z.object({id: idSchema}).passthrough();
+const estadoSolicitudPayloadSchema = z.object({
+  id: idSchema,
+  estadoSolicitud: z.enum(['PENDIENTE', 'REALIZADO'], {message: 'ESTADO_SOLICITUD_INVALIDO'}),
+}).passthrough();
 const dniPayloadSchema = z.object({dni: documentoSchema}).passthrough();
 const clienteUpdatePayloadSchema = z.object({cliente: clienteUpdateSchema}).passthrough();
 
@@ -258,6 +287,10 @@ export function parseVentaPayload(payload) {
 
 export function parseIdPayload(payload) {
   return parseOrThrow(idPayloadSchema, payload);
+}
+
+export function parseEstadoSolicitudPayload(payload) {
+  return parseOrThrow(estadoSolicitudPayloadSchema, payload);
 }
 
 export function parseDniPayload(payload) {

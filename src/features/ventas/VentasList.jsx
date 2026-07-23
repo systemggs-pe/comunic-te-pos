@@ -22,6 +22,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
     return {
       ...row,
       nombreCliente: getCliente(row.dniCliente).nombre || row.dniCliente,
+      celularCliente: row.celularCliente || getCliente(row.dniCliente).celular || '',
       sn:            eq.sn    || row.sn    || '',
       imei2Equipo:   eq.imei2 || row.imei2Equipo || '',
       color:         eq.color || row.color || '',
@@ -141,7 +142,7 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                 <div className="grid grid-cols-1 gap-y-1.5 rounded border border-gray-100 bg-gray-50 p-3 sm:grid-cols-[145px_minmax(0,1fr)] sm:gap-x-4">
                   <p><strong className="text-gray-700">Nombre:</strong></p><p className="text-gray-600">{getCliente(viewingVenta.dniCliente).nombre || '-'}</p>
                   <p><strong className="text-gray-700">{etiquetaDocumento(viewingVenta.tipoDocumentoCliente || getCliente(viewingVenta.dniCliente).tipoDocumento)}:</strong></p><p className="text-gray-600">{viewingVenta.dniCliente}</p>
-                  <p><strong className="text-gray-700">Celular:</strong></p><p className="text-gray-600">{getCliente(viewingVenta.dniCliente).celular || '-'}</p>
+                  <p><strong className="text-gray-700">Celular usado:</strong></p><p className="text-gray-600">{viewingVenta.celularCliente || getCliente(viewingVenta.dniCliente).celular || '-'}</p>
                 </div>
               </div>
               {/* Equipo */}

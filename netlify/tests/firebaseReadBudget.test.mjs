@@ -192,19 +192,26 @@ test('client Firestore subscriptions and history searches keep explicit caps', a
   assert.match(clientesFunction, /rateLimit: \{name: 'clientes', max: 30/);
 });
 
-test('main app has no foreign receipt runtime access', async () => {
-  const [app, ventaForm, settings, functionsClient, netlifyConfig, rules] = await Promise.all([
+test('APPLE receipt lookup stays server-mediated and bounded', async () => {
+  const [app, ventaForm, settings, functionsClient, registroForm, lookupHelper, netlifyConfig, rules] = await Promise.all([
     readFile(new URL('../../src/app/App.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/ventas/VentaForm.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/settings/ConfiguracionLogo.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/services/functionsClient.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/registros/RegistroForm.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../functions/_comprobanteApple.mjs', import.meta.url), 'utf8'),
     readFile(new URL('../../netlify.toml', import.meta.url), 'utf8'),
     readFile(new URL('../../firestore.rules', import.meta.url), 'utf8'),
   ]);
 
-  const runtimeSource = [app, ventaForm, settings, functionsClient].join('\n');
+  const runtimeSource = [app, ventaForm, settings].join('\n');
   assert.doesNotMatch(runtimeSource, /boletasExtranjeras|boleta_extranjera|guardarBoletaExtranjera|publicBoleta/i);
+  assert.match(functionsClient, /consultarComprobanteApplePorImei/);
+  assert.match(registroForm, /consultarComprobanteApplePorImei/);
+  assert.match(lookupHelper, /\.limit\(1\)/);
+  assert.doesNotMatch(lookupHelper, /onSnapshot|collectionRef\.get\(\)/);
   assert.doesNotMatch(netlifyConfig, /api\/boletasExtranjeras|api\/publicBoleta/);
+  assert.match(netlifyConfig, /api\/comprobanteApple/);
   assert.match(netlifyConfig, /from = "\/boleta"[\s\S]*comunicate-boletas-extranjeras\.netlify\.app\/boleta/);
   assert.match(rules, /match \/artifacts\/\{appId\}\/users\/\{scope\}\/boletasExtranjeras\/\{boletaId\} \{\s*allow read, write: if false;/);
 });

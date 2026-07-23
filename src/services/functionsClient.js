@@ -68,6 +68,9 @@ const VALIDATION_MESSAGES = {
   EMAIL_INVALIDO: 'el correo electronico no es valido',
   EMAIL_MUY_LARGO: 'el correo electronico es demasiado largo',
   ESTADO_INVALIDO: 'el estado no es valido',
+  ESTADO_SOLICITUD_INVALIDO: 'el estado de solicitud no es valido',
+  ESTADO_SOLICITUD_REQUERIDO: 'elige PENDIENTE o REALIZADO',
+  ESTADO_SOLICITUD_NO_APLICA: 'el estado de solicitud solo aplica a equipos no bloqueados',
   FECHA_INVALIDA: 'la fecha no es valida',
   ID_INVALIDO: 'el identificador no es valido',
   IMEI_INVALIDO: 'el IMEI debe tener 15 digitos',
@@ -111,9 +114,11 @@ const FIELD_LABELS = {
   'equipo.nombreComercial': 'Nombre comercial',
   'registro.celularCliente': 'Celular',
   'registro.celularRef': 'Celular de referencia',
+  'registro.boletaExtranjeraId': 'Boleta extranjera APPLE',
   'registro.dniCliente': 'Documento',
   'registro.tipoDocumentoCliente': 'Tipo de documento',
   'registro.estado': 'Estado',
+  'registro.estadoSolicitud': 'Estado de solicitud',
   'registro.fecha': 'Fecha',
   'registro.imeiEquipo': 'IMEI del equipo',
   'registro.imeiRegistrado': 'IMEI a registrar',
@@ -125,6 +130,7 @@ const FIELD_LABELS = {
   'registro.precio': 'Precio',
   'registro.tieneCaja': 'Tiene caja',
   'registro.tipo': 'Tipo',
+  'venta.celularCliente': 'Celular',
   'venta.precio': 'Precio',
   'venta.precioEquipo': 'Precio del equipo',
   'venta.medioPago': 'Medio de pago',
@@ -153,6 +159,9 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
     return imei ? `El equipo ${imei} ya tiene una boleta extranjera` : 'Ese equipo ya tiene una boleta extranjera';
   }
   if (error?.message === 'BOLETA_NOT_FOUND') return 'No se encontro la boleta para editar';
+  if (error?.message === 'BOLETA_APPLE_NO_ENCONTRADA' || error?.message === 'BOLETA_APPLE_REQUERIDA') {
+    return 'No existe una boleta extranjera para el IMEI del equipo APPLE';
+  }
   if (error?.message === 'BOLETA_SIN_EQUIPO' || error?.message === 'BOLETA_SIN_IMEI') return 'La boleta debe tener un equipo valido';
   if (error?.message === 'CODART_TOKEN_MISSING') return 'Falta configurar CODART_TOKEN o RENIEC_TOKEN en .env local';
   if (error?.message === 'ACTION_INVALIDA') return 'La accion solicitada no es valida';
@@ -184,6 +193,10 @@ export function consultarDniFotos(dni, tipo = 'azul') {
   return llamarFuncionSegura('dniFotos', {action: 'consult', dni: String(dni), tipo});
 }
 
+export function consultarComprobanteApplePorImei(imei) {
+  return llamarFuncionSegura('comprobanteApple', {imei: String(imei)});
+}
+
 export function listarDniFotosHistorial() {
   return llamarFuncionSegura('dniFotos', {action: 'list'});
 }
@@ -210,6 +223,14 @@ export function eliminarRegistro(id) {
 
 export function desbloquearRegistro(id) {
   return llamarFuncionSegura('registros', {action: 'unlock', id});
+}
+
+export function actualizarEstadoSolicitudRegistro(id, estadoSolicitud) {
+  return llamarFuncionSegura('registros', {action: 'updateRequestStatus', id, estadoSolicitud});
+}
+
+export function marcarTodosRegistrosRealizados() {
+  return llamarFuncionSegura('registros', {action: 'completeAllRequestStatuses'});
 }
 
 export function crearVenta(payload) {

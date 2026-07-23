@@ -4,9 +4,13 @@ import {actualizarCliente, consultarClientesOperativos, eliminarCliente, obtener
 import {TIPOS_DOCUMENTO, etiquetaDocumento} from '../../utils/documentos.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 
+const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const clean = value => String(value || '').trim();
 const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
 const lineasALista = value => uniqueClean(String(value || '').split(/\r?\n/));
+const correosValidos = values => uniqueClean(values)
+  .map(correo => correo.toLowerCase())
+  .filter(correo => EMAIL_RE.test(correo));
 const fechaHora = value => {
   if (!value) return '-';
   const date = new Date(value);
@@ -149,7 +153,7 @@ export function ClientesList({showToast}) {
     selectedClient.celularRef,
     ...(Array.isArray(selectedClient.celulares) ? selectedClient.celulares : []),
   ]) : [];
-  const correosSeleccionado = selectedClient ? uniqueClean([
+  const correosSeleccionado = selectedClient ? correosValidos([
     selectedClient.correo,
     ...(Array.isArray(selectedClient.correos) ? selectedClient.correos : []),
   ]) : [];
@@ -160,7 +164,7 @@ export function ClientesList({showToast}) {
       tipoDocumento: selectedClient.tipoDocumento || 'DNI',
       nombre: selectedClient.nombre || '',
       celular: selectedClient.celular || celularesSeleccionado[0] || '',
-      correo: selectedClient.correo || correosSeleccionado[0] || '',
+      correo: correosSeleccionado[0] || '',
       direccion: selectedClient.direccion || '',
       celulares: celularesSeleccionado.join('\n'),
       correos: correosSeleccionado.join('\n'),
@@ -171,7 +175,7 @@ export function ClientesList({showToast}) {
   const guardarCliente = async () => {
     if (!selectedClient) return;
     const celulares = lineasALista(editForm.celulares);
-    const correos = lineasALista(editForm.correos).map(correo => correo.toLowerCase());
+    const correos = correosValidos(lineasALista(editForm.correos));
     setGuardando(true);
     try {
       const response = await actualizarCliente({
@@ -233,6 +237,7 @@ export function ClientesList({showToast}) {
         codigo: venta.nVenta || 'Venta',
         equipo: `${venta.marcaEquipo || ''} ${venta.nombreComercial || venta.modeloEquipo || ''}`.trim(),
         imei: venta.imeiEquipo,
+        imeiEtiqueta: 'IMEI 1',
         monto: venta.precio,
       })),
       ...selectedClient.registros.map(registro => ({
@@ -242,6 +247,7 @@ export function ClientesList({showToast}) {
         codigo: registro.nRegistro || 'Registro',
         equipo: `${registro.marcaEquipo || ''} ${registro.nombreComercialEquipo || registro.modeloEquipo || ''}`.trim(),
         imei: registro.imeiRegistrado || registro.imeiEquipo,
+        imeiEtiqueta: registro.imeiRegistrado && registro.imeiRegistrado === registro.imei2Equipo ? 'IMEI 2' : 'IMEI 1',
         monto: registro.precio,
       })),
     ].sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
@@ -547,7 +553,7 @@ export function ClientesList({showToast}) {
                           <span className="text-xs text-slate-400">{fechaHora(item.fecha)}</span>
                         </div>
                         <p className="mt-0.5 break-words text-sm text-slate-600">{item.equipo || 'Equipo sin detalle'}</p>
-                        {item.imei && <p className="mt-0.5 break-all font-mono text-xs text-slate-500">{item.imei}</p>}
+                        {item.imei && <p className="mt-0.5 break-all font-mono text-xs text-slate-500">{item.imeiEtiqueta}: {item.imei}</p>}
                       </div>
                       {item.monto && <p className="shrink-0 text-sm font-semibold text-slate-700">{soles(item.monto)}</p>}
                     </div>

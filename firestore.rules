@@ -121,7 +121,7 @@ service cloud.firestore {
       return hasOnly([
           'tipoDocumentoCliente', 'dniCliente', 'celularCliente', 'celularRef', 'imeiEquipo',
           'imeiRegistrado', 'imei2Equipo', 'modeloEquipo', 'marcaEquipo',
-          'nombreComercialEquipo', 'estado', 'operador', 'tipo', 'precio',
+          'nombreComercialEquipo', 'estado', 'estadoSolicitud', 'operador', 'tipo', 'precio',
           'fecha', 'nRegistro', 'pdfDniUrl', 'pdfCajaUrl', 'pdfReciboUrl'
         ])
         && validDocumento(request.resource.data.dniCliente)
@@ -132,6 +132,11 @@ service cloud.firestore {
         && validPhone('celularCliente')
         && validPhone('celularRef')
         && request.resource.data.estado in ['NO BLOQUEADO', 'BLOQUEADO']
+        && request.resource.data.estadoSolicitud in ['', 'PENDIENTE', 'REALIZADO']
+        && (
+          (request.resource.data.estado == 'NO BLOQUEADO' && request.resource.data.estadoSolicitud in ['PENDIENTE', 'REALIZADO'])
+          || (request.resource.data.estado == 'BLOQUEADO' && request.resource.data.estadoSolicitud == '')
+        )
         && request.resource.data.operador in ['CLARO', 'MOVISTAR', 'ENTEL', 'BITEL']
         && request.resource.data.tipo in ['TIENDA', 'EXTERNO', 'PASE']
         && validMoney('precio')
@@ -147,12 +152,13 @@ service cloud.firestore {
 
     function validVenta() {
       return hasOnly([
-          'tipoDocumentoCliente', 'dniCliente', 'imeiEquipo', 'imei2Equipo', 'sn', 'modeloEquipo',
+          'tipoDocumentoCliente', 'dniCliente', 'celularCliente', 'imeiEquipo', 'imei2Equipo', 'sn', 'modeloEquipo',
           'marcaEquipo', 'nombreComercial', 'ram', 'memoria', 'color',
           'precio', 'medioPago', 'fecha', 'nVenta'
         ])
         && validDocumento(request.resource.data.dniCliente)
         && validTipoDocumento('tipoDocumentoCliente')
+        && validPhone('celularCliente')
         && validMedioPago('medioPago')
         && validImei(request.resource.data.imeiEquipo)
         && validOptionalImei('imei2Equipo')

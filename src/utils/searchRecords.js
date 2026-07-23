@@ -14,6 +14,16 @@ function itemNames(items) {
   return Array.isArray(items) ? items.map(item => item?.nombre).filter(Boolean) : [];
 }
 
+export function registroMatchesStatus(registro, status = 'TODOS') {
+  if (status === 'BLOQUEADOS') return registro?.estado === 'BLOQUEADO';
+  if (registro?.estado !== 'NO BLOQUEADO') return status === 'TODOS';
+
+  const estadoSolicitud = registro?.estadoSolicitud || 'PENDIENTE';
+  if (status === 'REGISTRADOS') return estadoSolicitud === 'REALIZADO';
+  if (status === 'PENDIENTES') return estadoSolicitud === 'PENDIENTE';
+  return true;
+}
+
 export function registroMatchesSearch(registro, term, cliente = {}) {
   const needle = normalizeSearchTerm(term);
   if (!needle) return true;
@@ -23,11 +33,14 @@ export function registroMatchesSearch(registro, term, cliente = {}) {
     registro?.imeiRegistrado,
     registro?.imei2Equipo,
     registro?.dniCliente,
+    registro?.celularCliente,
+    registro?.celularRef,
     registro?.nRegistro,
     registro?.marcaEquipo,
     registro?.modeloEquipo,
     registro?.nombreComercialEquipo,
     registro?.estado,
+    registro?.estado === 'NO BLOQUEADO' ? (registro?.estadoSolicitud || 'PENDIENTE') : '',
     registro?.operador,
     registro?.tipo,
     cliente?.nombre,
@@ -46,6 +59,7 @@ export function ventaMatchesSearch(venta, term, cliente = {}, equipo = {}) {
     venta?.imei2Equipo,
     equipo?.imei2,
     venta?.dniCliente,
+    venta?.celularCliente,
     venta?.nVenta,
     venta?.marcaEquipo,
     venta?.modeloEquipo,

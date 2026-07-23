@@ -3,6 +3,7 @@ const unique = values => Array.from(new Set(
     .map(value => String(value || '').trim())
     .filter(Boolean),
 ));
+const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
 export function withContactHistory(existing = {}, incoming = {}, options = {}) {
   const preservePrimary = options.preservePrimary !== false;
@@ -19,14 +20,19 @@ export function withContactHistory(existing = {}, incoming = {}, options = {}) {
     existing.correo,
     ...(Array.isArray(incoming.correos) ? incoming.correos : []),
     incoming.correo,
-  ]).map(correo => correo.toLowerCase());
+  ]).map(correo => correo.toLowerCase()).filter(correo => EMAIL_RE.test(correo));
+  const correoEntrante = String(incoming.correo || '').trim().toLowerCase();
+  const correoExistente = String(existing.correo || '').trim().toLowerCase();
 
   return {
     ...existing,
     ...incoming,
     celular: preservePrimary ? (existing.celular || incoming.celular || celulares[0] || '') : (incoming.celular || celulares[0] || ''),
     celularRef: preservePrimary ? (existing.celularRef || incoming.celularRef || incoming.celular || celulares[0] || '') : (incoming.celularRef || incoming.celular || celulares[0] || ''),
-    correo: preservePrimary ? (existing.correo || incoming.correo || correos[0] || '') : (incoming.correo || correos[0] || ''),
+    correo: (EMAIL_RE.test(correoEntrante) ? correoEntrante : '')
+      || (EMAIL_RE.test(correoExistente) ? correoExistente : '')
+      || correos[0]
+      || '',
     celulares,
     correos,
   };

@@ -2,15 +2,27 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { generarTicketRegistroPDF } from './registroPdf.js';
-import { desbloquearRegistro, eliminarRegistro } from '../../services/functionsClient.js';
+import { actualizarEstadoSolicitudRegistro, desbloquearRegistro, eliminarRegistro, marcarTodosRegistrosRealizados } from '../../services/functionsClient.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
-import {registroMatchesSearch} from '../../utils/searchRecords.js';
+import {registroMatchesSearch, registroMatchesStatus} from '../../utils/searchRecords.js';
 
 const etiquetaTieneCaja = value => value === true || value === 'SI' ? 'SI' : 'NO';
+const celularDeRegistro = (registro, cliente = {}) => registro?.celularCliente || cliente?.celular || '';
+const estadoSolicitudDeRegistro = registro => registro?.estado === 'NO BLOQUEADO'
+  ? (registro?.estadoSolicitud || 'PENDIENTE')
+  : '';
+const REGISTRO_FILTERS = [
+  {id: 'TODOS', label: 'Todos', historyTerm: '', activeClass: 'border-blue-300 bg-blue-50 text-blue-700'},
+  {id: 'REGISTRADOS', label: 'Registrados', historyTerm: 'REALIZADO', activeClass: 'border-emerald-300 bg-emerald-50 text-emerald-700'},
+  {id: 'PENDIENTES', label: 'Pendientes', historyTerm: 'PENDIENTE', activeClass: 'border-amber-300 bg-amber-50 text-amber-700'},
+  {id: 'BLOQUEADOS', label: 'Bloqueados', historyTerm: 'BLOQUEADO', activeClass: 'border-red-300 bg-red-50 text-red-700'},
+];
+const HISTORY_TERM_BY_FILTER = Object.fromEntries(REGISTRO_FILTERS.map(filter => [filter.id, filter.historyTerm]));
 
 export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('TODOS');
   const [ticketData, setTicketData] = useState(null);
   const [viewingRegistro, setViewingRegistro] = useState(null);
   const [registroAEliminar, setRegistroAEliminar] = useState(null);
@@ -19,24 +31,25 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
   const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
 
   useEffect(() => {
-    const term = searchTerm.trim();
+    const term = searchTerm.trim() || HISTORY_TERM_BY_FILTER[statusFilter] || '';
     if (term.length < 3 || !onSearchAll || (total && data.length >= total)) return undefined;
     const timeoutId = window.setTimeout(() => onSearchAll(term), 700);
     return () => window.clearTimeout(timeoutId);
-  }, [data.length, onSearchAll, searchTerm, total]);
+  }, [data.length, onSearchAll, searchTerm, statusFilter, total]);
 
   const filteredData = useMemo(() => {
     return data.filter(r => {
       const cliente = clientes.find(c => c.dni === r.dniCliente) || {};
-      return registroMatchesSearch(r, searchTerm, cliente);
+      return registroMatchesStatus(r, statusFilter)
+        && registroMatchesSearch(r, searchTerm, cliente);
     });
-  }, [data, clientes, searchTerm]);
+  }, [data, clientes, searchTerm, statusFilter]);
 
   const handleCopy = (item) => {
     const cliente = getCliente(item.dniCliente);
     const imeiRegistrado = item.imeiRegistrado || item.imeiEquipo;
     const docLabel = item.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI';
-    const text = `IMEI: ${imeiRegistrado}\nTIENE CAJA: ${etiquetaTieneCaja(item.tieneCaja)}\n${docLabel}: ${item.dniCliente}\nCELULAR: ${cliente.celular || ''}\nNOMBRE CLIENTE: ${cliente.nombre || ''}\nDIRECCION: ${cliente.direccion || ''}\nCORREO ELECTRONICO: ${cliente.correo || ''}`;
+    const text = `IMEI: ${imeiRegistrado}\nTIENE CAJA: ${etiquetaTieneCaja(item.tieneCaja)}\n${docLabel}: ${item.dniCliente}\nCELULAR: ${celularDeRegistro(item, cliente)}\nNOMBRE CLIENTE: ${cliente.nombre || ''}\nDIRECCION: ${cliente.direccion || ''}\nCORREO ELECTRONICO: ${cliente.correo || ''}`;
     navigator.clipboard.writeText(text).then(() => showToast('Datos copiados')).catch(() => showToast('Error al copiar', 'error'));
   };
 
@@ -52,7 +65,7 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
 IMEI: ${imeiRegistrado}
 TIENE CAJA: ${etiquetaTieneCaja(row.tieneCaja)}
 ${docLabel}: ${row.dniCliente}
-CELULAR: ${cliente.celular || ''}
+CELULAR: ${celularDeRegistro(row, cliente)}
 NOMBRE CLIENTE: ${cliente.nombre || ''}
 DIRECCION: ${cliente.direccion || ''}
 CORREO ELECTRONICO: ${cliente.correo || ''}`;
@@ -137,17 +150,50 @@ PDF Recibo: ${row.pdfReciboUrl}`;
   };
 
   const [desbloqueando, setDesbloqueando] = useState(null);
+  const [actualizandoSolicitud, setActualizandoSolicitud] = useState(null);
+  const [confirmarTodosRealizados, setConfirmarTodosRealizados] = useState(false);
+  const [marcandoTodos, setMarcandoTodos] = useState(false);
 
   const handleDesbloquear = async (row) => {
     setDesbloqueando(row.id);
     try {
       await desbloquearRegistro(row.id);
-      showToast(`${row.nRegistro} desbloqueado ✓`);
+      showToast(`${row.nRegistro} desbloqueado y marcado como realizado`);
     } catch (e) {
       console.error(e);
       showToast('Error al desbloquear', 'error');
     } finally {
       setDesbloqueando(null);
+    }
+  };
+
+  const handleMarcarRealizado = async (row) => {
+    setActualizandoSolicitud(row.id);
+    try {
+      await actualizarEstadoSolicitudRegistro(row.id, 'REALIZADO');
+      showToast(`${row.nRegistro} marcado como realizado`);
+    } catch (e) {
+      console.error(e);
+      showToast('No se pudo actualizar el estado de solicitud', 'error');
+    } finally {
+      setActualizandoSolicitud(null);
+    }
+  };
+
+  const handleMarcarTodosRealizados = async () => {
+    setMarcandoTodos(true);
+    try {
+      const result = await marcarTodosRegistrosRealizados();
+      const cantidad = Number(result?.updatedCount || 0);
+      showToast(cantidad > 0
+        ? `${cantidad} solicitud${cantidad === 1 ? '' : 'es'} marcada${cantidad === 1 ? '' : 's'} como realizada${cantidad === 1 ? '' : 's'}`
+        : 'No habia solicitudes pendientes');
+      setConfirmarTodosRealizados(false);
+    } catch (e) {
+      console.error(e);
+      showToast('No se pudieron actualizar todas las solicitudes', 'error');
+    } finally {
+      setMarcandoTodos(false);
     }
   };
 
@@ -165,6 +211,16 @@ PDF Recibo: ${row.pdfReciboUrl}`;
         onConfirm={handleDelete}
         onCancel={() => setRegistroAEliminar(null)}
       />
+      <ConfirmModal
+        open={confirmarTodosRealizados}
+        title="Marcar todas como realizadas"
+        message="Se actualizaran todas las solicitudes pendientes de equipos no bloqueados, incluso las que no estan visibles en esta pagina. Esta accion no afecta a los equipos bloqueados."
+        confirmLabel="Marcar todas"
+        cancelLabel="Cancelar"
+        loading={marcandoTodos}
+        onConfirm={handleMarcarTodosRealizados}
+        onCancel={() => setConfirmarTodosRealizados(false)}
+      />
       {viewingRegistro && (
         <div className="saas-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="saas-detail-modal max-h-[88vh] w-full max-w-4xl overflow-y-auto p-0">
@@ -178,14 +234,22 @@ PDF Recibo: ${row.pdfReciboUrl}`;
             </div>
             <div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
               <aside className="space-y-2">
-                <button type="button" onClick={() => { const cl = getCliente(viewingRegistro.dniCliente); generarTicketRegistroPDF({...viewingRegistro, nombreCliente: cl.nombre || viewingRegistro.dniCliente, correoCliente: cl.correo || '', celularCliente: cl.celular || viewingRegistro.celularCliente || '', celularRef: cl.celularRef || viewingRegistro.celularRef || ''}); }} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
+                <button type="button" onClick={() => { const cl = getCliente(viewingRegistro.dniCliente); generarTicketRegistroPDF({...viewingRegistro, nombreCliente: cl.nombre || viewingRegistro.dniCliente, correoCliente: cl.correo || '', celularCliente: viewingRegistro.celularCliente || cl.celular || '', celularRef: viewingRegistro.celularRef || cl.celularRef || ''}); }} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
                 <button type="button" onClick={() => { onEdit(viewingRegistro); setViewingRegistro(null); }} className="saas-secondary w-full justify-start"><Edit size={16}/> Editar</button>
                 <button type="button" onClick={() => { handleShare(viewingRegistro); }} className="saas-secondary w-full justify-start"><Share2 size={16}/> Compartir</button>
                 <button type="button" onClick={() => { setRegistroAEliminar(viewingRegistro); setViewingRegistro(null); }} className="saas-secondary w-full justify-start text-red-600"><Trash2 size={16}/> Eliminar</button>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase text-slate-400">Estado</p>
+                  <p className="text-xs font-semibold uppercase text-slate-400">Estado del equipo</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">{viewingRegistro.estado || '-'}</p>
                   <p className="text-xs text-slate-500">{viewingRegistro.operador || '-'}</p>
+                  {estadoSolicitudDeRegistro(viewingRegistro) && (
+                    <div className="mt-3 border-t border-slate-200 pt-3">
+                      <p className="text-xs font-semibold uppercase text-slate-400">Solicitud</p>
+                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${estadoSolicitudDeRegistro(viewingRegistro) === 'REALIZADO' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {estadoSolicitudDeRegistro(viewingRegistro)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </aside>
               <div className="space-y-4 text-sm">
@@ -203,8 +267,12 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                   <p className="text-gray-600">{viewingRegistro.nombreComercialEquipo || '-'}</p>
                   <p><strong className="text-gray-700">Tiene caja:</strong></p>
                   <p className="text-gray-600">{etiquetaTieneCaja(viewingRegistro.tieneCaja)}</p>
-                  <p><strong className="text-gray-700">Estado:</strong></p>
+                  <p><strong className="text-gray-700">Estado del equipo:</strong></p>
                   <p><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${viewingRegistro.estado === 'BLOQUEADO' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{viewingRegistro.estado || '-'}</span></p>
+                  {estadoSolicitudDeRegistro(viewingRegistro) && (<>
+                    <p><strong className="text-gray-700">Estado de solicitud:</strong></p>
+                    <p className={estadoSolicitudDeRegistro(viewingRegistro) === 'REALIZADO' ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700'}>{estadoSolicitudDeRegistro(viewingRegistro)}</p>
+                  </>)}
                   <p><strong className="text-gray-700">Operador:</strong></p>
                   <p className="text-gray-600">{viewingRegistro.operador || '-'}</p>
                   <p><strong className="text-gray-700">Tipo:</strong></p>
@@ -225,8 +293,8 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                   <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).nombre || '-'}</p>
                   <p><strong className="text-gray-700">{etiquetaDocumento(viewingRegistro.tipoDocumentoCliente || getCliente(viewingRegistro.dniCliente).tipoDocumento)}:</strong></p>
                   <p className="text-gray-600">{viewingRegistro.dniCliente}</p>
-                  <p><strong className="text-gray-700">Celular:</strong></p>
-                  <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).celular || viewingRegistro.celularCliente || '-'}</p>
+                  <p><strong className="text-gray-700">Celular usado:</strong></p>
+                  <p className="text-gray-600">{viewingRegistro.celularCliente || getCliente(viewingRegistro.dniCliente).celular || '-'}</p>
                   <p><strong className="text-gray-700">N° Referencia:</strong></p>
                   <p className="text-gray-600">{viewingRegistro.celularRef || '-'}</p>
                   <p><strong className="text-gray-700">Correo:</strong></p>
@@ -249,11 +317,37 @@ PDF Recibo: ${row.pdfReciboUrl}`;
         </div>
         <div className="saas-toolbar-actions">
           <div className="saas-searchbox">
-            <input type="text" placeholder="Buscar por documento, cliente o IMEI" className="saas-search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input type="text" placeholder="Buscar por IMEI, cliente o documento" className="saas-search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             <Search size={18} />
           </div>
+          <button
+            type="button"
+            onClick={() => setConfirmarTodosRealizados(true)}
+            disabled={cargando || marcandoTodos}
+            className="saas-secondary disabled:cursor-wait disabled:opacity-60"
+          >
+            <CheckCircle2 size={18}/> Marcar todos realizados
+          </button>
           <button onClick={onNew} className="saas-primary"><Plus size={18} /> Nuevo Registro</button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50/70 px-5 py-3" aria-label="Filtrar registros por estado del IMEI">
+        <span className="mr-1 text-xs font-semibold text-slate-500">Estado del IMEI:</span>
+        {REGISTRO_FILTERS.map(filter => {
+          const active = statusFilter === filter.id;
+          return (
+            <button
+              key={filter.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setStatusFilter(filter.id)}
+              className={`min-h-9 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${active ? filter.activeClass : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── MÓVIL: tarjetas ── */}
@@ -277,11 +371,26 @@ PDF Recibo: ${row.pdfReciboUrl}`;
               </div>
               <div className="flex flex-col items-end gap-1.5">
                 <span className={`saas-chip ${row.estado === 'BLOQUEADO' ? 'saas-chip-danger' : 'saas-chip-success'}`}>{row.estado}</span>
+                {estadoSolicitudDeRegistro(row) && (
+                  <>
+                    <span className={`saas-chip ${estadoSolicitudDeRegistro(row) === 'REALIZADO' ? 'saas-chip-success' : 'bg-amber-100 text-amber-700'}`}>{estadoSolicitudDeRegistro(row)}</span>
+                    {estadoSolicitudDeRegistro(row) === 'PENDIENTE' && (
+                      <button
+                        type="button"
+                        onClick={() => handleMarcarRealizado(row)}
+                        disabled={actualizandoSolicitud === row.id}
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        <CheckCircle2 size={14}/> {actualizandoSolicitud === row.id ? 'Guardando...' : 'Marcar realizado'}
+                      </button>
+                    )}
+                  </>
+                )}
                 {row.estado === 'BLOQUEADO' && (
                   <button
                     onClick={() => handleDesbloquear(row)}
                     disabled={desbloqueando === row.id}
-                    title="Cambiar a NO BLOQUEADO"
+                    title="Cambiar a NO BLOQUEADO y marcar REALIZADO"
                     className={`relative inline-flex items-center h-5 w-9 rounded-full transition-colors focus:outline-none ${desbloqueando === row.id ? 'bg-gray-300 cursor-wait' : 'bg-red-500 hover:bg-red-400'}`}
                   >
                     <span className={`inline-block w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${desbloqueando === row.id ? 'translate-x-3' : 'translate-x-1'}`}/>
@@ -290,12 +399,12 @@ PDF Recibo: ${row.pdfReciboUrl}`;
               </div>
             </div>
             <p className="text-xs text-gray-600 mb-1">{row.marcaEquipo} {row.nombreComercialEquipo || row.modeloEquipo}</p>
-            <p className="text-xs font-mono text-blue-600 mb-1">{row.imeiEquipo}</p>
+            <p className="text-xs font-mono text-blue-600 mb-1">IMEI registrado: {row.imeiRegistrado || row.imeiEquipo}</p>
             <p className="text-xs text-gray-400 mb-3">{row.operador} · {row.tipo}</p>
             <div className="flex gap-2">
               <button onClick={() => setViewingRegistro(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Ver registro" title="Ver"><Eye size={16}/><span className="sr-only">Ver</span></button>
               <button onClick={() => onEdit(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Editar registro" title="Editar"><Edit size={16}/><span className="sr-only">Editar</span></button>
-              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: cl.celular || row.celularCliente || '', celularRef: cl.celularRef || row.celularRef || ''}); }} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
+              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || ''}); }} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
               <button onClick={() => handleShare(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Compartir registro" title="Compartir"><Share2 size={16}/><span className="sr-only">Compartir</span></button>
               <button onClick={() => setRegistroAEliminar(row)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar registro" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
             </div>
@@ -307,7 +416,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
       <div className="hidden md:block overflow-x-auto">
         <table className="saas-table text-left">
           <thead>
-            <tr><th className="px-6 py-3">Fecha / ID</th><th className="px-6 py-3">Cliente</th><th className="px-6 py-3">Equipo (IMEI)</th><th className="px-6 py-3">Estado/Operador</th><th className="px-6 py-3 text-right">Acciones</th></tr>
+            <tr><th className="px-6 py-3">Fecha / ID</th><th className="px-6 py-3">Cliente</th><th className="px-6 py-3">Equipo (IMEI)</th><th className="px-6 py-3">Estado / Solicitud</th><th className="px-6 py-3 text-right">Acciones</th></tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {cargando ? (
@@ -322,15 +431,30 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                 <tr key={row.id}>
                   <td className="px-6 py-4"><div className="font-medium text-gray-800">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs text-gray-400">{row.nRegistro}</div></td>
                   <td className="px-6 py-4"><div className="font-medium">{getCliente(row.dniCliente).nombre || row.dniCliente}</div><div className="text-xs">{row.dniCliente}</div></td>
-                  <td className="px-6 py-4"><div>{row.modeloEquipo}</div><div className="text-xs text-blue-600 font-mono">{row.imeiEquipo}</div></td>
+                  <td className="px-6 py-4"><div>{row.nombreComercialEquipo || row.modeloEquipo || '-'}</div><div className="text-xs text-blue-600 font-mono">IMEI registrado: {row.imeiRegistrado || row.imeiEquipo}</div></td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className={`saas-chip ${row.estado === 'BLOQUEADO' ? 'saas-chip-danger' : 'saas-chip-success'}`}>{row.estado}</span>
+                      {estadoSolicitudDeRegistro(row) && (
+                        <>
+                          <span className={`saas-chip ${estadoSolicitudDeRegistro(row) === 'REALIZADO' ? 'saas-chip-success' : 'bg-amber-100 text-amber-700'}`}>{estadoSolicitudDeRegistro(row)}</span>
+                          {estadoSolicitudDeRegistro(row) === 'PENDIENTE' && (
+                            <button
+                              type="button"
+                              onClick={() => handleMarcarRealizado(row)}
+                              disabled={actualizandoSolicitud === row.id}
+                              className="inline-flex min-h-8 items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
+                            >
+                              <CheckCircle2 size={14}/> {actualizandoSolicitud === row.id ? 'Guardando...' : 'Marcar realizado'}
+                            </button>
+                          )}
+                        </>
+                      )}
                       {row.estado === 'BLOQUEADO' && (
                         <button
                           onClick={() => handleDesbloquear(row)}
                           disabled={desbloqueando === row.id}
-                          title="Cambiar a NO BLOQUEADO"
+                          title="Cambiar a NO BLOQUEADO y marcar REALIZADO"
                           className={`relative inline-flex items-center h-5 w-9 rounded-full transition-colors focus:outline-none ${desbloqueando === row.id ? 'bg-gray-300 cursor-wait' : 'bg-red-500 hover:bg-red-400'}`}
                         >
                           <span className={`inline-block w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${desbloqueando === row.id ? 'translate-x-3' : 'translate-x-1'}`}/>
@@ -343,7 +467,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                     <div className="flex justify-end gap-1">
                       <button onClick={() => setViewingRegistro(row)} className="saas-icon-button" title="Ver detalle"><Eye size={18} /></button>
                       <button onClick={() => onEdit(row)} className="saas-icon-button" title="Editar"><Edit size={18} /></button>
-                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: cl.celular || row.celularCliente || '', celularRef: cl.celularRef || row.celularRef || ''}); }} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
+                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || ''}); }} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
                       <button onClick={() => handleShare(row)} className="saas-icon-button" title="Compartir registro"><Share2 size={18} /></button>
                       <button onClick={() => setRegistroAEliminar(row)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
                     </div>

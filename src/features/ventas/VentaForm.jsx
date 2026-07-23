@@ -6,13 +6,22 @@ import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumen
 import { EscanerIA } from '../registros/EscanerIA.jsx';
 import { generarTicketVentaPDF } from './ventaPdf.js';
 
+const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const MONEY_RE = /^\d+(\.\d{1,2})?$/;
 const clean = value => String(value || '').trim();
 const SCAN_LOADING_INPUT_CLASS = 'bg-blue-50/70 placeholder:text-blue-700 placeholder:font-semibold';
 const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
-const opcionesContacto = (cliente, campoPrincipal, campoLista) => uniqueClean([
+const correosValidos = values => uniqueClean(values)
+  .map(correo => correo.toLowerCase())
+  .filter(correo => EMAIL_RE.test(correo));
+const opcionesContacto = (cliente, campoPrincipal, campoLista) => correosValidos([
   cliente?.[campoPrincipal],
   ...(Array.isArray(cliente?.[campoLista]) ? cliente[campoLista] : []),
+]);
+const opcionesCelulares = cliente => uniqueClean([
+  cliente?.celular,
+  cliente?.celularRef,
+  ...(Array.isArray(cliente?.celulares) ? cliente.celulares : []),
 ]);
 const createAccessoryItem = () => ({
   id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -35,16 +44,20 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   const [itemsAdicionales, setItemsAdicionales] = useState([]);
   const [confirmarGuardado, setConfirmarGuardado] = useState(false);
   const [cierreVenta, setCierreVenta] = useState(null);
+  const [contactosClienteV, setContactosClienteV] = useState({celulares: [], correos: []});
 
   useEffect(() => {
     if (initialData) {
       const cliente = clientes.find(c => c.dni === initialData.dniCliente) || {};
-      setFormData({ tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: cliente.celular || '', correo: cliente.correo || '', imei1: initialData.imeiEquipo || '', imei2: '', sn: '', nombreComercial: initialData.nombreComercial || '', ram: initialData.ram || '', memoria: initialData.memoria || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', color: initialData.color || '', precio: initialData.precioEquipo || initialData.precio || '', medioPago: initialData.medioPago || 'EFECTIVO', fecha: toLocalDatetimeValue(initialData.fecha) });
+      const celulares = opcionesCelulares(cliente);
+      const correos = opcionesContacto(cliente, 'correo', 'correos');
+      setContactosClienteV({celulares, correos});
+      setFormData({ tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', correo: correos[0] || '', imei1: initialData.imeiEquipo || '', imei2: initialData.imei2Equipo || '', sn: initialData.sn || '', nombreComercial: initialData.nombreComercial || '', ram: initialData.ram || '', memoria: initialData.memoria || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', color: initialData.color || '', precio: initialData.precioEquipo || initialData.precio || '', medioPago: initialData.medioPago || 'EFECTIVO', fecha: toLocalDatetimeValue(initialData.fecha) });
       setItemsAdicionales(Array.isArray(initialData.itemsAdicionales)
         ? initialData.itemsAdicionales.map(item => ({...createAccessoryItem(), ...item}))
         : []);
       const e = equipos.find(eq => eq.idEquipo === initialData.imeiEquipo);
-      if (e) setFormData(prev => ({...prev, imei2: e.imei2||'', sn: e.sn||'', nombreComercial: e.nombreComercial||'', ram: e.ram||'', memoria: e.memoria||'', color: e.color||''}));
+      if (e) setFormData(prev => ({...prev, imei2: prev.imei2 || e.imei2 || '', sn: prev.sn || e.sn || '', nombreComercial: prev.nombreComercial || e.nombreComercial || '', ram: prev.ram || e.ram || '', memoria: prev.memoria || e.memoria || '', color: prev.color || e.color || ''}));
     }
   }, [initialData, clientes, equipos]);
 
@@ -52,7 +65,6 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   const [escaneoProcesando, setEscaneoProcesando] = useState(false);
   const [buscandoReniecV, setBuscandoReniecV] = useState(false);
   const [dniStatusV, setDniStatusV] = useState(null);
-  const [contactosClienteV, setContactosClienteV] = useState({celulares: [], correos: []});
 
   const buscarReniecV = async (dni) => {
     setBuscandoReniecV(true);
@@ -63,10 +75,9 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         const r = json.result;
         setFormData(prev => ({
           ...prev,
-          nombre: r.full_name ? r.full_name : prev.nombre,
-          correo: r.email && !r.email.includes('*') ? r.email : prev.correo,
+          nombre: r.full_name || prev.nombre,
         }));
-        setDniStatusV({type: 'reniec', text: 'Encontrado RENIEC'});
+        setDniStatusV({type: 'reniec', text: 'Nombre encontrado en RENIEC'});
       } else {
         setDniStatusV(null);
         showToast('DNI no encontrado en RENIEC', 'error');
@@ -114,7 +125,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
     if (formData.dni.length >= 6 && !initialData) {
       const c = clientes.find(c => c.dni === formData.dni);
       if (c) {
-        const celulares = opcionesContacto(c, 'celular', 'celulares');
+        const celulares = opcionesCelulares(c);
         const correos = opcionesContacto(c, 'correo', 'correos');
         setContactosClienteV({celulares, correos});
         setDniStatusV({type: 'db', text: 'Cliente COMUNIC@TE'});
@@ -234,6 +245,9 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
     if (!validarDocumento(formData.tipoDocumento, formData.dni)) {
       showToast(`${etiquetaDocumento(formData.tipoDocumento)} no valido`, 'error'); return false;
     }
+    if (clean(formData.correo) && !EMAIL_RE.test(clean(formData.correo))) {
+      showToast('Ingresa un correo electronico valido', 'error'); return false;
+    }
     if (!luhn(formData.imei1)) {
       showToast('El IMEI 1 no es válido — verifica los dígitos', 'error'); return false;
     }
@@ -263,7 +277,8 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
       const totalVenta = (precioEquipo + totalItems).toFixed(2);
       const ventaData = {
         tipoDocumentoCliente: formData.tipoDocumento,
-        dniCliente: formData.dni, imeiEquipo: formData.imei1,
+        dniCliente: formData.dni, celularCliente: formData.celular,
+        imeiEquipo: formData.imei1,
         imei2Equipo: formData.imei2, sn: formData.sn,
         modeloEquipo: formData.modelo, marcaEquipo: formData.marca,
         nombreComercial: formData.nombreComercial, ram: formData.ram,
@@ -272,7 +287,15 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         fecha: new Date(formData.fecha).toISOString(),
       };
       ventaData.precio = totalVenta;
-      const clienteData = { tipoDocumento: formData.tipoDocumento, dni: formData.dni, nombre: formData.nombre, celular: formData.celular, correo: formData.correo };
+      const clienteData = {
+        tipoDocumento: formData.tipoDocumento,
+        dni: formData.dni,
+        nombre: formData.nombre,
+        celular: formData.celular,
+        correo: formData.correo,
+        celulares: uniqueClean([...contactosClienteV.celulares, formData.celular]),
+        correos: correosValidos([...contactosClienteV.correos, formData.correo]),
+      };
       const equipoData = { idEquipo: formData.imei1, idDuenio: formData.dni, imei2: formData.imei2, sn: formData.sn, nombreComercial: formData.nombreComercial, marca: formData.marca, modelo: formData.modelo, ram: formData.ram, memoria: formData.memoria, color: formData.color, isVendido: true };
 
       if (initialData) {
@@ -291,7 +314,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         });
         const ventaGuardada = resultado.venta || ventaData;
         showToast('Venta registrada');
-        const tData = { ...ventaGuardada, tipoDocumentoCliente: formData.tipoDocumento, nombreCliente: formData.nombre, dniCliente: formData.dni, imei2Equipo: formData.imei2, sn: formData.sn, marcaEquipo: formData.marca, modeloEquipo: formData.modelo, nombreComercial: formData.nombreComercial, ram: formData.ram, memoria: formData.memoria, color: formData.color, precioEquipo: precioEquipo.toFixed(2), precio: totalVenta, itemsAdicionales: itemsVenta, medioPago: formData.medioPago, fecha: ventaGuardada.fecha || ventaData.fecha };
+        const tData = { ...ventaGuardada, tipoDocumentoCliente: formData.tipoDocumento, nombreCliente: formData.nombre, dniCliente: formData.dni, celularCliente: formData.celular, imei2Equipo: formData.imei2, sn: formData.sn, marcaEquipo: formData.marca, modeloEquipo: formData.modelo, nombreComercial: formData.nombreComercial, ram: formData.ram, memoria: formData.memoria, color: formData.color, precioEquipo: precioEquipo.toFixed(2), precio: totalVenta, itemsAdicionales: itemsVenta, medioPago: formData.medioPago, fecha: ventaGuardada.fecha || ventaData.fecha };
         setCierreVenta({venta: tData, cliente: clienteData, equipo: equipoData});
         return; // el cierre operativo permite generar el ticket antes de finalizar
       }
@@ -417,13 +440,24 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
               </div>
               <div><label className="block text-xs text-gray-500 mb-1">Nombre *</label><input name="nombre" value={formData.nombre} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Celular</label>
+                <label className="block text-xs text-gray-500 mb-1">Celular de esta venta</label>
                 <input name="celular" value={formData.celular} onChange={handleChange} className="w-full border rounded p-2 text-sm" inputMode="numeric" maxLength={9} />
-                {contactosClienteV.celulares.length > 1 && (
-                  <select value={formData.celular} onChange={e => setFormData(prev => ({...prev, celular: e.target.value}))} className="mt-2 w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                {contactosClienteV.celulares.length > 0 && (
+                  <select
+                    value=""
+                    onChange={e => {
+                      if (!e.target.value) return;
+                      onDirty?.();
+                      setFormData(prev => ({...prev, celular: e.target.value}));
+                    }}
+                    aria-label="Elegir un celular guardado"
+                    className="mt-2 w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs"
+                  >
+                    <option value="">Elegir un número guardado</option>
                     {contactosClienteV.celulares.map(celular => <option key={celular} value={celular}>{celular}</option>)}
                   </select>
                 )}
+                {contactosClienteV.celulares.length > 0 && <p className="mt-1 text-xs text-slate-500">También puedes escribir un número nuevo para esta operación.</p>}
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Correo</label>
