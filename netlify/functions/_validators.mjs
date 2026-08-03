@@ -21,6 +21,10 @@ const moneySchema = z.string().trim()
   .max(20, 'PRECIO_MUY_LARGO')
   .refine(value => Number(value) > 0, 'PRECIO_DEBE_SER_MAYOR_A_CERO');
 
+const registroMoneySchema = z.string().trim()
+  .regex(/^\d+(\.\d{1,2})?$/, 'PRECIO_INVALIDO')
+  .max(20, 'PRECIO_MUY_LARGO');
+
 const optionalMoneySchema = z.string().trim()
   .refine(value => value === '' || /^\d+(\.\d{1,2})?$/.test(value), 'PRECIO_INVALIDO')
   .refine(value => value === '' || Number(value) > 0, 'PRECIO_DEBE_SER_MAYOR_A_CERO')
@@ -84,8 +88,8 @@ const registroEquipoSchema = z.object({
   idDuenio: documentoSchema,
   imei2: optionalImeiSchema,
   sn: optionalText(80),
-  marca: requiredText('MARCA_REQUERIDA', 80),
-  modelo: requiredText('MODELO_REQUERIDO', 100),
+  marca: optionalText(80),
+  modelo: optionalText(100),
   nombreComercial: requiredText('NOMBRE_COMERCIAL_REQUERIDO', 140),
   ram: optionalText(12),
   memoria: optionalText(12),
@@ -117,15 +121,15 @@ const registroSchema = z.object({
   imeiEquipo: imeiSchema,
   imeiRegistrado: imeiSchema,
   imei2Equipo: optionalImeiSchema,
-  modeloEquipo: requiredText('MODELO_REQUERIDO', 100),
-  marcaEquipo: requiredText('MARCA_REQUERIDA', 80),
+  modeloEquipo: optionalText(100),
+  marcaEquipo: optionalText(80),
   nombreComercialEquipo: requiredText('NOMBRE_COMERCIAL_REQUERIDO', 140),
   estado: z.enum(['NO BLOQUEADO', 'BLOQUEADO'], {message: 'ESTADO_INVALIDO'}),
   estadoSolicitud: z.enum(['', 'PENDIENTE', 'REALIZADO'], {message: 'ESTADO_SOLICITUD_INVALIDO'}).default(''),
   operador: z.enum(['CLARO', 'MOVISTAR', 'ENTEL', 'BITEL'], {message: 'OPERADOR_INVALIDO'}),
   tipo: z.enum(['TIENDA', 'EXTERNO', 'PASE'], {message: 'TIPO_INVALIDO'}),
   tieneCaja: z.boolean({message: 'TIENE_CAJA_INVALIDO'}),
-  precio: moneySchema,
+  precio: registroMoneySchema,
   fecha: dateSchema,
   boletaExtranjeraId: optionalText(180),
   boletaExtranjeraNro: optionalText(30),
@@ -134,6 +138,14 @@ const registroSchema = z.object({
   pdfReciboUrl: optionalText(1200),
 }).strict().superRefine((registro, ctx) => {
   validarDocumentoMovimiento(registro.tipoDocumentoCliente, registro.dniCliente, ctx);
+  const permitePrecioCero = registro.estado === 'NO BLOQUEADO' && ['TIENDA', 'PASE'].includes(registro.tipo);
+  if (!permitePrecioCero && Number(registro.precio) <= 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['precio'],
+      message: 'PRECIO_DEBE_SER_MAYOR_A_CERO',
+    });
+  }
   if (registro.estado === 'BLOQUEADO' && Number(registro.precio) < 50) {
     ctx.addIssue({
       code: 'custom',
@@ -179,6 +191,8 @@ const ventaSchema = z.object({
   color: optionalText(80),
   precio: moneySchema,
   medioPago: z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA'], {message: 'MEDIO_PAGO_INVALIDO'}).default('EFECTIVO'),
+  origenEquipo: z.enum(['TIENDA', 'PASE'], {message: 'ORIGEN_EQUIPO_INVALIDO'}).default('TIENDA'),
+  proveedorPase: optionalText(160),
   precioEquipo: optionalMoneySchema,
   itemsAdicionales: z.array(z.object({
     nombre: requiredText('ITEM_NOMBRE_REQUERIDO', 140),
@@ -191,6 +205,20 @@ const ventaSchema = z.object({
   fecha: dateSchema,
 }).strict().superRefine((venta, ctx) => {
   validarDocumentoMovimiento(venta.tipoDocumentoCliente, venta.dniCliente, ctx);
+  if (venta.origenEquipo === 'PASE' && !venta.proveedorPase) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['proveedorPase'],
+      message: 'PROVEEDOR_PASE_REQUERIDO',
+    });
+  }
+  if (venta.origenEquipo === 'TIENDA' && venta.proveedorPase) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['proveedorPase'],
+      message: 'PROVEEDOR_PASE_NO_APLICA',
+    });
+  }
 });
 
 const registroPayloadSchema = z.object({

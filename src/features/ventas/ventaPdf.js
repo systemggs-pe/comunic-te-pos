@@ -17,7 +17,15 @@ function recortar(text, max) {
   return value.length > max ? `${value.slice(0, Math.max(max - 3, 1))}...` : value;
 }
 
-export async function generarTicketVentaPDF(data, mmW = 58, logoVentas = null) {
+export function sanitizarVentaParaTicket(venta = {}) {
+  const data = {...venta};
+  delete data.origenEquipo;
+  delete data.proveedorPase;
+  return data;
+}
+
+export async function generarTicketVentaPDF(venta, mmW = 58, logoVentas = null) {
+  const data = sanitizarVentaParaTicket(venta);
   const {jsPDF, JsBarcode} = getPdfTools();
   const M = mmW <= 58 ? 3 : 5;
   const FONT = 'courier';

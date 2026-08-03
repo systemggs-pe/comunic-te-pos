@@ -1,9 +1,9 @@
 export const REGISTRO_EVIDENCIA_FIELDS = [
-  {key: 'dniFrente', label: 'DNI frontal', hint: 'Foto del lado frontal del documento'},
-  {key: 'dniReverso', label: 'DNI reverso', hint: 'Foto del lado posterior del documento'},
+  {key: 'dniFrente', label: 'DNI frontal', hint: 'Foto del lado frontal del documento', required: false},
+  {key: 'dniReverso', label: 'DNI reverso', hint: 'Foto del lado posterior del documento', required: false},
   {key: 'cajaEquipo', label: 'Caja del equipo', hint: 'Foto visible de la caja del equipo', required: false},
-  {key: 'boletaVenta', label: 'Boleta de venta', hint: 'Foto completa de la boleta'},
-  {key: 'imeiLogico', label: 'IMEI logico', hint: 'Foto de pantalla donde se vea el IMEI'},
+  {key: 'boletaVenta', label: 'Boleta de venta', hint: 'Foto completa de la boleta', required: false},
+  {key: 'imeiLogico', label: 'IMEI logico', hint: 'Foto de pantalla donde se vea el IMEI', required: false},
 ];
 
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);

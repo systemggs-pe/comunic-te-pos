@@ -133,6 +133,8 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                   <p><strong className="text-gray-700">Fecha:</strong></p><p className="text-gray-600">{new Date(viewingVenta.fecha).toLocaleString('es-PE')}</p>
                   <p><strong className="text-gray-700">Total:</strong></p><p className="text-green-700 font-bold">S/. {parseFloat(viewingVenta.precio).toFixed(2)}</p>
                   <p><strong className="text-gray-700">Medio de pago:</strong></p><p className="text-gray-600">{viewingVenta.medioPago || 'EFECTIVO'}</p>
+                  <p><strong className="text-gray-700">Origen del equipo:</strong></p><p className="text-gray-600">{viewingVenta.origenEquipo || 'TIENDA'}</p>
+                  {viewingVenta.origenEquipo === 'PASE' && <><p><strong className="text-gray-700">Recibido de:</strong></p><p className="text-gray-600">{viewingVenta.proveedorPase || '-'}</p></>}
                   {viewingVenta.precioEquipo && <><p><strong className="text-gray-700">Equipo:</strong></p><p className="text-gray-600">S/. {parseFloat(viewingVenta.precioEquipo).toFixed(2)}</p></>}
                 </div>
               </div>

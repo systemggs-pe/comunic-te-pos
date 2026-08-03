@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {parseEstadoSolicitudPayload, parseRegistroPayload} from '../functions/_validators.mjs';
 import {__test as registrosTest} from '../functions/registros.mjs';
 import {registroMatchesStatus} from '../../src/utils/searchRecords.js';
+import {emptyRegistroEvidencias, missingRegistroEvidencias} from '../../src/features/registros/registroEvidencias.js';
 
 function payloadRegistro(overrides = {}) {
   return {
@@ -30,9 +31,36 @@ function payloadRegistro(overrides = {}) {
   };
 }
 
+test('ninguna evidencia fotografica es obligatoria', () => {
+  assert.deepEqual(missingRegistroEvidencias(emptyRegistroEvidencias()), []);
+});
+
 test('un registro no bloqueado inicia con solicitud pendiente', () => {
   const parsed = parseRegistroPayload(payloadRegistro());
   assert.equal(parsed.registro.estadoSolicitud, 'PENDIENTE');
+});
+
+test('tienda y pase no bloqueados aceptan precio cero con solo IMEI y nombre comercial obligatorios', () => {
+  const payload = payloadRegistro({precio: '0', marcaEquipo: '', modeloEquipo: ''});
+  payload.equipo.marca = '';
+  payload.equipo.modelo = '';
+
+  const parsed = parseRegistroPayload(payload);
+
+  assert.equal(parsed.registro.precio, '0');
+  assert.equal(parsed.equipo.nombreComercial, 'EQUIPO PRUEBA');
+  assert.equal(parsed.equipo.idEquipo, '490154203237518');
+
+  const pase = parseRegistroPayload(payloadRegistro({tipo: 'PASE', precio: '0'}));
+  assert.equal(pase.registro.tipo, 'PASE');
+  assert.equal(pase.registro.precio, '0');
+});
+
+test('precio cero sigue rechazado fuera de tienda no bloqueada', () => {
+  assert.throws(
+    () => parseRegistroPayload(payloadRegistro({tipo: 'EXTERNO', precio: '0'})),
+    error => error.payload?.issues?.some(issue => issue.message === 'PRECIO_DEBE_SER_MAYOR_A_CERO'),
+  );
 });
 
 test('un registro bloqueado no acepta estado de solicitud', () => {

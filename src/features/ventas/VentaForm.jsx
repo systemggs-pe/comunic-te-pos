@@ -40,7 +40,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  const [formData, setFormData] = useState({ tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', correo: '', imei1: '', imei2: '', sn: '', nombreComercial: '', ram: '', memoria: '', marca: '', modelo: '', color: '', precio: '', medioPago: 'EFECTIVO', fecha: toLocalDatetimeValue(new Date().toISOString()) });
+  const [formData, setFormData] = useState({ tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', correo: '', imei1: '', imei2: '', sn: '', nombreComercial: '', ram: '', memoria: '', marca: '', modelo: '', color: '', precio: '', medioPago: 'EFECTIVO', origenEquipo: 'TIENDA', proveedorPase: '', fecha: toLocalDatetimeValue(new Date().toISOString()) });
   const [itemsAdicionales, setItemsAdicionales] = useState([]);
   const [confirmarGuardado, setConfirmarGuardado] = useState(false);
   const [cierreVenta, setCierreVenta] = useState(null);
@@ -52,7 +52,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
       const celulares = opcionesCelulares(cliente);
       const correos = opcionesContacto(cliente, 'correo', 'correos');
       setContactosClienteV({celulares, correos});
-      setFormData({ tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', correo: correos[0] || '', imei1: initialData.imeiEquipo || '', imei2: initialData.imei2Equipo || '', sn: initialData.sn || '', nombreComercial: initialData.nombreComercial || '', ram: initialData.ram || '', memoria: initialData.memoria || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', color: initialData.color || '', precio: initialData.precioEquipo || initialData.precio || '', medioPago: initialData.medioPago || 'EFECTIVO', fecha: toLocalDatetimeValue(initialData.fecha) });
+      setFormData({ tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', correo: correos[0] || '', imei1: initialData.imeiEquipo || '', imei2: initialData.imei2Equipo || '', sn: initialData.sn || '', nombreComercial: initialData.nombreComercial || '', ram: initialData.ram || '', memoria: initialData.memoria || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', color: initialData.color || '', precio: initialData.precioEquipo || initialData.precio || '', medioPago: initialData.medioPago || 'EFECTIVO', origenEquipo: initialData.origenEquipo || 'TIENDA', proveedorPase: initialData.proveedorPase || '', fecha: toLocalDatetimeValue(initialData.fecha) });
       setItemsAdicionales(Array.isArray(initialData.itemsAdicionales)
         ? initialData.itemsAdicionales.map(item => ({...createAccessoryItem(), ...item}))
         : []);
@@ -164,7 +164,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   }, [formData.imei1, equipos, initialData]);
 
   const CAMPOS_SOLO_NUMEROS_V = ['dni', 'celular', 'imei1', 'imei2'];
-  const CAMPOS_MAYUSCULAS_V   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'sn', 'color'];
+  const CAMPOS_MAYUSCULAS_V   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'sn', 'color', 'proveedorPase'];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -174,6 +174,11 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
       setDniStatusV(null);
       setContactosClienteV({celulares: [], correos: []});
       setFormData(prev => ({ ...prev, tipoDocumento: val, dni: limpiarDocumento(prev.dni, val) }));
+      return;
+    }
+    if (name === 'origenEquipo') {
+      onDirty?.();
+      setFormData(prev => ({...prev, origenEquipo: val, proveedorPase: val === 'PASE' ? prev.proveedorPase : ''}));
       return;
     }
     if (name === 'dni') val = limpiarDocumento(val, formData.tipoDocumento);
@@ -242,6 +247,12 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
     if (!formData.nombreComercial) {
       showToast('El nombre comercial es obligatorio', 'error'); return false;
     }
+    if (!['TIENDA', 'PASE'].includes(formData.origenEquipo)) {
+      showToast('Selecciona si el equipo es de tienda o pase', 'error'); return false;
+    }
+    if (formData.origenEquipo === 'PASE' && !clean(formData.proveedorPase)) {
+      showToast('Indica quién nos pasó el equipo', 'error'); return false;
+    }
     if (!validarDocumento(formData.tipoDocumento, formData.dni)) {
       showToast(`${etiquetaDocumento(formData.tipoDocumento)} no valido`, 'error'); return false;
     }
@@ -284,6 +295,8 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
         nombreComercial: formData.nombreComercial, ram: formData.ram,
         memoria: formData.memoria, color: formData.color, precio: formData.precio,
         precioEquipo: precioEquipo.toFixed(2), itemsAdicionales: itemsVenta, medioPago: formData.medioPago,
+        origenEquipo: formData.origenEquipo,
+        proveedorPase: formData.origenEquipo === 'PASE' ? clean(formData.proveedorPase) : '',
         fecha: new Date(formData.fecha).toISOString(),
       };
       ventaData.precio = totalVenta;
@@ -528,6 +541,29 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
               <div><label className="block text-xs text-gray-500 mb-1">Memoria (GB)</label><input name="memoria" value={formData.memoria} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('memoria')}`} placeholder={placeholderEscaneo('memoria', 'ej: 256')} /></div>
               <div><label className="block text-xs text-gray-500 mb-1">Color</label><input name="color" value={formData.color} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('color')}`} placeholder={placeholderEscaneo('color')} /></div>
               <div><label className="block text-xs text-gray-500 mb-1">Precio (S/.) *</label><input required type="number" step="0.01" name="precio" value={formData.precio} onChange={handleChange} className="w-full border rounded p-2 text-sm font-bold text-green-700" /></div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Origen del equipo *</label>
+                <select required name="origenEquipo" value={formData.origenEquipo} onChange={handleChange} className="w-full border rounded bg-white p-2 text-sm">
+                  <option value="TIENDA">Tienda</option>
+                  <option value="PASE">Pase</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-500">Dato interno, no aparecerá en el ticket.</p>
+              </div>
+              {formData.origenEquipo === 'PASE' && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Quién nos pasó el equipo *</label>
+                  <input
+                    required
+                    name="proveedorPase"
+                    value={formData.proveedorPase}
+                    onChange={handleChange}
+                    maxLength={160}
+                    className="w-full border rounded p-2 text-sm"
+                    placeholder="Nombre de la persona"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Información visible solo dentro del sistema.</p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Medio de pago *</label>
                 <select required name="medioPago" value={formData.medioPago} onChange={handleChange} className="w-full border rounded p-2 text-sm">

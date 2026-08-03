@@ -87,10 +87,13 @@ const VALIDATION_MESSAGES = {
   NOMBRE_COMERCIAL_REQUERIDO: 'el nombre comercial es obligatorio',
   NOMBRE_REQUERIDO: 'el nombre del cliente es obligatorio',
   OPERADOR_INVALIDO: 'el operador no es valido',
+  ORIGEN_EQUIPO_INVALIDO: 'elige TIENDA o PASE',
   PRECIO_DEBE_SER_MAYOR_A_CERO: 'el precio debe ser mayor a cero',
   PRECIO_INVALIDO: 'el precio debe tener maximo 2 decimales',
   PRECIO_MINIMO_BLOQUEADO: 'el precio minimo para un equipo bloqueado es S/. 50.00',
   PRECIO_MUY_LARGO: 'el precio es demasiado largo',
+  PROVEEDOR_PASE_REQUERIDO: 'indica quién nos pasó el equipo',
+  PROVEEDOR_PASE_NO_APLICA: 'solo corresponde cuando el origen es PASE',
   TIPO_INVALIDO: 'el tipo de registro no es valido',
   TIPO_DOCUMENTO_INVALIDO: 'el tipo de documento no es valido',
   MEDIO_PAGO_INVALIDO: 'el medio de pago no es valido',
@@ -134,6 +137,8 @@ const FIELD_LABELS = {
   'venta.precio': 'Precio',
   'venta.precioEquipo': 'Precio del equipo',
   'venta.medioPago': 'Medio de pago',
+  'venta.origenEquipo': 'Origen del equipo',
+  'venta.proveedorPase': 'Quién nos pasó el equipo',
   'venta.tipoDocumentoCliente': 'Tipo de documento',
 };
 

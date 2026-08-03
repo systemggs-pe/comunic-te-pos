@@ -3,8 +3,9 @@ import {getPdfTools} from '../../utils/pdfLibraries.js';
 
 export async function generarTicketRegistroPDF(data) {
   const {jsPDF, JsBarcode} = getPdfTools();
-  const mmW = 58;
-  const M = 3;
+  const mmW = 210;
+  const mmH = 297;
+  const M = 12;
   const FONT = 'courier';
   const codigoBarras = data.imeiRegistrado || data.imeiEquipo || '';
   let barcodeImg = null;
@@ -156,9 +157,7 @@ export async function generarTicketRegistroPDF(data) {
     return y;
   };
 
-  const docMedida = new jsPDF({unit: 'mm', format: [mmW, 300], orientation: 'portrait'});
-  const altoTotal = renderPDF(docMedida, false);
-  const docFinal = new jsPDF({unit: 'mm', format: [mmW, altoTotal], orientation: 'portrait'});
+  const docFinal = new jsPDF({unit: 'mm', format: [mmW, mmH], orientation: 'portrait'});
   renderPDF(docFinal, true);
 
   const nombre = `REGISTRO-${data.nRegistro || 'ticket'}.pdf`;

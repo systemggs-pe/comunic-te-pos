@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {withContactHistory} from '../functions/_clientesShared.mjs';
 import {parseVentaPayload} from '../functions/_validators.mjs';
+import {sanitizarVentaParaTicket} from '../../src/features/ventas/ventaPdf.js';
 
 test('una operación nueva conserva el celular principal y agrega el número usado al historial', () => {
   const result = withContactHistory(
@@ -63,6 +64,8 @@ test('la venta guarda el celular usado como dato propio de la operación', () =>
       color: '',
       precio: '100.00',
       medioPago: 'EFECTIVO',
+      origenEquipo: 'PASE',
+      proveedorPase: 'SOCIO INTERNO',
       precioEquipo: '100.00',
       itemsAdicionales: [],
       fecha: '2026-07-23T12:00:00.000Z',
@@ -70,6 +73,26 @@ test('la venta guarda el celular usado como dato propio de la operación', () =>
   });
 
   assert.equal(parsed.venta.celularCliente, '988777666');
+  assert.equal(parsed.venta.origenEquipo, 'PASE');
+  assert.equal(parsed.venta.proveedorPase, 'SOCIO INTERNO');
+  assert.throws(
+    () => parseVentaPayload({
+      cliente: parsed.cliente,
+      equipo: parsed.equipo,
+      venta: {...parsed.venta, proveedorPase: ''},
+    }),
+    error => error.payload?.issues?.some(issue => issue.message === 'PROVEEDOR_PASE_REQUERIDO'),
+  );
+});
+
+test('el origen y proveedor del pase no se incluyen en el ticket del cliente', () => {
+  const ticket = sanitizarVentaParaTicket({
+    nVenta: 'VEN-0001',
+    origenEquipo: 'PASE',
+    proveedorPase: 'SOCIO INTERNO',
+  });
+
+  assert.deepEqual(ticket, {nVenta: 'VEN-0001'});
 });
 
 test('un correo valido reemplaza datos antiguos invalidos de RENIEC', () => {

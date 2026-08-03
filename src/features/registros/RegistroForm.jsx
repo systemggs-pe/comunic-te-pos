@@ -6,7 +6,7 @@ import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumen
 import {PERU_DEPARTAMENTOS, separarDireccionDepartamento, unirDireccionDepartamento} from '../../utils/peruDepartamentos.js';
 import { ImageCropModal } from '../../components/ui/ImageCropModal.jsx';
 import { EscanerIA } from './EscanerIA.jsx';
-import {comprimirRegistroEvidenciaDataUrl, emptyRegistroEvidencias, formatBytes, leerRegistroEvidenciaFile, missingRegistroEvidencias, REGISTRO_EVIDENCIA_FIELDS} from './registroEvidencias.js';
+import {comprimirRegistroEvidenciaDataUrl, emptyRegistroEvidencias, formatBytes, leerRegistroEvidenciaFile, REGISTRO_EVIDENCIA_FIELDS} from './registroEvidencias.js';
 import {generarRegistroEvidenciasPDF} from './registroEvidenciasPdf.js';
 
 const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
@@ -84,6 +84,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   const [contactosClienteReg, setContactosClienteReg] = useState({celulares: [], correos: []});
   const direccionFinalCliente = useMemo(() => unirDireccionDepartamento(formData.direccion, formData.departamento), [formData.direccion, formData.departamento]);
   const esApple = formData.marca === 'APPLE';
+  const permitePrecioCero = formData.estado === 'NO BLOQUEADO' && ['TIENDA', 'PASE'].includes(formData.tipo);
   const comprobanteAppleValido = esApple
     && comprobanteApple.status === 'found'
     && comprobanteApple.imei === formData.imei
@@ -349,14 +350,11 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     if (clean(formData.imei2) && !luhn(clean(formData.imei2))) {
       showToast('El IMEI 2 no es valido; verifica los digitos', 'error'); return false;
     }
-    if (!REGISTRO_MARCAS.includes(formData.marca)) {
+    if (formData.marca && !REGISTRO_MARCAS.includes(formData.marca)) {
       showToast('Selecciona una marca de la lista', 'error'); return false;
     }
     if (formData.marca === 'APPLE' && !comprobanteAppleValido) {
       showToast('Primero verifica que el IMEI tenga una boleta extranjera', 'error'); return false;
-    }
-    if (!clean(formData.modelo)) {
-      showToast('Completa el modelo', 'error'); return false;
     }
     if (!clean(formData.nombreComercial)) {
       showToast('El nombre comercial es obligatorio', 'error'); return false;
@@ -368,8 +366,14 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       showToast(`El IMEI ${formData.imei} ya tiene un registro activo`, 'error'); return false;
     }
     const precio = clean(formData.precio);
-    if (!MONEY_RE.test(precio) || Number(precio) <= 0) {
-      showToast('El precio debe ser mayor a 0 y tener maximo 2 decimales', 'error'); return false;
+    if (!MONEY_RE.test(precio) || Number(precio) < 0 || (!permitePrecioCero && Number(precio) === 0)) {
+      showToast(
+        permitePrecioCero
+          ? 'El precio debe ser 0 o mayor y tener maximo 2 decimales'
+          : 'El precio debe ser mayor a 0 y tener maximo 2 decimales',
+        'error',
+      );
+      return false;
     }
     if (formData.estado === 'BLOQUEADO' && Number(precio) < 50) {
       showToast('El precio minimo para un equipo BLOQUEADO es S/. 50.00', 'error'); return false;
@@ -384,8 +388,6 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     e.preventDefault();
 
     if (!validarFormularioCompleto()) return;
-    if (!initialData && !validarEvidencias()) return;
-
     // Validar IMEI con algoritmo de Luhn
     if (!luhn(formData.imei)) {
       showToast('El IMEI ingresado no es válido — verifica los dígitos', 'error');
@@ -404,16 +406,6 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     }
 
     setConfirmarGuardado(true);
-  };
-
-  const validarEvidencias = () => {
-    const faltantes = missingRegistroEvidencias(evidencias)
-      .filter(item => !(esApple && item.key === 'boletaVenta'));
-    if (faltantes.length) {
-      showToast(`Falta subir: ${faltantes.map(item => item.label).join(', ')}`, 'error');
-      return false;
-    }
-    return true;
   };
 
   const guardarEvidenciaProcesada = async (key, dataUrl, name, originalSize) => {
@@ -552,14 +544,16 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           equipo: equipoData,
           registro: registroData,
         });
-        await generarRegistroEvidenciasPDF({
-          ...registroData,
-          ...(saved.registro || {}),
-          nombreCliente: clienteData.nombre,
-          correoCliente: clienteData.correo,
-          celularCliente: clienteData.celular,
-          celularRef: clienteData.celularRef,
-        }, evidenciasParaPdf, opcionesPdf);
+        if (hayEvidenciasParaPdf) {
+          await generarRegistroEvidenciasPDF({
+            ...registroData,
+            ...(saved.registro || {}),
+            nombreCliente: clienteData.nombre,
+            correoCliente: clienteData.correo,
+            celularCliente: clienteData.celular,
+            celularRef: clienteData.celularRef,
+          }, evidenciasParaPdf, opcionesPdf);
+        }
         showToast('Guardado exitosamente');
       }
       (onSave || onCancel)();
@@ -615,11 +609,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     if (clean(formData.imei2) && !luhn(clean(formData.imei2))) {
       showToast('El IMEI 2 no es valido; verifica los digitos', 'error'); return false;
     }
-    if (!REGISTRO_MARCAS.includes(formData.marca)) {
+    if (formData.marca && !REGISTRO_MARCAS.includes(formData.marca)) {
       showToast('Selecciona una marca de la lista', 'error'); return false;
-    }
-    if (!clean(formData.modelo)) {
-      showToast('Completa el modelo', 'error'); return false;
     }
     if (!clean(formData.nombreComercial)) {
       showToast('El nombre comercial es obligatorio', 'error'); return false;
@@ -693,7 +684,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 {paso > n ? '✓' : n}
               </div>
               <span className="text-xs font-medium hidden sm:block">
-                {n === 1 ? 'Cliente' : n === 2 ? 'Equipo' : n === 3 ? 'Detalle' : initialData ? 'Evidencias opcionales' : 'Evidencias'}
+                {n === 1 ? 'Cliente' : n === 2 ? 'Equipo' : n === 3 ? 'Detalle' : 'Evidencias opcionales'}
               </span>
             </div>
             {n < 4 && <div className={`flex-1 h-0.5 ${paso > n ? 'bg-green-400' : 'bg-gray-200'}`} />}
@@ -879,19 +870,18 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
               </div>
                 <div><label className="block text-xs text-gray-500 mb-1">Nombre Comercial *</label><input name="nombreComercial" value={formData.nombreComercial} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('nombreComercial')}`} placeholder={placeholderEscaneo('nombreComercial', 'Ej: GALAXY A56')} /></div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Marca *</label>
+                  <label className="block text-xs text-gray-500 mb-1">Marca</label>
                   <select
                     name="marca"
                     value={formData.marca}
                     onChange={handleChange}
                     className={`w-full border rounded bg-white p-2 text-sm ${claseEscaneo('marca')}`}
-                    required
                   >
                     <option value="">{escaneoProcesando ? 'Extrayendo...' : 'Selecciona una marca'}</option>
                     {REGISTRO_MARCAS.map(marca => <option key={marca} value={marca}>{marca}</option>)}
                   </select>
                 </div>
-                <div><label className="block text-xs text-gray-500 mb-1">Modelo *</label><input name="modelo" value={formData.modelo} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('modelo')}`} placeholder={placeholderEscaneo('modelo')} /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">Modelo</label><input name="modelo" value={formData.modelo} onChange={handleChange} className={`w-full border rounded p-2 text-sm ${claseEscaneo('modelo')}`} placeholder={placeholderEscaneo('modelo')} /></div>
                 {esApple && (
                   <div
                     aria-live="polite"
@@ -967,12 +957,13 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 <label className="block text-xs text-gray-500 mb-1">
                   Precio (S/.) *
                   {formData.estado === 'BLOQUEADO' && <span className="ml-1 text-orange-500 font-semibold">(mín. S/. 50.00)</span>}
+                  {permitePrecioCero && <span className="ml-1 font-semibold text-emerald-600">(mín. S/. 0.00)</span>}
                 </label>
                 <input
                   required
                   type="number"
                   step="0.01"
-                  min={formData.estado === 'BLOQUEADO' ? 50 : 0}
+                  min={formData.estado === 'BLOQUEADO' ? 50 : permitePrecioCero ? 0 : 0.01}
                   name="precio"
                   value={formData.precio}
                   onChange={handleChange}
@@ -1034,11 +1025,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             <div>
               <h4 className="saas-form-section-title">Evidencias fotograficas</h4>
               <p className="mt-1 text-xs font-medium text-slate-500">
-                {initialData
-                  ? 'Al editar, las evidencias son opcionales. Si adjuntas archivos nuevos, se generará un PDF actualizado.'
-                  : esApple
-                    ? 'Sube DNI frontal, DNI posterior e IMEI lógico. La boleta verificada se agregará automáticamente al PDF.'
-                    : 'Sube las fotos obligatorias. La foto de la caja es opcional cuando el cliente sí tiene caja.'}
+                Las evidencias son opcionales tanto en registros nuevos como al editar. Si adjuntas fotos, se generará el PDF de evidencias.
               </p>
             </div>
 
@@ -1055,7 +1042,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   <div key={field.key} className={`rounded-lg border p-3 ${cajaDeshabilitada ? 'border-slate-200 bg-slate-100/70' : 'border-slate-200 bg-white'}`}>
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{field.label}{!initialData && field.required !== false ? ' *' : ''}</p>
+                        <p className="text-sm font-semibold text-slate-900">{field.label}</p>
                         <p className="text-xs text-slate-500">{cajaDeshabilitada ? 'Deshabilitada porque el cliente no tiene caja' : field.hint}</p>
                       </div>
                       {cajaDeshabilitada ? (
