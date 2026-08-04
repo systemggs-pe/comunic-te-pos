@@ -59,8 +59,50 @@ export async function llamarFuncionSegura(nombre, payload) {
   return data;
 }
 
+export async function llamarFuncionPublica(nombre, payload) {
+  const resp = await fetch(`${BACKEND_BASE_URL}/api/${nombre}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const text = await resp.text();
+  const requestId = resp.headers.get('x-request-id') || '';
+
+  if (resp.status === 404 && looksLikeHtml(text)) {
+    const error = new Error('BACKEND_NOT_DEPLOYED');
+    error.requestId = requestId;
+    throw error;
+  }
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    const error = new Error(IS_LOCAL_API_PROXY ? 'API_LOCAL_NO_DISPONIBLE' : 'BACKEND_INVALID_RESPONSE');
+    error.status = resp.status;
+    error.requestId = requestId;
+    throw error;
+  }
+  if (!resp.ok) {
+    const error = new Error(data.error || 'BACKEND_ERROR');
+    error.status = resp.status;
+    error.requestId = requestId || data.requestId || '';
+    error.payload = data;
+    throw error;
+  }
+  return data;
+}
+
 const VALIDATION_MESSAGES = {
   CELULAR_INVALIDO: 'el celular debe tener 9 digitos y empezar con 9',
+  CIUDAD_REQUERIDA: 'la ciudad es obligatoria',
+  COLOR_REQUERIDO: 'el color es obligatorio',
+  DECLARACION_REQUERIDA: 'debes confirmar la declaración',
+  EQUIPO_REQUERIDO: 'el nombre del equipo es obligatorio',
+  FECHA_COMPRA_INVALIDA: 'la fecha de compra no es válida',
+  MEMORIA_REQUERIDA: 'la memoria es obligatoria',
+  NOMBRES_REQUERIDOS: 'los nombres y apellidos son obligatorios',
+  RAM_REQUERIDA: 'la RAM es obligatoria',
+
   DIRECCION_REQUERIDA: 'la direccion es obligatoria',
   DOCUMENTO_INVALIDO: 'el numero de documento no es valido para el tipo elegido',
   DNI_INVALIDO: 'el DNI debe tener 8 digitos',
@@ -140,6 +182,21 @@ const FIELD_LABELS = {
   'venta.origenEquipo': 'Origen del equipo',
   'venta.proveedorPase': 'Quién nos pasó el equipo',
   'venta.tipoDocumentoCliente': 'Tipo de documento',
+  celular: 'Celular',
+  ciudad: 'Ciudad',
+  color: 'Color',
+  correo: 'Correo',
+  declaracionAceptada: 'Confirmación',
+  direccion: 'Dirección',
+  dni: 'DNI',
+  fechaCompra: 'Fecha de compra',
+  imei: 'IMEI',
+  memoria: 'Memoria',
+  nombreEquipo: 'Nombre del equipo',
+  nombres: 'Nombres y apellidos',
+  precioCompra: 'Precio de compra',
+  ram: 'RAM',
+
 };
 
 function prettifyValidationIssue(issue = {}) {
@@ -176,6 +233,19 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'DNI_FOTO_TIPO_INVALIDO') return 'El tipo de foto DNI no es valido';
   if (error?.message === 'DNI_INVALIDO') return 'El DNI debe tener 8 digitos';
   if (error?.message === 'FIREBASE_ADMIN_CONFIG_MISSING') return 'Falta configurar Firebase Admin en .env local';
+  if (error?.message === 'DNI_NO_VERIFICADO') return 'Verifica nuevamente el DNI antes de enviar';
+  if (error?.message === 'EVIDENCIA_REQUERIDA') return 'Faltan ambas caras del DNI o la evidencia del IMEI lógico';
+  if (error?.message === 'EVIDENCIA_FORMATO_INVALIDO') return 'Una evidencia tiene un formato no permitido';
+  if (error?.message === 'EVIDENCIA_MUY_GRANDE') return 'Una imagen es demasiado pesada; toma otra con menor resolución';
+  if (error?.message === 'EVIDENCIAS_MUY_GRANDES') return 'Las imágenes juntas son demasiado pesadas';
+  if (error?.message?.startsWith('ENLACE_')) {
+    if (error.message === 'ENLACE_VENCIDA') return 'El enlace venció; solicita uno nuevo a la tienda';
+    if (error.message === 'ENLACE_BLOQUEADA') return 'El enlace está bloqueado';
+    if (error.message === 'ENLACE_COMPLETADA') return 'La solicitud ya fue enviada';
+    if (error.message === 'ENLACE_REVOCADA') return 'La tienda revocó este enlace';
+    return 'El enlace no es válido';
+  }
+
   if (error?.message === 'FIREBASE_SERVICE_ACCOUNT_INVALID') return 'FIREBASE_SERVICE_ACCOUNT no es un JSON valido';
   if (error?.message === 'IMEI_YA_REGISTRADO') {
     const imei = error?.payload?.details?.imei;
@@ -186,6 +256,12 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
     return imei ? `El IMEI ${imei} ya tiene una venta registrada` : 'Ese IMEI ya tiene una venta registrada';
   }
   if (error?.message === 'RENIEC_TOKEN_MISSING') return 'Falta configurar RENIEC_TOKEN en .env local';
+  if (error?.message === 'RENIEC_PERSONA_NO_ENCONTRADA') return 'RENIEC no encontró nombres y apellidos para este DNI';
+  if (error?.message === 'RENIEC_NO_VERIFICADO') return 'Verifica nuevamente tus datos con RENIEC';
+  if (error?.message === 'RENIEC_UPSTREAM_ERROR') return 'RENIEC no está disponible en este momento';
+  if (error?.message === 'SOLICITUD_NO_ENCONTRADA') return 'No se encontró la solicitud del cliente';
+  if (error?.message === 'SOLICITUD_NO_REVISABLE') return 'Esta solicitud ya no se puede revisar';
+  if (error?.message === 'SOLICITUD_YA_PROCESADA') return 'Esta solicitud ya fue convertida en registro';
   if (error?.message === 'fetch failed') return 'No se pudo conectar con el servicio externo';
   return error?.message || fallback;
 }
@@ -264,4 +340,36 @@ export function consultarClientesOperativos(payload = {}) {
 
 export function registrarConsentimientoLegal(payload) {
   return llamarFuncionSegura('legalConsent', payload);
+}
+
+export function crearInvitacionAutoRegistro(dni, expiresDays = 7) {
+  return llamarFuncionSegura('autoRegistros', {action: 'create', dni, expiresDays});
+}
+
+export function listarInvitacionesAutoRegistro() {
+  return llamarFuncionSegura('autoRegistros', {action: 'list'});
+}
+
+export function revocarInvitacionAutoRegistro(id) {
+  return llamarFuncionSegura('autoRegistros', {action: 'revoke', id});
+}
+
+export function obtenerSolicitudAutoRegistro(id) {
+  return llamarFuncionSegura('autoRegistros', {action: 'getSubmission', id});
+}
+
+export function iniciarRevisionAutoRegistro(id) {
+  return llamarFuncionSegura('autoRegistros', {action: 'startReview', id});
+}
+
+export function consultarEstadoAutoRegistro(token) {
+  return llamarFuncionPublica('autoRegistros', {action: 'status', token});
+}
+
+export function verificarDniAutoRegistro(token, dni) {
+  return llamarFuncionPublica('autoRegistros', {action: 'verify', token, dni});
+}
+
+export function enviarSolicitudAutoRegistro(payload) {
+  return llamarFuncionPublica('autoRegistros', {action: 'submit', ...payload});
 }

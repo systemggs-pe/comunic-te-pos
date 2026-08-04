@@ -40,6 +40,13 @@ test('un registro no bloqueado inicia con solicitud pendiente', () => {
   assert.equal(parsed.registro.estadoSolicitud, 'PENDIENTE');
 });
 
+test('el registro conserva la solicitud de autoservicio que lo originó', () => {
+  const payload = payloadRegistro();
+  payload.autoRegistroSubmissionId = 'solicitud_cliente_1';
+  const parsed = parseRegistroPayload(payload);
+  assert.equal(parsed.autoRegistroSubmissionId, 'solicitud_cliente_1');
+});
+
 test('tienda y pase no bloqueados aceptan precio cero con solo IMEI y nombre comercial obligatorios', () => {
   const payload = payloadRegistro({precio: '0', marcaEquipo: '', modeloEquipo: ''});
   payload.equipo.marca = '';

@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
-import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, AlertTriangle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, Share2, Settings, ImagePlus } from 'lucide-react';
+import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, AlertTriangle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, Share2, Settings, ImagePlus, Link2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, orderBy, limit, startAfter, getDocs, getCountFromServer } from 'firebase/firestore';
 import { EMAILS_PERMITIDOS } from '../config/auth.js';
@@ -27,6 +27,8 @@ const VentaForm = lazyNamed(() => import('../features/ventas/VentaForm.jsx'), 'V
 const ClientesList = lazyNamed(() => import('../features/clientes/ClientesList.jsx'), 'ClientesList');
 const DniFotosPage = lazyNamed(() => import('../features/dniFotos/DniFotosPage.jsx'), 'DniFotosPage');
 const ProblemasApp = lazyNamed(() => import('../features/problemas/ProblemasApp.jsx'), 'ProblemasApp');
+const AutoRegistrosPage = lazyNamed(() => import('../features/autoRegistros/AutoRegistrosPage.jsx'), 'AutoRegistrosPage');
+const PublicAutoRegistroPage = lazyNamed(() => import('../features/autoRegistros/PublicAutoRegistroPage.jsx'), 'PublicAutoRegistroPage');
 
 const INTRO_LOGIN_KEY = 'ggs_intro_after_login_uid';
 const INTRO_SEEN_PREFIX = 'ggs_intro_seen_at_';
@@ -75,6 +77,11 @@ function App() {
     if (typeof window === 'undefined') return null;
     return isLegalPath(window.location.pathname) ? slugFromPath(window.location.pathname) : null;
   }, []);
+  const publicRegistrationToken = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const match = window.location.pathname.match(/^\/registro-cliente\/([^/]+)\/?$/);
+    return match?.[1] || '';
+  }, []);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentView, setCurrentView] = useState('dashboard');
@@ -100,6 +107,7 @@ function App() {
   const [totales, setTotales] = useState({registros: 0, ventas: 0});
 
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const toastTimerRef = React.useRef(null);
   const lastIntroUserRef = React.useRef(null);
   const lastRegistroDocRef = React.useRef(null);
   const lastVentaDocRef = React.useRef(null);
@@ -126,10 +134,18 @@ function App() {
     return new Map(equipos.map(equipo => [String(equipo.idEquipo || ''), equipo]));
   }, [equipos]);
 
-  const showToast = (message, type = 'success') => {
+  const showToast = React.useCallback((message, type = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
-  };
+    toastTimerRef.current = setTimeout(() => {
+      setToast({ show: false, message: '', type: 'success' });
+      toastTimerRef.current = null;
+    }, 3000);
+  }, []);
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
 
   // ── Navegación segura con confirmación si hay formulario sucio ──
   const navegarA = (vista) => {
@@ -150,6 +166,14 @@ function App() {
     setMostrarBusqueda(false);
     setPendingView(null);
   };
+
+  const continuarAutoRegistro = React.useCallback(draft => {
+    setEditingData(draft);
+    setFormDirty(false);
+    setCurrentView('registros_new');
+    setBusquedaGlobal('');
+    setMostrarBusqueda(false);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -605,6 +629,17 @@ function App() {
 
   const buscandoBusquedaGlobal = buscandoHistorial.registros || buscandoHistorial.ventas;
 
+  if (publicRegistrationToken) {
+    return (
+      <>
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Cargando formulario...</div>}>
+          <PublicAutoRegistroPage token={publicRegistrationToken} />
+        </Suspense>
+        <CookieConsentBanner />
+      </>
+    );
+  }
+
   if (legalSlug) {
     return (
       <>
@@ -665,6 +700,7 @@ function App() {
           <TopNavItem Icon={ShoppingCart}  label="Ventas"            active={currentView.startsWith('ventas')}    onClick={() => navegarA('ventas_list')} tone="emerald" />
           <TopNavItem Icon={Users}         label="Clientes"          active={currentView === 'clientes_list'}     onClick={() => navegarA('clientes_list')} />
           <TopNavItem Icon={ImagePlus}     label="Foto DNI"          active={currentView === 'foto_dni'}          onClick={() => navegarA('foto_dni')} />
+          <TopNavItem Icon={Link2}         label="Enlaces"           active={currentView === 'auto_registros'}    onClick={() => navegarA('auto_registros')} />
           <TopNavItem iconOnly Icon={AlertTriangle} label="Problemas" active={currentView === 'problemas_app'} onClick={() => navegarA('problemas_app')} tone="amber" className="ml-auto" />
           <TopNavItem iconOnly Icon={Settings} label="Configuracion" active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} />
         </nav>
@@ -743,6 +779,7 @@ function App() {
         <MobileNavIcon showLabel Icon={ShoppingCart}  active={currentView.startsWith('ventas')}       onClick={() => navegarA('ventas_list')}              title="Ventas" tone="emerald" />
         <MobileNavIcon showLabel Icon={Users}         active={currentView === 'clientes_list'}        onClick={() => navegarA('clientes_list')}            title="Clientes" />
         <MobileNavIcon showLabel Icon={ImagePlus}     active={currentView === 'foto_dni'}             onClick={() => navegarA('foto_dni')}                 title="Foto DNI" />
+        <MobileNavIcon showLabel Icon={Link2}         active={currentView === 'auto_registros'}       onClick={() => navegarA('auto_registros')}           title="Enlaces" />
       </nav>
 
       {/* Buscador móvil desplegable */}
@@ -782,7 +819,7 @@ function App() {
           {currentView === 'dashboard' && <Dashboard stats={{registros: totales.registros, ventas: totales.ventas, clientes: clientes.length}} setCurrentView={navegarA} user={user} />}
 
           {currentView === 'registros_list' && <RegistrosList data={registros} cargando={cargandoRegistros} clientes={clientes} equipos={equipos} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('registros_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('registros_edit'); }} showToast={showToast} onDeleted={quitarRegistroLocal} onLoadMore={cargarMasRegistros} hasMore={hayMasRegistros} loadingMore={cargandoMasRegistros} total={totales.registros} onSearchAll={buscarRegistrosEnHistorial} searchingAll={buscandoHistorial.registros} />}
-          {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={currentView === 'registros_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('registros_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('registros_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
+          {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={editingData} onCancel={() => { const target = editingData?.source === 'AUTO_REGISTRO' ? 'auto_registros' : 'registros_list'; setEditingData(null); setFormDirty(false); navegarA(target); }} onSave={() => { setEditingData(null); setFormDirty(false); refrescarTotales(); setCurrentView('registros_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
           {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} onSearchAll={buscarVentasEnHistorial} searchingAll={buscandoHistorial.ventas} />}
           {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
@@ -790,6 +827,8 @@ function App() {
           {currentView === 'clientes_list' && <ClientesList showToast={showToast} />}
 
           {currentView === 'foto_dni' && <DniFotosPage showToast={showToast} />}
+
+          {currentView === 'auto_registros' && <AutoRegistrosPage showToast={showToast} onContinueRegistration={continuarAutoRegistro} />}
 
           {currentView === 'problemas_app' && <ProblemasApp user={user} showToast={showToast} />}
 

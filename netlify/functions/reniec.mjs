@@ -25,8 +25,7 @@ function normalizeReniecResponse(data, dni) {
   };
 }
 
-async function consultarReniec(body) {
-  const {dni} = parseDniPayload(body);
+export async function consultarReniecDniSeguro(dni) {
   if (!process.env.RENIEC_TOKEN) throw Object.assign(new Error('RENIEC_TOKEN_MISSING'), {status: 500});
 
   const response = await fetch(`${RENIEC_URL}/${dni}`, {
@@ -40,7 +39,16 @@ async function consultarReniec(body) {
   if (!response.ok) {
     throw Object.assign(new Error(data.error || data.message || 'RENIEC_UPSTREAM_ERROR'), {status: response.status});
   }
-  return normalizeReniecResponse(data, dni);
+  const normalized = normalizeReniecResponse(data, dni);
+  if (!normalized.success || !normalized.result.full_name) {
+    throw Object.assign(new Error('RENIEC_PERSONA_NO_ENCONTRADA'), {status: 404});
+  }
+  return normalized;
+}
+
+async function consultarReniec(body) {
+  const {dni} = parseDniPayload(body);
+  return consultarReniecDniSeguro(dni);
 }
 
 export const __test = {normalizeReniecResponse};

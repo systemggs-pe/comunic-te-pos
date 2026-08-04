@@ -84,7 +84,11 @@ function getNextFromExisting(snapshot, field, prefix) {
 }
 
 async function createRegistro(db, payload, context) {
-  const {cliente, equipo, registro} = parseRegistroPayload(payload);
+  const {cliente, equipo, registro, autoRegistroSubmissionId = ''} = parseRegistroPayload(payload);
+  const sourceSubmissionId = String(autoRegistroSubmissionId || '').trim();
+  if (sourceSubmissionId && !/^[A-Za-z0-9_-]{1,160}$/.test(sourceSubmissionId)) {
+    throw Object.assign(new Error('ID_INVALIDO'), {status: 400});
+  }
   await assertComprobanteApple(db, registro);
   const base = baseRef(db);
   const counterRef = db.collection('_counters').doc('registros');
@@ -93,6 +97,9 @@ async function createRegistro(db, payload, context) {
   const equipoRef = base.collection('equipos').doc(equipo.idEquipo);
   const registrosRef = base.collection('registros');
   const locksRef = imeiLocksRef(base);
+  const sourceSubmissionRef = sourceSubmissionId
+    ? base.collection('autoRegistroSolicitudes').doc(sourceSubmissionId)
+    : null;
 
   return db.runTransaction(async transaction => {
     const counterSnap = await transaction.get(counterRef);
@@ -102,11 +109,38 @@ async function createRegistro(db, payload, context) {
       next = Math.max(next, getNextFromExisting(existingSnap, 'nRegistro', 'RECO'));
     }
     const nRegistro = `RECO-${String(next).padStart(5, '0')}`;
-    const registroData = {...registro, nRegistro};
+    const registroData = {
+      ...registro,
+      nRegistro,
+      ...(sourceSubmissionId ? {autoRegistroSubmissionId: sourceSubmissionId} : {}),
+    };
     const lockImeis = registroLockImeis(registroData);
     await assertNoOtherRegistroWithImeis(registrosRef, lockImeis, registroRef.id, transaction);
     const clienteSnap = await transaction.get(clienteRef);
     const clienteData = withContactHistory(clienteSnap.exists ? clienteSnap.data() || {} : {}, cliente);
+    let sourceSubmission = null;
+    let sourceInvitationRef = null;
+    if (sourceSubmissionRef) {
+      const sourceSnapshot = await transaction.get(sourceSubmissionRef);
+      if (!sourceSnapshot.exists) throw Object.assign(new Error('SOLICITUD_NO_ENCONTRADA'), {status: 404});
+      sourceSubmission = sourceSnapshot.data() || {};
+      if (!['PENDIENTE', 'EN_REVISION'].includes(sourceSubmission.status)) {
+        throw Object.assign(new Error('SOLICITUD_YA_PROCESADA'), {status: 409});
+      }
+      if (sourceSubmission.dni !== cliente.dni) {
+        throw Object.assign(new Error('DNI_NO_COINCIDE'), {status: 409});
+      }
+      if (sourceSubmission.imei !== registro.imeiRegistrado) {
+        throw Object.assign(new Error('IMEI_NO_COINCIDE'), {status: 409});
+      }
+      const sourceInvitationId = String(sourceSubmission.invitationId || '');
+      if (!/^[a-f0-9]{64}$/.test(sourceInvitationId)) {
+        throw Object.assign(new Error('INVITACION_NO_ENCONTRADA'), {status: 404});
+      }
+      sourceInvitationRef = base.collection('autoRegistroInvitaciones').doc(sourceInvitationId);
+      const invitationSnapshot = await transaction.get(sourceInvitationRef);
+      if (!invitationSnapshot.exists) throw Object.assign(new Error('INVITACION_NO_ENCONTRADA'), {status: 404});
+    }
 
     await syncImeiLocks({
       transaction,
@@ -119,6 +153,21 @@ async function createRegistro(db, payload, context) {
     transaction.set(counterRef, {last: next, updatedAt: new Date().toISOString()}, {merge: true});
     transaction.set(equipoRef, equipo, {merge: true});
     transaction.set(registroRef, registroData);
+    if (sourceSubmissionRef && sourceInvitationRef) {
+      const completedAt = new Date().toISOString();
+      transaction.set(sourceSubmissionRef, {
+        status: 'REGISTRADO',
+        registroId: registroRef.id,
+        nRegistro,
+        completedAt,
+        updatedAt: completedAt,
+      }, {merge: true});
+      transaction.set(sourceInvitationRef, {
+        registrationStatus: 'REGISTRADO',
+        registroId: registroRef.id,
+        nRegistro,
+      }, {merge: true});
+    }
     queueAuditEvent(transaction, base, context, {
       entityType: 'registro',
       entityId: registroRef.id,
@@ -132,6 +181,7 @@ async function createRegistro(db, payload, context) {
         estadoSolicitud: registroData.estadoSolicitud,
         tipo: registroData.tipo,
         boletaExtranjeraId: registroData.boletaExtranjeraId,
+        autoRegistroSubmissionId: sourceSubmissionId,
       },
     });
 
