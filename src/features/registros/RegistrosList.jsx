@@ -29,6 +29,32 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
   const [eliminando, setEliminando] = useState(false);
 
   const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
+  const getEquipo = (imei) => equipos.find(equipo => equipo.idEquipo === imei) || {};
+  const construirTextoRegistro = (registro, encabezado = 'REGISTRO') => {
+    const cliente = getCliente(registro.dniCliente);
+    const equipo = getEquipo(registro.imeiEquipo || registro.imeiRegistrado);
+    const imei = registro.imeiEquipo || registro.imeiRegistrado || '';
+    const imei2 = registro.imei2Equipo || equipo.imei2 || '';
+    const imeiRegistrar = registro.imeiRegistrado || imei;
+    const docLabel = registro.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI';
+    const celular = celularDeRegistro(registro, cliente);
+    const nombre = registro.nombreCliente || cliente.nombre || '';
+    const direccion = registro.direccionCliente || cliente.direccion || '';
+    const correo = registro.correoCliente || cliente.correo || '';
+
+    return `${encabezado}
+
+IMEI: ${imei}
+IMEI2: ${imei2}
+TIENE CAJA: ${etiquetaTieneCaja(registro.tieneCaja)}
+${docLabel}: ${registro.dniCliente || ''}
+CELULAR: ${celular}
+NOMBRE CLIENTE: ${nombre}
+DIRECCION: ${direccion}
+CORREO ELECTRONICO: ${correo}
+
+IMEI A REGISTRAR: ${imeiRegistrar}`;
+  };
 
   useEffect(() => {
     const term = searchTerm.trim() || HISTORY_TERM_BY_FILTER[statusFilter] || '';
@@ -46,29 +72,15 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
   }, [data, clientes, searchTerm, statusFilter]);
 
   const handleCopy = (item) => {
-    const cliente = getCliente(item.dniCliente);
-    const imeiRegistrado = item.imeiRegistrado || item.imeiEquipo;
-    const docLabel = item.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI';
-    const text = `IMEI: ${imeiRegistrado}\nTIENE CAJA: ${etiquetaTieneCaja(item.tieneCaja)}\n${docLabel}: ${item.dniCliente}\nCELULAR: ${celularDeRegistro(item, cliente)}\nNOMBRE CLIENTE: ${cliente.nombre || ''}\nDIRECCION: ${cliente.direccion || ''}\nCORREO ELECTRONICO: ${cliente.correo || ''}`;
+    const text = construirTextoRegistro(item);
     navigator.clipboard.writeText(text).then(() => showToast('Datos copiados')).catch(() => showToast('Error al copiar', 'error'));
   };
 
   const handleShare = async (row) => {
-    const cliente = getCliente(row.dniCliente);
-    const imeiRegistrado = row.imeiRegistrado || row.imeiEquipo;
-    const docLabel = row.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI';
     const encabezado = String(row.estado || '').toUpperCase() === 'BLOQUEADO'
       ? 'DESBLOQUEO LISTA BLANCA'
       : 'REGISTRO';
-    const texto = `${encabezado}
-
-IMEI: ${imeiRegistrado}
-TIENE CAJA: ${etiquetaTieneCaja(row.tieneCaja)}
-${docLabel}: ${row.dniCliente}
-CELULAR: ${celularDeRegistro(row, cliente)}
-NOMBRE CLIENTE: ${cliente.nombre || ''}
-DIRECCION: ${cliente.direccion || ''}
-CORREO ELECTRONICO: ${cliente.correo || ''}`;
+    const texto = construirTextoRegistro(row, encabezado);
 
     // Intentar Web Share API con archivos PDF si están disponibles
     const tieneArchivos = row.pdfDniUrl || row.pdfCajaUrl || row.pdfReciboUrl;
@@ -234,7 +246,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
             </div>
             <div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
               <aside className="space-y-2">
-                <button type="button" onClick={() => { const cl = getCliente(viewingRegistro.dniCliente); generarTicketRegistroPDF({...viewingRegistro, nombreCliente: cl.nombre || viewingRegistro.dniCliente, correoCliente: cl.correo || '', celularCliente: viewingRegistro.celularCliente || cl.celular || '', celularRef: viewingRegistro.celularRef || cl.celularRef || ''}); }} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
+                <button type="button" onClick={() => { const cl = getCliente(viewingRegistro.dniCliente); generarTicketRegistroPDF({...viewingRegistro, nombreCliente: cl.nombre || viewingRegistro.dniCliente, correoCliente: cl.correo || '', celularCliente: viewingRegistro.celularCliente || cl.celular || '', celularRef: viewingRegistro.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
                 <button type="button" onClick={() => { onEdit(viewingRegistro); setViewingRegistro(null); }} className="saas-secondary w-full justify-start"><Edit size={16}/> Editar</button>
                 <button type="button" onClick={() => { handleShare(viewingRegistro); }} className="saas-secondary w-full justify-start"><Share2 size={16}/> Compartir</button>
                 <button type="button" onClick={() => { setRegistroAEliminar(viewingRegistro); setViewingRegistro(null); }} className="saas-secondary w-full justify-start text-red-600"><Trash2 size={16}/> Eliminar</button>
@@ -257,8 +269,12 @@ PDF Recibo: ${row.pdfReciboUrl}`;
               <div>
                 <p className="text-xs font-semibold text-blue-600 uppercase mb-2 border-b pb-1">Equipo</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
-                  <p><strong className="text-gray-700">IMEI registrado:</strong></p>
-                  <p className="font-mono text-gray-600">{viewingRegistro.imeiRegistrado || viewingRegistro.imeiEquipo}</p>
+                  <p><strong className="text-gray-700">IMEI:</strong></p>
+                  <p className="font-mono text-gray-600">{viewingRegistro.imeiEquipo || viewingRegistro.imeiRegistrado || '-'}</p>
+                  <p><strong className="text-gray-700">IMEI2:</strong></p>
+                  <p className="font-mono text-gray-600">{viewingRegistro.imei2Equipo || getEquipo(viewingRegistro.imeiEquipo).imei2 || '-'}</p>
+                  <p><strong className="text-gray-700">IMEI a registrar:</strong></p>
+                  <p className="font-mono text-gray-600">{viewingRegistro.imeiRegistrado || viewingRegistro.imeiEquipo || '-'}</p>
                   <p><strong className="text-gray-700">Marca:</strong></p>
                   <p className="text-gray-600">{viewingRegistro.marcaEquipo || '-'}</p>
                   <p><strong className="text-gray-700">Modelo:</strong></p>
@@ -299,6 +315,8 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                   <p className="text-gray-600">{viewingRegistro.celularRef || '-'}</p>
                   <p><strong className="text-gray-700">Correo:</strong></p>
                   <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).correo || '-'}</p>
+                  <p><strong className="text-gray-700">Dirección:</strong></p>
+                  <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).direccion || '-'}</p>
                 </div>
               </div>
               </div>
@@ -404,7 +422,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
             <div className="flex gap-2">
               <button onClick={() => setViewingRegistro(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Ver registro" title="Ver"><Eye size={16}/><span className="sr-only">Ver</span></button>
               <button onClick={() => onEdit(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Editar registro" title="Editar"><Edit size={16}/><span className="sr-only">Editar</span></button>
-              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || ''}); }} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
+              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
               <button onClick={() => handleShare(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Compartir registro" title="Compartir"><Share2 size={16}/><span className="sr-only">Compartir</span></button>
               <button onClick={() => setRegistroAEliminar(row)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar registro" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
             </div>
@@ -467,7 +485,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                     <div className="flex justify-end gap-1">
                       <button onClick={() => setViewingRegistro(row)} className="saas-icon-button" title="Ver detalle"><Eye size={18} /></button>
                       <button onClick={() => onEdit(row)} className="saas-icon-button" title="Editar"><Edit size={18} /></button>
-                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || ''}); }} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
+                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
                       <button onClick={() => handleShare(row)} className="saas-icon-button" title="Compartir registro"><Share2 size={18} /></button>
                       <button onClick={() => setRegistroAEliminar(row)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
                     </div>
@@ -496,4 +514,3 @@ PDF Recibo: ${row.pdfReciboUrl}`;
 // ============================================================================
 // ESCÁNER IA — panel flotante esquina inferior derecha, no bloquea el formulario
 // ============================================================================
-

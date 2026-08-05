@@ -16,6 +16,7 @@ import { LegalDocumentPage } from '../features/legal/LegalDocumentPage.jsx';
 import { isLegalPath, slugFromPath } from '../features/legal/legalRouting.js';
 import {clientLogger} from '../utils/logger.js';
 import {normalizeSearchTerm, registroMatchesSearch, ventaMatchesSearch} from '../utils/searchRecords.js';
+import {consultarEstadosRegistroImeis} from '../services/functionsClient.js';
 
 const lazyNamed = (loader, name) => lazy(() => loader().then(module => ({default: module[name]})));
 const Dashboard = lazyNamed(() => import('../features/dashboard/Dashboard.jsx'), 'Dashboard');
@@ -34,8 +35,9 @@ const INTRO_LOGIN_KEY = 'ggs_intro_after_login_uid';
 const INTRO_SEEN_PREFIX = 'ggs_intro_seen_at_';
 const INTRO_REPEAT_AFTER_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 40;
-const SEARCH_PAGE_SIZE = 300;
-const MAX_HISTORY_SEARCH_DOCS = 600;
+const SEARCH_PAGE_SIZE = 60;
+const MAX_HISTORY_SEARCH_DOCS = 120;
+const REFERENCE_DATA_LIMIT = 200;
 
 function sortByDateDesc(items) {
   return [...items].sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
@@ -104,7 +106,9 @@ function App() {
   const [hayMasRegistros, setHayMasRegistros] = useState(false);
   const [hayMasVentas, setHayMasVentas] = useState(false);
   const [buscandoHistorial, setBuscandoHistorial] = useState({registros: false, ventas: false});
-  const [totales, setTotales] = useState({registros: 0, ventas: 0});
+  const [totales, setTotales] = useState({registros: 0, ventas: 0, clientes: 0});
+  const [referenceDataActive, setReferenceDataActive] = useState(false);
+  const [imeisRegistradosVentas, setImeisRegistradosVentas] = useState({key: '', values: null});
 
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const toastTimerRef = React.useRef(null);
@@ -125,6 +129,28 @@ function App() {
   const rebuildVentasState = React.useCallback(() => {
     setVentas(mergeRealtimeWithCache(ventasRealtimeRef.current, ventasCacheRef.current));
   }, []);
+
+  const ventasImeiStatusKey = useMemo(() => {
+    if (!currentView.startsWith('ventas')) return '';
+    return Array.from(new Set(ventas.slice(0, 120).flatMap(venta => [
+      venta.imeiEquipo,
+      venta.imei2Equipo,
+    ]).filter(Boolean))).sort().join('|');
+  }, [currentView, ventas]);
+
+  useEffect(() => {
+    if (!user || !ventasImeiStatusKey) return;
+    let active = true;
+    consultarEstadosRegistroImeis(ventasImeiStatusKey.split('|'))
+      .then(result => {
+        if (active) setImeisRegistradosVentas({key: ventasImeiStatusKey, values: new Set(result.registeredImeis || [])});
+      })
+      .catch(error => {
+        clientLogger.error('app.ventas.registration_status_error', error, {count: ventasImeiStatusKey.split('|').length});
+        if (active) setImeisRegistradosVentas({key: ventasImeiStatusKey, values: new Set()});
+      });
+    return () => { active = false; };
+  }, [user, ventasImeiStatusKey]);
 
   const clientePorDni = useMemo(() => {
     return new Map(clientes.map(cliente => [String(cliente.dni || ''), cliente]));
@@ -219,7 +245,7 @@ function App() {
   }, [user]);
 
   // ── SUSCRIPCIONES LAZY POR MÓDULO ──
-  // clientes + equipos: siempre cargados (necesarios en múltiples módulos)
+  // clientes + equipos: se activan solo al abrir módulos que los necesitan
   // registros: solo cuando se navega a registros
   // ventas: solo cuando se navega a ventas
   const unsubRegistrosRef = React.useRef(null);
@@ -233,39 +259,58 @@ function App() {
     () => collection(db, 'artifacts', appId, 'users', 'shared', 'ventas'),
     []
   );
+  const clientesRef = useMemo(
+    () => collection(db, 'artifacts', appId, 'users', 'shared', 'clientes'),
+    []
+  );
 
   const refrescarTotales = React.useCallback(async () => {
     if (!auth.currentUser) return;
     try {
-      const [registrosCount, ventasCount] = await Promise.all([
+      const [registrosCount, ventasCount, clientesCount] = await Promise.all([
         getCountFromServer(registrosRef),
         getCountFromServer(ventasRef),
+        getCountFromServer(clientesRef),
       ]);
       setTotales({
         registros: registrosCount.data().count,
         ventas: ventasCount.data().count,
+        clientes: clientesCount.data().count,
       });
     } catch (err) {
       clientLogger.error('app.totals.load_error', err);
     }
-  }, [registrosRef, ventasRef]);
+  }, [clientesRef, registrosRef, ventasRef]);
+
+  const necesitaDatosReferencia = currentView.startsWith('registros')
+    || currentView.startsWith('ventas')
+    || (mostrarBusqueda && busquedaGlobal.trim().length >= 3);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !necesitaDatosReferencia || referenceDataActive) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReferenceDataActive(true);
+  }, [necesitaDatosReferencia, referenceDataActive, user]);
 
-    // Clientes y equipos — siempre activos (son ligeros y necesarios en toda la app)
+  useEffect(() => {
+    if (!user || !referenceDataActive) return;
+
     const unsubClientes = onSnapshot(
-      collection(db, 'artifacts', appId, 'users', 'shared', 'clientes'),
+      query(clientesRef, limit(REFERENCE_DATA_LIMIT)),
       (snap) => setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       (err) => clientLogger.error('app.clientes.snapshot_error', err, {collection: 'clientes'})
     );
     const unsubEquipos = onSnapshot(
-      collection(db, 'artifacts', appId, 'users', 'shared', 'equipos'),
+      query(collection(db, 'artifacts', appId, 'users', 'shared', 'equipos'), limit(REFERENCE_DATA_LIMIT)),
       (snap) => setEquipos(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       (err) => clientLogger.error('app.equipos.snapshot_error', err, {collection: 'equipos'})
     );
 
-    // Logo de ventas — sincronizado desde Firestore
+    return () => { unsubClientes(); unsubEquipos(); };
+  }, [clientesRef, referenceDataActive, user]);
+
+  useEffect(() => {
+    if (!user) return;
     const unsubLogo = onSnapshot(
       doc(db, 'artifacts', appId, 'users', 'shared', 'configuracion', 'logoVentas'),
       (snap) => {
@@ -275,7 +320,7 @@ function App() {
       (err) => clientLogger.error('app.logo.snapshot_error', err, {collection: 'configuracion/logoVentas'})
     );
 
-    return () => { unsubClientes(); unsubEquipos(); unsubLogo(); };
+    return () => unsubLogo();
   }, [user]);
 
   useEffect(() => {
@@ -308,8 +353,10 @@ function App() {
     );
 
     return () => {
-      // Mantener la suscripción activa mientras el usuario esté logueado
-      // Solo se cancela al cerrar sesión
+      if (unsubRegistrosRef.current) {
+        unsubRegistrosRef.current();
+        unsubRegistrosRef.current = null;
+      }
     };
   }, [user, currentView, registrosRef, rebuildRegistrosState]);
 
@@ -336,7 +383,12 @@ function App() {
       (err) => { clientLogger.error('app.ventas.snapshot_error', err, {collection: 'ventas'}); setCargandoVentas(false); }
     );
 
-    return () => {};
+    return () => {
+      if (unsubVentasRef.current) {
+        unsubVentasRef.current();
+        unsubVentasRef.current = null;
+      }
+    };
   }, [user, currentView, ventasRef, rebuildVentasState]);
 
   const cargarMasRegistros = async () => {
@@ -532,7 +584,9 @@ function App() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setRegistros([]); setVentas([]); setClientes([]); setEquipos([]);
       setBuscandoHistorial({registros: false, ventas: false});
-      setHayMasRegistros(false); setHayMasVentas(false); setTotales({registros: 0, ventas: 0});
+      setHayMasRegistros(false); setHayMasVentas(false); setTotales({registros: 0, ventas: 0, clientes: 0});
+      setReferenceDataActive(false);
+      setImeisRegistradosVentas({key: '', values: null});
     }
   }, [user]);
 
@@ -816,12 +870,12 @@ function App() {
       {/* ── CONTENIDO ── */}
       <main className="relative flex-1 overflow-auto p-4 md:p-5">
         <Suspense fallback={<div className="py-12 text-center text-sm text-slate-400">Cargando modulo...</div>}>
-          {currentView === 'dashboard' && <Dashboard stats={{registros: totales.registros, ventas: totales.ventas, clientes: clientes.length}} setCurrentView={navegarA} user={user} />}
+          {currentView === 'dashboard' && <Dashboard stats={totales} setCurrentView={navegarA} user={user} />}
 
           {currentView === 'registros_list' && <RegistrosList data={registros} cargando={cargandoRegistros} clientes={clientes} equipos={equipos} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('registros_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('registros_edit'); }} showToast={showToast} onDeleted={quitarRegistroLocal} onLoadMore={cargarMasRegistros} hasMore={hayMasRegistros} loadingMore={cargandoMasRegistros} total={totales.registros} onSearchAll={buscarRegistrosEnHistorial} searchingAll={buscandoHistorial.registros} />}
           {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={editingData} onCancel={() => { const target = editingData?.source === 'AUTO_REGISTRO' ? 'auto_registros' : 'registros_list'; setEditingData(null); setFormDirty(false); navegarA(target); }} onSave={() => { setEditingData(null); setFormDirty(false); refrescarTotales(); setCurrentView('registros_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
-          {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} onSearchAll={buscarVentasEnHistorial} searchingAll={buscandoHistorial.ventas} />}
+          {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} registeredImeis={imeisRegistradosVentas.key === ventasImeiStatusKey ? imeisRegistradosVentas.values : null} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} onSearchAll={buscarVentasEnHistorial} searchingAll={buscandoHistorial.ventas} />}
           {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
           {currentView === 'clientes_list' && <ClientesList showToast={showToast} />}

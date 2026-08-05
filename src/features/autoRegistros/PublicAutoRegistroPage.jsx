@@ -42,6 +42,7 @@ const stateCopy = {
   COMPLETADA: ['Solicitud ya enviada', 'Este enlace ya fue utilizado correctamente.'],
   BLOQUEADA: ['Enlace bloqueado', 'Se agotaron los dos intentos de verificación del DNI.'],
   REVOCADA: ['Enlace revocado', 'Solicita un nuevo enlace a la tienda.'],
+  ELIMINADA: ['Enlace eliminado', 'Este enlace ya no está disponible. Solicita uno nuevo a la tienda.'],
   VENCIDA: ['Enlace vencido', 'La vigencia terminó. Solicita un nuevo enlace a la tienda.'],
 };
 

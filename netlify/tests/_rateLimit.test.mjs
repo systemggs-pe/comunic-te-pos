@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createRateLimitKey,
+  enforceMemoryRateLimit,
   enforcePersistentRateLimit,
   getRateLimitWindow,
+  resetMemoryRateLimits,
 } from '../functions/_rateLimit.mjs';
 
 function createFakeDb() {
@@ -53,6 +55,24 @@ test('createRateLimitKey includes endpoint, uid, ip and bucket', () => {
   assert.equal(base.length, 64);
   assert.notEqual(base, otherIp);
   assert.notEqual(base, otherEndpoint);
+});
+
+test('enforceMemoryRateLimit blocks without a Firestore database', () => {
+  resetMemoryRateLimits();
+  const user = {uid: 'uid-memory'};
+  const context = {ipAddress: '10.0.0.8'};
+  const rateLimit = {name: 'clientes', max: 2, windowMs: 1000};
+
+  const first = enforceMemoryRateLimit(user, context, rateLimit, {nowMs: 1_700_000_000_100});
+  const second = enforceMemoryRateLimit(user, context, rateLimit, {nowMs: 1_700_000_000_200});
+
+  assert.equal(first['X-RateLimit-Remaining'], '1');
+  assert.equal(second['X-RateLimit-Remaining'], '0');
+  assert.throws(
+    () => enforceMemoryRateLimit(user, context, rateLimit, {nowMs: 1_700_000_000_300}),
+    error => error.status === 429 && error.responseHeaders['X-RateLimit-Remaining'] === '0',
+  );
+  resetMemoryRateLimits();
 });
 
 test('enforcePersistentRateLimit persists and blocks over limit', async () => {

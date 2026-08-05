@@ -6,10 +6,10 @@ import {parseClienteUpdatePayload, parseDniPayload} from './_validators.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
-const QUERY_PAGE_SIZE = 500;
-const DEFAULT_ACTIVITY_SCAN_LIMIT = 120;
-const SEARCH_ACTIVITY_SCAN_LIMIT = 300;
-const SUPPORT_COLLECTION_SCAN_LIMIT = 300;
+const QUERY_PAGE_SIZE = 60;
+const DEFAULT_ACTIVITY_SCAN_LIMIT = 25;
+const SEARCH_ACTIVITY_SCAN_LIMIT = 60;
+const SUPPORT_COLLECTION_SCAN_LIMIT = 60;
 const MIN_SEARCH_LENGTH = 3;
 const DEFAULT_CLIENT_LIMIT = 10;
 const MAX_CLIENT_LIMIT = 50;

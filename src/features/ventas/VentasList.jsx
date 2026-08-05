@@ -7,7 +7,7 @@ import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
 import {ventaMatchesSearch} from '../../utils/searchRecords.js';
 
-export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
+export function VentasList({ data, cargando, clientes, equipos, registeredImeis = null, logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingVenta, setViewingVenta] = useState(null);
   const [ticketVentaData, setTicketVentaData] = useState(null);
@@ -17,6 +17,12 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
 
   const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
   const getEquipo  = (imei) => equipos.find(e => e.idEquipo === imei) || {};
+  const imeiEstaRegistrado = imei => Boolean(
+    imei && (
+      registeredImeis?.has?.(imei)
+      || (Array.isArray(registeredImeis) && registeredImeis.includes(imei))
+    )
+  );
   const ticketData = (row) => {
     const eq = getEquipo(row.imeiEquipo);
     return {
@@ -228,8 +234,8 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
               {(() => {
                 const eq = getEquipo(row.imeiEquipo);
                 const imei2 = eq.imei2 || row.imei2Equipo || '';
-                const reg1 = eq.imei1Registrado;
-                const reg2 = eq.imei2Registrado;
+                const reg1 = imeiEstaRegistrado(row.imeiEquipo);
+                const reg2 = imeiEstaRegistrado(imei2);
                 return (
                   <>
                     <p className={`text-xs font-mono ${reg1 ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
@@ -278,8 +284,8 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
                   {(() => {
                     const eq = getEquipo(row.imeiEquipo);
                     const imei2 = eq.imei2 || row.imei2Equipo || '';
-                    const reg1 = eq.imei1Registrado;
-                    const reg2 = eq.imei2Registrado;
+                    const reg1 = imeiEstaRegistrado(row.imeiEquipo);
+                    const reg2 = imeiEstaRegistrado(imei2);
                     const nombre = row.nombreComercial || eq.nombreComercial || row.modeloEquipo;
                     return (
                       <>
@@ -324,4 +330,3 @@ export function VentasList({ data, cargando, clientes, equipos, logoVentas, onNe
     </div>
   );
 }
-

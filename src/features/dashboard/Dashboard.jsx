@@ -39,8 +39,8 @@ export function Dashboard({ stats, setCurrentView, user }) {
       tone: 'slate',
     },
     {
-      title: 'Enlaces para clientes',
-      detail: 'Autoriza un DNI y recibe los datos del equipo',
+      title: 'Enlaces para clientes · BETA',
+      detail: 'Función en pruebas; puede presentar errores',
       action: 'Gestionar enlaces',
       Icon: Link2,
       view: 'auto_registros',

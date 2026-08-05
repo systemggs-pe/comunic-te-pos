@@ -11,12 +11,14 @@ import {
   Send,
   ShieldCheck,
   Smartphone,
+  Trash2,
   Workflow,
   X,
 } from 'lucide-react';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {
   crearInvitacionAutoRegistro,
+  eliminarInvitacionAutoRegistro,
   iniciarRevisionAutoRegistro,
   listarInvitacionesAutoRegistro,
   obtenerMensajeErrorFuncion,
@@ -39,6 +41,7 @@ const statusConfig = {
   BLOQUEADA: {label: 'Bloqueado', className: 'border-red-100 bg-red-50 text-red-700'},
   REVOCADA: {label: 'Revocado', className: 'border-slate-200 bg-slate-100 text-slate-600'},
   VENCIDA: {label: 'Vencido', className: 'border-amber-100 bg-amber-50 text-amber-700'},
+  ELIMINADA: {label: 'Eliminado', className: 'border-slate-200 bg-slate-100 text-slate-500'},
 };
 
 const registrationStatusConfig = {
@@ -116,6 +119,8 @@ export function AutoRegistrosPage({showToast, onContinueRegistration}) {
   const [generatedLink, setGeneratedLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState('');
 
@@ -127,7 +132,7 @@ export function AutoRegistrosPage({showToast, onContinueRegistration}) {
   const refresh = useCallback(async ({silent = false} = {}) => {
     if (!silent) setLoading(true);
     try {
-      const data = await listarInvitacionesAutoRegistro();
+      const data = await listarInvitacionesAutoRegistro({force: true});
       setInvitations(Array.isArray(data.invitations) ? data.invitations : []);
     } catch (error) {
       showToast?.(obtenerMensajeErrorFuncion(error, 'No se pudieron cargar los enlaces'), 'error');
@@ -245,13 +250,32 @@ export function AutoRegistrosPage({showToast, onContinueRegistration}) {
     }
   };
 
+  const remove = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await eliminarInvitacionAutoRegistro(deleteTarget.id);
+      setDeleteTarget(null);
+      await refresh({silent: true});
+      showToast?.('Enlace eliminado');
+    } catch (error) {
+      showToast?.(obtenerMensajeErrorFuncion(error, 'No se pudo eliminar el enlace'), 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const continueRegistration = async submissionId => {
     if (!submissionId) return;
     setDetailLoading(submissionId);
     try {
       const data = await iniciarRevisionAutoRegistro(submissionId);
       setDetail(data);
-      await refresh({silent: true});
+      setInvitations(current => current.map(invitation => (
+        invitation.submissionId === submissionId
+          ? {...invitation, registrationStatus: 'EN_REVISION'}
+          : invitation
+      )));
       onContinueRegistration?.(registrationDraft(data));
     } catch (error) {
       showToast?.(obtenerMensajeErrorFuncion(error, 'No se pudo iniciar el registro'), 'error');
@@ -272,13 +296,28 @@ export function AutoRegistrosPage({showToast, onContinueRegistration}) {
         onConfirm={revoke}
         onCancel={() => setRevokeTarget(null)}
       />
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Eliminar enlace"
+        message={`El enlace del DNI ${deleteTarget?.dni || ''} dejará de aparecer y ya no podrá utilizarse. Los datos de una solicitud recibida no se eliminarán.`}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        tone="danger"
+        loading={deleting}
+        onConfirm={remove}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       <section className="saas-list-shell max-w-none">
         <div className="saas-page-header">
           <div>
             <p className="saas-page-kicker">Autoservicio seguro</p>
-            <h1 className="saas-page-title">Enlaces de registro para clientes</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="saas-page-title">Enlaces de registro para clientes</h1>
+              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">BETA</span>
+            </div>
             <p className="saas-page-desc">Autoriza un DNI y comparte un enlace de un solo uso. Dos verificaciones incorrectas bloquean el acceso.</p>
+            <p className="mt-1 text-xs font-semibold text-amber-700">Esta función está en BETA y puede presentar errores. Verifica la información antes de confirmar.</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="saas-chip"><ShieldCheck size={14} /> {activeCount} activos</span>
@@ -370,6 +409,7 @@ export function AutoRegistrosPage({showToast, onContinueRegistration}) {
                           {invitation.status === 'ACTIVA' && (
                             <button type="button" onClick={() => setRevokeTarget(invitation)} className="saas-icon-button text-red-600" aria-label={`Revocar enlace de DNI ${invitation.dni}`}><Ban size={16} /></button>
                           )}
+                          <button type="button" onClick={() => setDeleteTarget(invitation)} disabled={deleting && deleteTarget?.id === invitation.id} className="saas-icon-button text-red-700" aria-label={`Eliminar enlace de DNI ${invitation.dni}`}><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>

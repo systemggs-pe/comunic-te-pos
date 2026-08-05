@@ -290,16 +290,49 @@ export function eliminarDniFotoHistorial(id) {
   return llamarFuncionSegura('dniFotos', {action: 'delete', id});
 }
 
+const CLIENTES_QUERY_TTL_MS = 20_000;
+const clientesQueryCache = new Map();
+const clientesQueryRequests = new Map();
+
+function invalidateClientesQueryCache() {
+  clientesQueryCache.clear();
+}
+
+async function runClientMutation(nombre, payload) {
+  const result = await llamarFuncionSegura(nombre, payload);
+  invalidateClientesQueryCache();
+  registroImeiStatusCache.clear();
+  return result;
+}
+
 export function crearRegistro(payload) {
-  return llamarFuncionSegura('registros', {action: 'create', ...payload});
+  return runClientMutation('registros', {action: 'create', ...payload});
 }
 
 export function actualizarRegistro(payload) {
-  return llamarFuncionSegura('registros', {action: 'update', ...payload});
+  return runClientMutation('registros', {action: 'update', ...payload});
 }
 
 export function eliminarRegistro(id) {
-  return llamarFuncionSegura('registros', {action: 'delete', id});
+  return runClientMutation('registros', {action: 'delete', id});
+}
+
+const registroImeiStatusCache = new Map();
+const REGISTRO_IMEI_STATUS_TTL_MS = 20_000;
+
+export function consultarEstadosRegistroImeis(imeis = []) {
+  const values = Array.from(new Set(imeis.map(value => String(value || '').trim()).filter(Boolean))).sort();
+  if (!values.length) return Promise.resolve({registeredImeis: []});
+  const key = `${auth.currentUser?.uid || ''}|${values.join(',')}`;
+  const cached = registroImeiStatusCache.get(key);
+  if (cached?.expiresAt > Date.now()) return Promise.resolve(cached.data);
+
+  return llamarFuncionSegura('registros', {action: 'checkImeis', imeis: values})
+    .then(data => {
+      if (registroImeiStatusCache.size >= 20) registroImeiStatusCache.clear();
+      registroImeiStatusCache.set(key, {data, expiresAt: Date.now() + REGISTRO_IMEI_STATUS_TTL_MS});
+      return data;
+    });
 }
 
 export function desbloquearRegistro(id) {
@@ -315,51 +348,102 @@ export function marcarTodosRegistrosRealizados() {
 }
 
 export function crearVenta(payload) {
-  return llamarFuncionSegura('ventas', {action: 'create', ...payload});
+  return runClientMutation('ventas', {action: 'create', ...payload});
 }
 
 export function actualizarVenta(payload) {
-  return llamarFuncionSegura('ventas', {action: 'update', ...payload});
+  return runClientMutation('ventas', {action: 'update', ...payload});
 }
 
 export function eliminarVenta(id) {
-  return llamarFuncionSegura('ventas', {action: 'delete', id});
+  return runClientMutation('ventas', {action: 'delete', id});
 }
 
 export function actualizarCliente(payload) {
-  return llamarFuncionSegura('clientes', {action: 'update', ...payload});
+  return runClientMutation('clientes', {action: 'update', ...payload});
 }
 
 export function eliminarCliente(dni) {
-  return llamarFuncionSegura('clientes', {action: 'delete', dni});
+  return runClientMutation('clientes', {action: 'delete', dni});
 }
 
 export function consultarClientesOperativos(payload = {}) {
-  return llamarFuncionSegura('clientes', {action: 'queryOperational', ...payload});
+  const userId = auth.currentUser?.uid || '';
+  const key = `${userId}|${JSON.stringify(payload)}`;
+  const now = Date.now();
+  const cached = clientesQueryCache.get(key);
+  if (cached?.expiresAt > now) return Promise.resolve(cached.data);
+  if (clientesQueryRequests.has(key)) return clientesQueryRequests.get(key);
+
+  const promise = llamarFuncionSegura('clientes', {action: 'queryOperational', ...payload})
+    .then(data => {
+      if (clientesQueryCache.size >= 30) clientesQueryCache.clear();
+      clientesQueryCache.set(key, {data, expiresAt: Date.now() + CLIENTES_QUERY_TTL_MS});
+      return data;
+    })
+    .finally(() => clientesQueryRequests.delete(key));
+  clientesQueryRequests.set(key, promise);
+  return promise;
 }
 
 export function registrarConsentimientoLegal(payload) {
   return llamarFuncionSegura('legalConsent', payload);
 }
 
-export function crearInvitacionAutoRegistro(dni, expiresDays = 7) {
-  return llamarFuncionSegura('autoRegistros', {action: 'create', dni, expiresDays});
+const AUTO_REGISTRO_LIST_TTL_MS = 15_000;
+let autoRegistroListCache = null;
+let autoRegistroListRequest = null;
+
+function invalidateAutoRegistroList() {
+  autoRegistroListCache = null;
 }
 
-export function listarInvitacionesAutoRegistro() {
-  return llamarFuncionSegura('autoRegistros', {action: 'list'});
+export async function crearInvitacionAutoRegistro(dni, expiresDays = 7) {
+  const result = await llamarFuncionSegura('autoRegistros', {action: 'create', dni, expiresDays});
+  invalidateAutoRegistroList();
+  return result;
 }
 
-export function revocarInvitacionAutoRegistro(id) {
-  return llamarFuncionSegura('autoRegistros', {action: 'revoke', id});
+export function listarInvitacionesAutoRegistro({force = false} = {}) {
+  const userId = auth.currentUser?.uid || '';
+  const now = Date.now();
+  if (!force && autoRegistroListCache?.userId === userId && autoRegistroListCache.expiresAt > now) {
+    return Promise.resolve(autoRegistroListCache.data);
+  }
+  if (!force && autoRegistroListRequest?.userId === userId) return autoRegistroListRequest.promise;
+
+  const promise = llamarFuncionSegura('autoRegistros', {action: 'list'})
+    .then(data => {
+      autoRegistroListCache = {userId, data, expiresAt: Date.now() + AUTO_REGISTRO_LIST_TTL_MS};
+      return data;
+    })
+    .finally(() => {
+      if (autoRegistroListRequest?.promise === promise) autoRegistroListRequest = null;
+    });
+  autoRegistroListRequest = {userId, promise};
+  return promise;
+}
+
+export async function revocarInvitacionAutoRegistro(id) {
+  const result = await llamarFuncionSegura('autoRegistros', {action: 'revoke', id});
+  invalidateAutoRegistroList();
+  return result;
+}
+
+export async function eliminarInvitacionAutoRegistro(id) {
+  const result = await llamarFuncionSegura('autoRegistros', {action: 'delete', id});
+  invalidateAutoRegistroList();
+  return result;
 }
 
 export function obtenerSolicitudAutoRegistro(id) {
   return llamarFuncionSegura('autoRegistros', {action: 'getSubmission', id});
 }
 
-export function iniciarRevisionAutoRegistro(id) {
-  return llamarFuncionSegura('autoRegistros', {action: 'startReview', id});
+export async function iniciarRevisionAutoRegistro(id) {
+  const result = await llamarFuncionSegura('autoRegistros', {action: 'startReview', id});
+  invalidateAutoRegistroList();
+  return result;
 }
 
 export function consultarEstadoAutoRegistro(token) {

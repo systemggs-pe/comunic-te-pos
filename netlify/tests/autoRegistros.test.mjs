@@ -18,6 +18,7 @@ test('invitationState aplica vencimiento, revocación, bloqueo y cierre', () => 
   assert.equal(invitationState({status: 'ACTIVA', expiresAt: future}), 'ACTIVA');
   assert.equal(invitationState({status: 'ACTIVA', expiresAt: past}), 'VENCIDA');
   assert.equal(invitationState({status: 'REVOCADA', expiresAt: future}), 'REVOCADA');
+  assert.equal(invitationState({status: 'ELIMINADA', expiresAt: future}), 'ELIMINADA');
   assert.equal(invitationState({status: 'COMPLETADA', expiresAt: future}), 'COMPLETADA');
   assert.equal(invitationState({status: 'ACTIVA', expiresAt: future, failedAttempts: 2, maxAttempts: 2}), 'BLOQUEADA');
 });

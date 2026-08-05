@@ -131,9 +131,13 @@ export async function generarTicketRegistroPDF(data) {
     field('CORREO', data.correoCliente || '', SZ.xs);
     field('CELULAR', data.celularCliente || '');
     field('CEL. REF', data.celularRef || '');
+    field('DIRECCION', data.direccionCliente || '', SZ.xs);
 
     section('EQUIPO');
-    field('IMEI', data.imeiRegistrado || data.imeiEquipo || '', SZ.md);
+    field('IMEI', data.imeiEquipo || data.imeiRegistrado || '', SZ.md);
+    field('IMEI 2', data.imei2Equipo || '', SZ.md);
+    field('IMEI A REG.', data.imeiRegistrado || data.imeiEquipo || '', SZ.md);
+    field('TIENE CAJA', data.tieneCaja === true || data.tieneCaja === 'SI' ? 'SI' : 'NO');
     field('MARCA', data.marcaEquipo || '');
     field('MODELO', data.modeloEquipo || '');
     field('N. COM.', data.nombreComercialEquipo || '');

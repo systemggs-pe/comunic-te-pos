@@ -3,6 +3,8 @@ import {getAdminDb} from './_firebaseAdmin.mjs';
 
 const DEFAULT_WINDOW_MS = 60 * 1000;
 const DEFAULT_COLLECTION = '_rateLimits';
+const MAX_MEMORY_BUCKETS = 5000;
+const memoryBuckets = new Map();
 
 function positiveNumber(value, fallback) {
   const parsed = Number(value);
@@ -48,6 +50,51 @@ function rateLimitHeaders(max, count, resetSeconds) {
     'X-RateLimit-Remaining': String(Math.max(max - count, 0)),
     'X-RateLimit-Reset': String(resetSeconds),
   };
+}
+
+function cleanupMemoryBuckets(activeBucket) {
+  if (memoryBuckets.size < MAX_MEMORY_BUCKETS) return;
+  for (const [key, entry] of memoryBuckets) {
+    if (entry.bucket < activeBucket - 1) memoryBuckets.delete(key);
+  }
+  while (memoryBuckets.size >= MAX_MEMORY_BUCKETS) {
+    const oldestKey = memoryBuckets.keys().next().value;
+    if (!oldestKey) break;
+    memoryBuckets.delete(oldestKey);
+  }
+}
+
+export function enforceMemoryRateLimit(user, context, rateLimit = {}, options = {}) {
+  if (!rateLimit.name || !rateLimit.max) return {};
+
+  const max = Math.floor(positiveNumber(rateLimit.max, 0));
+  if (!max) return {};
+
+  const nowMs = options.nowMs ?? Date.now();
+  const window = getRateLimitWindow(nowMs, rateLimit.windowMs);
+  const key = createRateLimitKey({
+    name: rateLimit.name,
+    uid: user?.uid,
+    ipAddress: context?.ipAddress,
+    bucket: window.bucket,
+  });
+  const current = Number(memoryBuckets.get(key)?.count || 0);
+  const headers = rateLimitHeaders(max, current >= max ? current : current + 1, window.resetSeconds);
+
+  if (current >= max) {
+    throw Object.assign(new Error('Demasiadas solicitudes. Intenta de nuevo en unos segundos.'), {
+      status: 429,
+      responseHeaders: headers,
+    });
+  }
+
+  memoryBuckets.set(key, {bucket: window.bucket, count: current + 1});
+  cleanupMemoryBuckets(window.bucket);
+  return headers;
+}
+
+export function resetMemoryRateLimits() {
+  memoryBuckets.clear();
 }
 
 export async function enforcePersistentRateLimit(user, context, rateLimit = {}, options = {}) {

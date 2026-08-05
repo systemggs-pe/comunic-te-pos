@@ -1,7 +1,7 @@
 import {createHash, randomBytes} from 'node:crypto';
 import {z} from 'zod';
 import {getAdminDb} from './_firebaseAdmin.mjs';
-import {enforcePersistentRateLimit} from './_rateLimit.mjs';
+import {enforceMemoryRateLimit} from './_rateLimit.mjs';
 import {
   attachUserToContext,
   createRequestContext,
@@ -91,6 +91,7 @@ function hashToken(token) {
 
 function invitationState(invitation, nowMs = Date.now()) {
   if (!invitation) return 'NO_ENCONTRADA';
+  if (invitation.status === 'ELIMINADA') return 'ELIMINADA';
   if (invitation.status === 'COMPLETADA') return 'COMPLETADA';
   if (invitation.status === 'REVOCADA') return 'REVOCADA';
   if (invitation.status === 'BLOQUEADA' || Number(invitation.failedAttempts || 0) >= Number(invitation.maxAttempts || MAX_DNI_ATTEMPTS)) {
@@ -119,6 +120,7 @@ function publicInvitation(invitation) {
       ? invitation.registrationStatus
       : '',
     nRegistro: invitation.nRegistro || '',
+    statusUpdatedAt: invitation.statusUpdatedAt || invitation.submittedAt || '',
   };
 }
 
@@ -229,9 +231,9 @@ async function createInvitation(db, body, user, context) {
 async function listInvitations(db) {
   const snapshot = await baseRef(db).collection('autoRegistroInvitaciones')
     .orderBy('createdAt', 'desc')
-    .limit(100)
+    .limit(30)
     .get();
-  return {invitations: snapshot.docs.map(serializeInvitation)};
+  return {invitations: snapshot.docs.filter(doc => doc.data()?.status !== 'ELIMINADA').map(serializeInvitation)};
 }
 
 async function revokeInvitation(db, body, user, context) {
@@ -251,6 +253,31 @@ async function revokeInvitation(db, body, user, context) {
     entityId: id,
     action: 'revoke',
     metadata: {dni: snapshot.data()?.dni || ''},
+  });
+  await batch.commit();
+  return {ok: true};
+}
+
+async function deleteInvitation(db, body, user, context) {
+  const id = String(body.id || '').trim();
+  if (!/^[a-f0-9]{64}$/.test(id)) throw Object.assign(new Error('ID_INVALIDO'), {status: 400});
+  const base = baseRef(db);
+  const ref = base.collection('autoRegistroInvitaciones').doc(id);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) throw Object.assign(new Error('INVITACION_NO_ENCONTRADA'), {status: 404});
+  const data = snapshot.data() || {};
+  if (data.status === 'ELIMINADA') return {ok: true, alreadyDeleted: true};
+  const batch = db.batch();
+  batch.set(ref, {
+    status: 'ELIMINADA',
+    deletedAt: new Date().toISOString(),
+    deletedBy: user.email,
+  }, {merge: true});
+  queueAuditEvent(batch, base, context, {
+    entityType: 'autoRegistroInvitacion',
+    entityId: id,
+    action: 'delete',
+    metadata: {dni: data.dni || '', previousStatus: data.status || ''},
   });
   await batch.commit();
   return {ok: true};
@@ -278,7 +305,7 @@ async function startSubmissionReview(db, body, user) {
     const submissionSnapshot = await transaction.get(submissionRef);
     if (!submissionSnapshot.exists) throw Object.assign(new Error('SOLICITUD_NO_ENCONTRADA'), {status: 404});
     const submission = submissionSnapshot.data() || {};
-    if (submission.status === 'REGISTRADO') return;
+    if (['EN_REVISION', 'REGISTRADO'].includes(submission.status)) return;
     if (!['PENDIENTE', 'EN_REVISION'].includes(submission.status)) {
       throw Object.assign(new Error('SOLICITUD_NO_REVISABLE'), {status: 409});
     }
@@ -296,7 +323,10 @@ async function startSubmissionReview(db, body, user) {
       reviewStartedBy: user.email,
       updatedAt: now,
     }, {merge: true});
-    transaction.set(invitationRef, {registrationStatus: 'EN_REVISION'}, {merge: true});
+    transaction.set(invitationRef, {
+      registrationStatus: 'EN_REVISION',
+      statusUpdatedAt: now,
+    }, {merge: true});
   });
 
   return getSubmission(db, {id});
@@ -306,18 +336,7 @@ async function getPublicStatus(db, body) {
   const token = parseOrThrow(tokenSchema, body.token);
   const snapshot = await baseRef(db).collection('autoRegistroInvitaciones').doc(hashToken(token)).get();
   if (!snapshot.exists) return {state: 'NO_ENCONTRADA', attemptsRemaining: 0, verified: false, expiresAt: ''};
-  const invitation = snapshot.data() || {};
-  const result = publicInvitation(invitation);
-  if (result.state !== 'COMPLETADA' || !invitation.submissionId) return result;
-  const submission = await baseRef(db).collection('autoRegistroSolicitudes').doc(invitation.submissionId).get();
-  if (!submission.exists) return result;
-  const data = submission.data() || {};
-  return {
-    ...result,
-    registrationStatus: REGISTRATION_STATUSES.has(data.status) ? data.status : result.registrationStatus,
-    nRegistro: data.nRegistro || result.nRegistro,
-    statusUpdatedAt: data.completedAt || data.updatedAt || data.createdAt || invitation.submittedAt || '',
-  };
+  return publicInvitation(snapshot.data() || {});
 }
 
 async function verifyDni(db, body) {
@@ -344,7 +363,9 @@ async function verifyDni(db, body) {
       return {verified: false, state: blocked ? 'BLOQUEADA' : 'ACTIVA', attemptsRemaining: Math.max(maxAttempts - nextAttempts, 0)};
     }
 
-    transaction.set(ref, {verifiedAt: new Date().toISOString()}, {merge: true});
+    if (!invitation.verifiedAt) {
+      transaction.set(ref, {verifiedAt: new Date().toISOString()}, {merge: true});
+    }
     return {
       verified: true,
       state: 'ACTIVA',
@@ -424,6 +445,7 @@ async function submitRequest(db, body, context) {
       status: 'COMPLETADA',
       registrationStatus: 'PENDIENTE',
       submittedAt: now,
+      statusUpdatedAt: now,
       submissionId: submissionRef.id,
     }, {merge: true});
     queueAuditEvent(transaction, base, context, {
@@ -441,6 +463,7 @@ async function dispatchAdmin(db, body, user, context) {
   if (body.action === 'create') return createInvitation(db, body, user, context);
   if (body.action === 'list') return listInvitations(db);
   if (body.action === 'revoke') return revokeInvitation(db, body, user, context);
+  if (body.action === 'delete') return deleteInvitation(db, body, user, context);
   if (body.action === 'getSubmission') return getSubmission(db, body);
   if (body.action === 'startReview') return startSubmissionReview(db, body, user);
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
@@ -474,7 +497,7 @@ export async function handler(event) {
     const db = getAdminDb();
 
     if (isPublic) {
-      rateHeaders = await enforcePersistentRateLimit({uid: 'public-auto-registro'}, context, {
+      rateHeaders = enforceMemoryRateLimit({uid: 'public-auto-registro'}, context, {
         name: 'autoRegistros-public',
         max: 30,
         windowMs: 60 * 1000,
@@ -483,7 +506,7 @@ export async function handler(event) {
     } else {
       const user = await requireFirebaseUser(event);
       attachUserToContext(context, user);
-      rateHeaders = await enforcePersistentRateLimit(user, context, {
+      rateHeaders = enforceMemoryRateLimit(user, context, {
         name: 'autoRegistros-admin',
         max: 90,
         windowMs: 60 * 1000,

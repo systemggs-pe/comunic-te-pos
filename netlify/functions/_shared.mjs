@@ -5,7 +5,7 @@ import {
   logRequestStart,
   logRequestSuccess,
 } from './_observability.mjs';
-import {enforcePersistentRateLimit} from './_rateLimit.mjs';
+import {enforceMemoryRateLimit} from './_rateLimit.mjs';
 
 const allowedOrigins = [
   'http://localhost:5173',
@@ -114,7 +114,7 @@ export async function handlePost(event, callback, options = {}) {
   try {
     const user = await requireFirebaseUser(event);
     attachUserToContext(context, user);
-    const rateLimitHeaders = await enforcePersistentRateLimit(user, context, options.rateLimit);
+    const rateLimitHeaders = enforceMemoryRateLimit(user, context, options.rateLimit);
     const body = parseBody(event);
     const result = await callback(body, user, context);
     logRequestSuccess(context, {statusCode: 200});

@@ -73,6 +73,31 @@ async function assertNoOtherRegistroWithImeis(registrosRef, imeis, excludeId, tr
   }
 }
 
+function splitIntoChunks(values, size = 30) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) chunks.push(values.slice(index, index + size));
+  return chunks;
+}
+
+async function checkRegisteredImeis(db, body) {
+  const requestedImeis = normalizeImeiList(Array.isArray(body?.imeis) ? body.imeis : []).slice(0, 120);
+  if (!requestedImeis.length) return {registeredImeis: []};
+
+  const registrosRef = baseRef(db).collection('registros');
+  const requested = new Set(requestedImeis);
+  const snapshots = await Promise.all(splitIntoChunks(requestedImeis).flatMap(chunk => [
+    registrosRef.where('imeiRegistrado', 'in', chunk).limit(30).get(),
+    registrosRef.where('imeiEquipo', 'in', chunk).limit(30).get(),
+  ]));
+  const registeredImeis = new Set();
+  snapshots.flatMap(snapshot => snapshot.docs).forEach(doc => {
+    const data = doc.data() || {};
+    const registeredImei = String(data.imeiRegistrado || data.imeiEquipo || '').trim();
+    if (requested.has(registeredImei)) registeredImeis.add(registeredImei);
+  });
+  return {registeredImeis: [...registeredImeis]};
+}
+
 function getNextFromExisting(snapshot, field, prefix) {
   const pattern = new RegExp(`^${prefix}-(\\d+)$`);
   const max = snapshot.docs.reduce((highest, doc) => {
@@ -166,6 +191,7 @@ async function createRegistro(db, payload, context) {
         registrationStatus: 'REGISTRADO',
         registroId: registroRef.id,
         nRegistro,
+        statusUpdatedAt: completedAt,
       }, {merge: true});
     }
     queueAuditEvent(transaction, base, context, {
@@ -456,6 +482,7 @@ async function completeAllRequestStatuses(db, context) {
 async function dispatchRegistros(body, user, context) {
   const db = getAdminDb();
   const action = String(body?.action || '');
+  if (action === 'checkImeis') return checkRegisteredImeis(db, body);
   if (action === 'create') return createRegistro(db, body, context);
   if (action === 'update') return updateRegistro(db, body, context);
   if (action === 'delete') return deleteRegistro(db, body, context);
@@ -465,7 +492,7 @@ async function dispatchRegistros(body, user, context) {
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 
-export const __test = {resolveEstadoSolicitud, shouldCompleteRequestStatus};
+export const __test = {checkRegisteredImeis, resolveEstadoSolicitud, shouldCompleteRequestStatus};
 
 export const handler = event => handlePost(event, dispatchRegistros, {
   rateLimit: {name: 'registros', max: 120, windowMs: 60 * 1000},
