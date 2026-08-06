@@ -151,19 +151,24 @@ test('queryOperational ignores searches shorter than 3 chars without Firestore r
   assert.equal(db.store.calls.length, 0);
 });
 
-test('queryOperational default load uses capped collection reads', async () => {
+test('queryOperational default load uses capped reads and fills recent client names', async () => {
   const db = createFakeDb(seedOperationalData(500));
 
-  await __test.queryOperationalClientes(db, {searchTerm: '', searchField: 'todo', limit: 10});
+  const response = await __test.queryOperationalClientes(db, {searchTerm: '', searchField: 'todo', limit: 10});
 
   const byCollection = Object.groupBy(db.store.calls, call => call.collection);
-  assert.equal(db.store.calls.length, 4);
+  assert.equal(db.store.calls.length, 5);
+  assert.equal(byCollection.clientes.length, 2);
   assert.equal(byCollection.clientes[0].limit, 60);
+  assert.equal(byCollection.clientes[1].limit, null);
+  assert.equal(byCollection.clientes[1].operations[0].field, 'dni');
+  assert.equal(byCollection.clientes[1].operations[0].op, 'in');
   assert.equal(byCollection.equipos[0].limit, 60);
   assert.equal(byCollection.ventas[0].limit, 25);
   assert.equal(byCollection.registros[0].limit, 25);
   assert.equal(byCollection.boletasExtranjeras, undefined);
-  assert.ok(db.store.calls.every(call => Number.isFinite(call.limit)));
+  assert.ok(response.clientes.every(cliente => cliente.nombre));
+  assert.ok(db.store.calls.filter(call => call.limit !== null).every(call => Number.isFinite(call.limit)));
 });
 
 test('queryOperational exact DNI/IMEI searches use targeted limited queries', async () => {
@@ -183,9 +188,9 @@ test('queryOperational exact DNI/IMEI searches use targeted limited queries', as
 test('checkRegisteredImeis finds old registrations with bounded exact queries', async () => {
   const db = createFakeDb({
     registros: {
-      first: {imeiRegistrado: '865716088094342', imeiEquipo: '865716088094342'},
-      second: {imeiEquipo: '865716088094359'},
-      unrelated: {imeiRegistrado: '490154203237518'},
+      first: {imeiRegistrado: '865716088094342', imeiEquipo: '865716088094342', estadoSolicitud: 'REALIZADO'},
+      second: {imeiEquipo: '865716088094359', estadoSolicitud: 'PENDIENTE'},
+      unrelated: {imeiRegistrado: '490154203237518', estadoSolicitud: 'REALIZADO'},
     },
   });
 
@@ -193,7 +198,7 @@ test('checkRegisteredImeis finds old registrations with bounded exact queries', 
     imeis: ['865716088094342', '865716088094359', '000000000000000'],
   });
 
-  assert.deepEqual(response.registeredImeis.sort(), ['865716088094342', '865716088094359']);
+  assert.deepEqual(response.registeredImeis.sort(), ['865716088094342']);
   assert.equal(db.store.calls.length, 2);
   assert.ok(db.store.calls.every(call => call.limit === 30));
 });

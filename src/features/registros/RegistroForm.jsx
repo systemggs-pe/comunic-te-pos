@@ -509,6 +509,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         tipoDocumentoCliente: formData.tipoDocumento,
         dniCliente: formData.dni, celularCliente: formData.celular,
         celularRef: formData.celularRef || formData.celular,
+        correoCliente: formData.correo,
+        direccionCliente: direccionFinalCliente,
         imeiEquipo: imei1Real, imeiRegistrado: formData.imei, imei2Equipo: imei2Real,
         modeloEquipo: formData.modelo, marcaEquipo: formData.marca,
         nombreComercialEquipo: formData.nombreComercial,
@@ -713,14 +715,14 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         <div>
           <p className="saas-page-kicker">Registros</p>
           <h3 className="saas-page-title">{isEditing ? 'Editar registro' : isAutoRegistro ? 'Revisar solicitud del cliente' : 'Nuevo registro'}</h3>
-          <p className="saas-page-desc">{isAutoRegistro ? 'Verifica los datos recibidos, completa lo pendiente y genera el registro con su PDF.' : esRegistroSimple ? 'Completa los datos del cliente, el nombre del equipo y sus dos IMEIs.' : 'Completa cliente, equipo y condiciones del registro.'}</p>
+          <p className="saas-page-desc">{isAutoRegistro ? 'Verifica los datos recibidos, completa lo pendiente y genera el registro con su PDF.' : 'Completa los datos del cliente, equipo, precio y evidencias.'}</p>
         </div>
         <button onClick={onCancel} className="saas-form-close"><X size={20}/></button>
       </div>
 
       {/* Indicador de pasos */}
       <div className="saas-stepper">
-        {(esRegistroSimple ? [1, 2] : [1, 2, 3, 4]).map(n => (
+        {[1, 2, 3, 4].map(n => (
           <React.Fragment key={n}>
             <div className={`flex items-center gap-2 ${paso === n ? 'text-blue-600' : paso > n ? 'text-green-600' : 'text-gray-400'}`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors
@@ -728,10 +730,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 {paso > n ? '✓' : n}
               </div>
               <span className="text-xs font-medium hidden sm:block">
-                {n === 1 ? 'Cliente' : n === 2 ? 'Equipo' : n === 3 ? 'Detalle' : isAutoRegistro ? 'Evidencias' : 'Evidencias opcionales'}
+                {n === 1 ? 'Datos del cliente' : n === 2 ? 'Datos del equipo' : n === 3 ? 'Precio' : 'Evidencias'}
               </span>
             </div>
-            {n < (esRegistroSimple ? 2 : 4) && <div className={`flex-1 h-0.5 ${paso > n ? 'bg-green-400' : 'bg-gray-200'}`} />}
+            {n < 4 && <div className={`flex-1 h-0.5 ${paso > n ? 'bg-green-400' : 'bg-gray-200'}`} />}
           </React.Fragment>
         ))}
       </div>
@@ -997,11 +999,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 type="button"
                 onClick={async () => {
                   if (!(await validarPaso2())) return;
-                  if (esRegistroSimple) {
-                    if (validarFormularioCompleto()) setConfirmarGuardado(true);
-                  } else {
-                    setPaso(3);
-                  }
+                  setPaso(3);
                 }}
                 disabled={comprobanteApple.status === 'loading'}
                 className="saas-primary disabled:cursor-wait disabled:opacity-60"
@@ -1013,9 +1011,9 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         )}
 
         {/* PASO 3 — OPERADOR, ESTADO, TIPO, PRECIO */}
-        {paso === 3 && !esRegistroSimple && (
+        {paso === 3 && (
           <div className="space-y-4">
-            <h4 className="saas-form-section-title">Detalle del Registro</h4>
+            <h4 className="saas-form-section-title">Precio y condiciones del registro</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><label className="block text-xs text-gray-500 mb-1">Operador</label>
                 <select name="operador" value={formData.operador} onChange={handleChange} className="w-full border rounded p-2 text-sm">
@@ -1108,7 +1106,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         )}
 
         {/* PASO 4 - EVIDENCIAS FOTOGRAFICAS */}
-        {paso === 4 && !esRegistroSimple && (
+        {paso === 4 && (
           <div className="space-y-4">
             <div>
               <h4 className="saas-form-section-title">Evidencias fotograficas</h4>

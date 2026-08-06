@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, AlertTriangle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, Share2, Settings, ImagePlus, Link2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, query, orderBy, limit, startAfter, getDocs, getCountFromServer } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where, orderBy, limit, startAfter, getDocs, getCountFromServer } from 'firebase/firestore';
 import { EMAILS_PERMITIDOS } from '../config/auth.js';
 import { PRODUCT_BRAND, SOFTWARE_BRAND } from '../config/branding.js';
 import { auth, db, appId } from '../lib/firebase.js';
@@ -119,6 +119,9 @@ function App() {
   const registrosCacheRef = React.useRef(new Map());
   const ventasRealtimeRef = React.useRef(new Map());
   const ventasCacheRef = React.useRef(new Map());
+  const clientesRealtimeRef = React.useRef(new Map());
+  const clientesExactosRef = React.useRef(new Map());
+  const clientesConsultadosRef = React.useRef(new Set());
   const searchCacheRef = React.useRef({registros: new Map(), ventas: new Map()});
   const searchRequestRef = React.useRef({registros: 0, ventas: 0});
 
@@ -128,6 +131,12 @@ function App() {
 
   const rebuildVentasState = React.useCallback(() => {
     setVentas(mergeRealtimeWithCache(ventasRealtimeRef.current, ventasCacheRef.current));
+  }, []);
+
+  const rebuildClientesState = React.useCallback(() => {
+    const merged = new Map(clientesRealtimeRef.current);
+    clientesExactosRef.current.forEach((cliente, dni) => merged.set(dni, cliente));
+    setClientes([...merged.values()]);
   }, []);
 
   const ventasImeiStatusKey = useMemo(() => {
@@ -297,7 +306,10 @@ function App() {
 
     const unsubClientes = onSnapshot(
       query(clientesRef, limit(REFERENCE_DATA_LIMIT)),
-      (snap) => setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (snap) => {
+        clientesRealtimeRef.current = new Map(snap.docs.map(d => [d.id, {id: d.id, ...d.data()}]));
+        rebuildClientesState();
+      },
       (err) => clientLogger.error('app.clientes.snapshot_error', err, {collection: 'clientes'})
     );
     const unsubEquipos = onSnapshot(
@@ -307,7 +319,40 @@ function App() {
     );
 
     return () => { unsubClientes(); unsubEquipos(); };
-  }, [clientesRef, referenceDataActive, user]);
+  }, [clientesRef, rebuildClientesState, referenceDataActive, user]);
+
+  useEffect(() => {
+    if (!user || !referenceDataActive) return undefined;
+
+    const loadedDnis = new Set(clientes.map(cliente => String(cliente.dni || '').trim()).filter(Boolean));
+    const movementDnis = Array.from(new Set([
+      ...ventas.slice(0, PAGE_SIZE).map(venta => String(venta.dniCliente || '').trim()),
+      ...registros.slice(0, PAGE_SIZE).map(registro => String(registro.dniCliente || '').trim()),
+    ].filter(Boolean)));
+    const pendingDnis = movementDnis
+      .filter(dni => !loadedDnis.has(dni) && !clientesConsultadosRef.current.has(dni))
+      .slice(0, 30);
+
+    if (!pendingDnis.length) return undefined;
+    pendingDnis.forEach(dni => clientesConsultadosRef.current.add(dni));
+
+    let active = true;
+    getDocs(query(clientesRef, where('dni', 'in', pendingDnis)))
+      .then(snap => {
+        if (!active) return;
+        snap.docs.forEach(documento => {
+          const cliente = {id: documento.id, ...documento.data()};
+          clientesExactosRef.current.set(String(cliente.dni || documento.id), cliente);
+        });
+        rebuildClientesState();
+      })
+      .catch(error => {
+        pendingDnis.forEach(dni => clientesConsultadosRef.current.delete(dni));
+        clientLogger.error('app.clientes.exact_lookup_error', error, {count: pendingDnis.length});
+      });
+
+    return () => { active = false; };
+  }, [clientes, clientesRef, rebuildClientesState, referenceDataActive, registros, user, ventas]);
 
   useEffect(() => {
     if (!user) return;
@@ -581,6 +626,9 @@ function App() {
       ventasCacheRef.current.clear();
       searchCacheRef.current.registros.clear();
       searchCacheRef.current.ventas.clear();
+      clientesRealtimeRef.current.clear();
+      clientesExactosRef.current.clear();
+      clientesConsultadosRef.current.clear();
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setRegistros([]); setVentas([]); setClientes([]); setEquipos([]);
       setBuscandoHistorial({registros: false, ventas: false});

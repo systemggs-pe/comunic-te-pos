@@ -1,9 +1,10 @@
 import {spawn} from 'node:child_process';
-import {watch} from 'node:fs';
+import {readdirSync, statSync, watch} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const rootDir = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const functionsDir = resolve(rootDir, 'netlify/functions');
 const viteCli = resolve(rootDir, 'node_modules/vite/bin/vite.js');
 const children = [];
 let closing = false;
@@ -11,6 +12,57 @@ let apiChild = null;
 let apiRestarting = false;
 let apiRestartTimer = null;
 let functionsWatcher = null;
+let functionSnapshots = readFunctionSnapshots();
+
+function readFunctionSnapshots(directory = functionsDir, relativeDirectory = '') {
+  const snapshots = new Map();
+
+  let entries = [];
+  try {
+    entries = readdirSync(directory, {withFileTypes: true});
+  } catch {
+    return snapshots;
+  }
+
+  for (const entry of entries) {
+    const absolutePath = resolve(directory, entry.name);
+    const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+
+    if (entry.isDirectory()) {
+      for (const [path, signature] of readFunctionSnapshots(absolutePath, relativePath)) {
+        snapshots.set(path, signature);
+      }
+      continue;
+    }
+
+    if (!entry.name.endsWith('.mjs')) continue;
+
+    try {
+      const {mtimeMs, size} = statSync(absolutePath);
+      snapshots.set(relativePath, `${mtimeMs}:${size}`);
+    } catch {
+      // The file may be in the middle of an atomic save; the next watcher
+      // event will refresh its snapshot.
+    }
+  }
+
+  return snapshots;
+}
+
+function getChangedFunctionFiles() {
+  const nextSnapshots = readFunctionSnapshots();
+  const changedFiles = [];
+
+  for (const [path, signature] of nextSnapshots) {
+    if (functionSnapshots.get(path) !== signature) changedFiles.push(path);
+  }
+  for (const path of functionSnapshots.keys()) {
+    if (!nextSnapshots.has(path)) changedFiles.push(path);
+  }
+
+  functionSnapshots = nextSnapshots;
+  return changedFiles;
+}
 
 function startProcess(label, args, {restartable = false} = {}) {
   const child = spawn(process.execPath, args, {
@@ -38,9 +90,13 @@ function startApiProcess() {
 
 function scheduleApiRestart(fileName = '') {
   if (closing || !String(fileName).endsWith('.mjs')) return;
+  const changedFiles = getChangedFunctionFiles();
+  if (changedFiles.length === 0) return;
+
   if (apiRestartTimer) clearTimeout(apiRestartTimer);
   apiRestartTimer = setTimeout(() => {
     if (closing) return;
+    console.error(`Reiniciando API local por cambio en: ${changedFiles.join(', ')}`);
     const previous = apiChild;
     if (!previous || previous.killed) {
       startApiProcess();
@@ -70,7 +126,7 @@ process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 process.on('exit', () => shutdown(process.exitCode || 0));
 
-functionsWatcher = watch(resolve(rootDir, 'netlify/functions'), {recursive: true}, (_eventType, fileName) => {
+functionsWatcher = watch(functionsDir, {recursive: true}, (_eventType, fileName) => {
   scheduleApiRestart(fileName);
 });
 

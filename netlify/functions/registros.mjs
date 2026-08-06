@@ -93,7 +93,10 @@ async function checkRegisteredImeis(db, body) {
   snapshots.flatMap(snapshot => snapshot.docs).forEach(doc => {
     const data = doc.data() || {};
     const registeredImei = String(data.imeiRegistrado || data.imeiEquipo || '').trim();
-    if (requested.has(registeredImei)) registeredImeis.add(registeredImei);
+    const estadoSolicitud = String(data.estadoSolicitud || '').trim().toUpperCase();
+    if (requested.has(registeredImei) && estadoSolicitud === 'REALIZADO') {
+      registeredImeis.add(registeredImei);
+    }
   });
   return {registeredImeis: [...registeredImeis]};
 }

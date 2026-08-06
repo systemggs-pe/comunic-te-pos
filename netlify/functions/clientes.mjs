@@ -167,6 +167,20 @@ async function readByField(collectionRef, field, value, maxDocs) {
   return readDocs(collectionRef.where(field, '==', value).limit(Math.max(Number(maxDocs || 1), 1)));
 }
 
+async function readByFieldIn(collectionRef, field, values) {
+  const cleanValues = uniqueClean(values);
+  if (!cleanValues.length) return [];
+
+  const docs = [];
+  // Firestore limits an `in` filter to 30 values. Keep each lookup bounded so
+  // the client directory never falls back to a full collection scan.
+  for (let index = 0; index < cleanValues.length; index += 30) {
+    const chunk = cleanValues.slice(index, index + 30);
+    docs.push(...await readDocs(collectionRef.where(field, 'in', chunk)));
+  }
+  return docs;
+}
+
 async function readMovements(collectionRef, maxDocs = QUERY_PAGE_SIZE) {
   const items = [];
   let cursor = null;
@@ -280,6 +294,19 @@ async function queryOperationalClientes(db, payload) {
     equiposDocs = equiposResult;
     ventas = ventasResult;
     registros = registrosResult;
+
+    // The support collection read is intentionally capped for the free tier.
+    // Recent movements can belong to clients outside that first page, so load
+    // only those missing client documents by their exact DNI values. Without
+    // this bounded lookup the UI creates a fallback "Cliente sin nombre".
+    const loadedDnis = new Set(clientesDocs.map(doc => clean(doc.data()?.dni || doc.id)));
+    const movementDnis = uniqueClean([
+      ...ventas.map(venta => venta.dniCliente),
+      ...registros.map(registro => registro.dniCliente),
+    ]).filter(dni => !loadedDnis.has(dni));
+    if (movementDnis.length) {
+      clientesDocs = uniqueDocs(clientesDocs, await readByFieldIn(base.collection('clientes'), 'dni', movementDnis));
+    }
   }
 
   const mapa = new Map();

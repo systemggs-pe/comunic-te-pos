@@ -118,6 +118,8 @@ const registroSchema = z.object({
   dniCliente: documentoSchema,
   celularCliente: phoneRequiredSchema,
   celularRef: phoneOptionalSchema,
+  correoCliente: emailOptionalSchema,
+  direccionCliente: optionalText(300),
   imeiEquipo: imeiSchema,
   imeiRegistrado: imeiSchema,
   imei2Equipo: optionalImeiSchema,
