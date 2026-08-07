@@ -397,12 +397,9 @@ function App() {
       (err) => { clientLogger.error('app.registros.snapshot_error', err, {collection: 'registros'}); setCargandoRegistros(false); }
     );
 
-    return () => {
-      if (unsubRegistrosRef.current) {
-        unsubRegistrosRef.current();
-        unsubRegistrosRef.current = null;
-      }
-    };
+    // Keep the listener for the whole authenticated session. Re-subscribing
+    // on every navigation would reread the first page of records.
+    return undefined;
   }, [user, currentView, registrosRef, rebuildRegistrosState]);
 
   // Suscribir/desuscribir ventas según la vista
@@ -428,12 +425,9 @@ function App() {
       (err) => { clientLogger.error('app.ventas.snapshot_error', err, {collection: 'ventas'}); setCargandoVentas(false); }
     );
 
-    return () => {
-      if (unsubVentasRef.current) {
-        unsubVentasRef.current();
-        unsubVentasRef.current = null;
-      }
-    };
+    // Keep the listener for the whole authenticated session. Re-subscribing
+    // on every navigation would reread the first page of sales.
+    return undefined;
   }, [user, currentView, ventasRef, rebuildVentasState]);
 
   const cargarMasRegistros = async () => {
@@ -617,7 +611,7 @@ function App() {
   useEffect(() => {
     if (!user) {
       if (unsubRegistrosRef.current) { unsubRegistrosRef.current(); unsubRegistrosRef.current = null; }
-      if (unsubVentasRef.current)    { unsubVentasRef.current();    unsubVentasRef.current    = null; }
+      if (unsubVentasRef.current) { unsubVentasRef.current(); unsubVentasRef.current = null; }
       lastRegistroDocRef.current = null;
       lastVentaDocRef.current = null;
       registrosRealtimeRef.current.clear();

@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars, no-empty */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { generarTicketRegistroPDF } from './registroPdf.js';
 import { actualizarEstadoSolicitudRegistro, desbloquearRegistro, eliminarRegistro, marcarTodosRegistrosRealizados } from '../../services/functionsClient.js';
@@ -27,6 +27,12 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
   const [viewingRegistro, setViewingRegistro] = useState(null);
   const [registroAEliminar, setRegistroAEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
+  const ultimaBusquedaHistorialRef = useRef('');
+  const onSearchAllRef = useRef(onSearchAll);
+
+  useEffect(() => {
+    onSearchAllRef.current = onSearchAll;
+  }, [onSearchAll]);
 
   const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
   const getEquipo = (imei) => equipos.find(equipo => equipo.idEquipo === imei) || {};
@@ -58,10 +64,11 @@ IMEI A REGISTRAR: ${imeiRegistrar}`;
 
   useEffect(() => {
     const term = searchTerm.trim() || HISTORY_TERM_BY_FILTER[statusFilter] || '';
-    if (term.length < 3 || !onSearchAll || (total && data.length >= total)) return undefined;
-    const timeoutId = window.setTimeout(() => onSearchAll(term), 700);
+    if (term.length < 3 || !onSearchAllRef.current || (total && data.length >= total) || ultimaBusquedaHistorialRef.current === term) return undefined;
+    ultimaBusquedaHistorialRef.current = term;
+    const timeoutId = window.setTimeout(() => onSearchAllRef.current?.(term), 900);
     return () => window.clearTimeout(timeoutId);
-  }, [data.length, onSearchAll, searchTerm, statusFilter, total]);
+  }, [data.length, searchTerm, statusFilter, total]);
 
   const filteredData = useMemo(() => {
     return data.filter(r => {

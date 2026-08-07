@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
 import { generarTicketVentaPDF } from './ventaPdf.js';
 import { eliminarVenta } from '../../services/functionsClient.js';
@@ -13,6 +13,12 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
   const [ticketVentaData, setTicketVentaData] = useState(null);
   const [ventaAEliminar, setVentaAEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
+  const ultimaBusquedaHistorialRef = useRef('');
+  const onSearchAllRef = useRef(onSearchAll);
+
+  useEffect(() => {
+    onSearchAllRef.current = onSearchAll;
+  }, [onSearchAll]);
   const [ticketPendiente, setTicketPendiente] = useState(null); // data pendiente hasta elegir tamaño
 
   const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
@@ -42,10 +48,11 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
 
   useEffect(() => {
     const term = searchTerm.trim();
-    if (term.length < 3 || !onSearchAll || (total && data.length >= total)) return undefined;
-    const timeoutId = window.setTimeout(() => onSearchAll(term), 700);
+    if (term.length < 3 || !onSearchAllRef.current || (total && data.length >= total) || ultimaBusquedaHistorialRef.current === term) return undefined;
+    ultimaBusquedaHistorialRef.current = term;
+    const timeoutId = window.setTimeout(() => onSearchAllRef.current?.(term), 900);
     return () => window.clearTimeout(timeoutId);
-  }, [data.length, onSearchAll, searchTerm, total]);
+  }, [data.length, searchTerm, total]);
 
   const filteredData = useMemo(() => {
     return data.filter(v => {
