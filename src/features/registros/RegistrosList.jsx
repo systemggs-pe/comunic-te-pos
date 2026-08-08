@@ -6,6 +6,7 @@ import { actualizarEstadoSolicitudRegistro, desbloquearRegistro, eliminarRegistr
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
 import {registroMatchesSearch, registroMatchesStatus} from '../../utils/searchRecords.js';
+import {indexClientesByDni, normalizeDni} from '../../utils/clientes.js';
 
 const etiquetaTieneCaja = value => value === true || value === 'SI' ? 'SI' : 'NO';
 const celularDeRegistro = (registro, cliente = {}) => registro?.celularCliente || cliente?.celular || '';
@@ -34,7 +35,8 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
     onSearchAllRef.current = onSearchAll;
   }, [onSearchAll]);
 
-  const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
+  const clientePorDni = useMemo(() => indexClientesByDni(clientes), [clientes]);
+  const getCliente = (dni) => clientePorDni.get(normalizeDni(dni)) || {};
   const getEquipo = (imei) => equipos.find(equipo => equipo.idEquipo === imei) || {};
   const construirTextoRegistro = (registro, encabezado = 'REGISTRO') => {
     const cliente = getCliente(registro.dniCliente);
@@ -72,11 +74,11 @@ IMEI A REGISTRAR: ${imeiRegistrar}`;
 
   const filteredData = useMemo(() => {
     return data.filter(r => {
-      const cliente = clientes.find(c => c.dni === r.dniCliente) || {};
+      const cliente = clientePorDni.get(normalizeDni(r.dniCliente)) || {};
       return registroMatchesStatus(r, statusFilter)
         && registroMatchesSearch(r, searchTerm, cliente);
     });
-  }, [data, clientes, searchTerm, statusFilter]);
+  }, [data, clientePorDni, searchTerm, statusFilter]);
 
   const handleCopy = (item) => {
     const text = construirTextoRegistro(item);

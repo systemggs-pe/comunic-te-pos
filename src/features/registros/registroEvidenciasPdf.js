@@ -19,10 +19,36 @@ const APPLE_SLOTS = [
   {key: 'cajaEquipo', label: 'CAJA DE EQUIPOS', page: 1, x: 124, y: 143, w: 68, h: 117},
 ];
 
-function loadImage(dataUrl) {
+export function getRegistroEvidencePdfPlan({formatoApple = false} = {}) {
+  const slots = formatoApple ? APPLE_SLOTS : SLOTS;
+  return {
+    pages: 2,
+    slots: slots.map(slot => ({...slot})),
+    requiredPages: [...new Set(slots.map(slot => slot.page))],
+  };
+}
+
+function readBlobAsDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('PDF_IMAGE_READ_FAILED'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function resolveImageDataUrl(source) {
+  if (String(source || '').startsWith('data:image/')) return source;
+  const response = await fetch(source, {credentials: 'omit'});
+  if (!response.ok) throw new Error('PDF_IMAGE_FETCH_FAILED');
+  return readBlobAsDataUrl(await response.blob());
+}
+
+async function loadImage(source) {
+  const dataUrl = await resolveImageDataUrl(source);
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
+    img.onload = () => resolve({image: img, dataUrl});
     img.onerror = () => reject(new Error('PDF_IMAGE_LOAD_FAILED'));
     img.src = dataUrl;
   });
@@ -62,12 +88,13 @@ async function drawEvidence(doc, slot, evidencia) {
     return;
   }
 
-  const image = await loadImage(evidencia.dataUrl);
+  const loaded = await loadImage(evidencia.dataUrl);
+  const image = loaded.image;
   const fitted = fitContain(image, slot.w, slot.h);
   const x = slot.x + (slot.w - fitted.w) / 2;
   const y = slot.y + (slot.h - fitted.h) / 2;
 
-  doc.addImage(evidencia.dataUrl, 'JPEG', x, y, fitted.w, fitted.h, undefined, 'FAST');
+  doc.addImage(loaded.dataUrl, 'JPEG', x, y, fitted.w, fitted.h, undefined, 'FAST');
 }
 
 function paintPage(doc) {
@@ -193,13 +220,14 @@ function drawAppleReceipt(doc, boleta) {
 
 export async function generarRegistroEvidenciasPDF(registro, evidencias, options = {}) {
   const {jsPDF} = getPdfTools();
+  const plan = getRegistroEvidencePdfPlan(options);
   const doc = new jsPDF({unit: 'mm', format: 'a4', orientation: 'portrait'});
   const numero = registro.nRegistro || 'REGISTRO';
 
   if (options.formatoApple) {
     if (!options.boletaExtranjera?.id) throw new Error('BOLETA_APPLE_NO_ENCONTRADA');
     paintPage(doc);
-    for (const slot of APPLE_SLOTS) {
+    for (const slot of plan.slots) {
       await drawEvidence(doc, slot, evidencias?.[slot.key]);
     }
     doc.addPage('a4', 'portrait');
@@ -210,13 +238,13 @@ export async function generarRegistroEvidenciasPDF(registro, evidencias, options
   }
 
   paintPage(doc);
-  for (const slot of SLOTS.filter(item => item.page === 1)) {
+  for (const slot of plan.slots.filter(item => item.page === 1)) {
     await drawEvidence(doc, slot, evidencias?.[slot.key]);
   }
 
   doc.addPage('a4', 'portrait');
   paintPage(doc);
-  for (const slot of SLOTS.filter(item => item.page === 2)) {
+  for (const slot of plan.slots.filter(item => item.page === 2)) {
     await drawEvidence(doc, slot, evidencias?.[slot.key]);
   }
 

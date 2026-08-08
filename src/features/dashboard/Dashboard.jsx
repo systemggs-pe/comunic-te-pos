@@ -1,5 +1,5 @@
 import React from 'react';
-import {AlertTriangle, ClipboardList, Link2, Plus, Settings, ShoppingCart, Users} from 'lucide-react';
+import {AlertTriangle, ClipboardList, Plus, Settings, ShoppingCart, Users} from 'lucide-react';
 
 export function Dashboard({ stats, setCurrentView, user }) {
   const nombre = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuario';
@@ -37,14 +37,6 @@ export function Dashboard({ stats, setCurrentView, user }) {
       Icon: Users,
       view: 'clientes_list',
       tone: 'slate',
-    },
-    {
-      title: 'Enlaces para clientes · BETA',
-      detail: 'Función en pruebas; puede presentar errores',
-      action: 'Gestionar enlaces',
-      Icon: Link2,
-      view: 'auto_registros',
-      tone: 'blue',
     },
     {
       title: 'Problemas de app/web',

@@ -1,5 +1,17 @@
 import admin from 'firebase-admin';
 
+function getAdminApp() {
+  if (!admin.apps.length) {
+    const serviceAccount = serviceAccountFromEnv();
+    const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || process.env.STORAGE_BUCKET || 'comunicate-tacna.firebasestorage.app';
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket,
+    });
+  }
+  return admin.app();
+}
+
 function serviceAccountFromEnv() {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     try {
@@ -21,10 +33,13 @@ function serviceAccountFromEnv() {
 }
 
 export function getAdminDb() {
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccountFromEnv()),
-    });
-  }
-  return admin.firestore();
+  return admin.firestore(getAdminApp());
+}
+
+export function getAdminAuth() {
+  return admin.auth(getAdminApp());
+}
+
+export function getAdminStorageBucket() {
+  return admin.storage(getAdminApp()).bucket();
 }

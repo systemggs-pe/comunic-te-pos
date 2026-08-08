@@ -1,8 +1,21 @@
-import {handlePost} from './_shared.mjs';
+import {fetchWithTimeout, handlePost} from './_shared.mjs';
+
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
+
+function normalizeImageBase64(value) {
+  const raw = String(value || '').trim().replace(/^data:image\/(?:jpeg|jpg|png|webp);base64,/i, '');
+  if (!raw || !/^[A-Za-z0-9+/]+={0,2}$/.test(raw) || raw.length % 4 === 1) {
+    throw Object.assign(new Error('IMAGEN_BASE64_INVALIDA'), {status: 400});
+  }
+  const bytes = Buffer.byteLength(raw, 'base64');
+  if (!bytes || bytes > MAX_IMAGE_BYTES) {
+    throw Object.assign(new Error('IMAGEN_MUY_GRANDE'), {status: 413});
+  }
+  return raw;
+}
 
 async function analizarCajaGemini(body) {
-  const imageBase64 = String(body?.imageBase64 || '');
-  if (!imageBase64) throw Object.assign(new Error('Falta imageBase64'), {status: 400});
+  const imageBase64 = normalizeImageBase64(body?.imageBase64);
   if (!process.env.GEMINI_API_KEY) {
     throw Object.assign(new Error('Falta configurar GEMINI_API_KEY'), {status: 500});
   }
@@ -29,7 +42,7 @@ Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas
 
   const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
-  const response = await fetch(apiUrl, {
+  const response = await fetchWithTimeout(apiUrl, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
@@ -39,7 +52,7 @@ Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas
       ]}],
       generationConfig: {temperature: 0, maxOutputTokens: 1024},
     }),
-  });
+  }, Number(process.env.GEMINI_TIMEOUT_MS || 20 * 1000));
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw Object.assign(new Error(data.error?.message || data.error || 'GEMINI_UPSTREAM_ERROR'), {
@@ -51,5 +64,8 @@ Aunque la imagen sea dificil de leer, SIEMPRE devuelve el JSON con lo que puedas
 }
 
 export const handler = event => handlePost(event, analizarCajaGemini, {
-  rateLimit: {name: 'gemini', max: 15, windowMs: 60 * 1000},
+  maxBodyBytes: 2.1 * 1024 * 1024,
+  rateLimit: {name: 'gemini', max: 15, windowMs: 60 * 1000, distributed: true},
 });
+
+export const __test = {normalizeImageBase64};

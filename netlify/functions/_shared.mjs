@@ -5,7 +5,11 @@ import {
   logRequestStart,
   logRequestSuccess,
 } from './_observability.mjs';
-import {enforceMemoryRateLimit} from './_rateLimit.mjs';
+import {enforceMemoryRateLimit, enforcePersistentRateLimit} from './_rateLimit.mjs';
+import {getAdminAuth} from './_firebaseAdmin.mjs';
+
+export const DEFAULT_MAX_BODY_BYTES = 256 * 1024;
+export const DEFAULT_EXTERNAL_TIMEOUT_MS = 10 * 1000;
 
 const allowedOrigins = [
   'http://localhost:5173',
@@ -65,32 +69,61 @@ export function json(statusCode, body, headers = {}) {
   };
 }
 
-export function parseBody(event) {
+function getHeader(event, name) {
+  const target = name.toLowerCase();
+  const entry = Object.entries(event.headers || {}).find(([key]) => key.toLowerCase() === target);
+  return entry?.[1] || '';
+}
+
+export function parseBody(event, maxBytes = DEFAULT_MAX_BODY_BYTES) {
+  const body = String(event.body || '');
+  const contentLength = Number(getHeader(event, 'content-length'));
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw Object.assign(new Error('CUERPO_MUY_GRANDE'), {status: 413});
+  }
+  if (Buffer.byteLength(body, 'utf8') > maxBytes) {
+    throw Object.assign(new Error('CUERPO_MUY_GRANDE'), {status: 413});
+  }
   try {
-    return event.body ? JSON.parse(event.body) : {};
+    return body ? JSON.parse(body) : {};
   } catch {
     throw Object.assign(new Error('JSON invalido'), {status: 400});
   }
 }
 
+export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_EXTERNAL_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Number(timeoutMs) > 0 ? Number(timeoutMs) : DEFAULT_EXTERNAL_TIMEOUT_MS);
+  try {
+    return await fetch(url, {...options, signal: controller.signal});
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw Object.assign(new Error('UPSTREAM_TIMEOUT'), {status: 504, code: 'UPSTREAM_TIMEOUT'});
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function requireFirebaseUser(event) {
-  const apiKey = process.env.FIREBASE_API_KEY || 'AIzaSyBLosM4ocr9OBLcpcRUc5QF3k8eVc4h5mA';
   const header = event.headers.authorization || event.headers.Authorization || '';
   const match = header.match(/^Bearer (.+)$/);
   if (!match) throw Object.assign(new Error('No autorizado'), {status: 401});
 
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({idToken: match[1]}),
-  });
-  const data = await response.json().catch(() => ({}));
-  const user = data.users?.[0];
-  if (!response.ok || !user?.localId) {
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(match[1], true);
+    const user = {
+      uid: decoded.uid,
+      email: decoded.email || '',
+      emailVerified: Boolean(decoded.email_verified),
+    };
+    requireAllowedUser(user);
+    return user;
+  } catch (error) {
+    if (error?.status === 403 || error?.status === 500) throw error;
     throw Object.assign(new Error('Sesion invalida'), {status: 401});
   }
-  requireAllowedUser(user);
-  return {uid: user.localId, email: user.email || ''};
 }
 
 export async function handlePost(event, callback, options = {}) {
@@ -114,8 +147,15 @@ export async function handlePost(event, callback, options = {}) {
   try {
     const user = await requireFirebaseUser(event);
     attachUserToContext(context, user);
-    const rateLimitHeaders = enforceMemoryRateLimit(user, context, options.rateLimit);
-    const body = parseBody(event);
+    const contentType = getHeader(event, 'content-type');
+    if (contentType && !/^application\/json(?:\s*;|$)/i.test(contentType)) {
+      throw Object.assign(new Error('MIME_NO_PERMITIDO'), {status: 415});
+    }
+    const body = parseBody(event, options.maxBodyBytes || DEFAULT_MAX_BODY_BYTES);
+    const rateLimit = options.rateLimit || {};
+    const rateLimitHeaders = rateLimit.distributed
+      ? await enforcePersistentRateLimit(user, context, rateLimit)
+      : enforceMemoryRateLimit(user, context, rateLimit);
     const result = await callback(body, user, context);
     logRequestSuccess(context, {statusCode: 200});
     return json(200, result, {...headers, ...rateLimitHeaders});

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, Share2, Settings, ImagePlus } from 'lucide-react';
 import { actualizarRegistro, consultarComprobanteApplePorImei, consultarReniecDni, crearRegistro, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
@@ -8,44 +8,29 @@ import { ImageCropModal } from '../../components/ui/ImageCropModal.jsx';
 import { EscanerIA } from './EscanerIA.jsx';
 import {comprimirRegistroEvidenciaDataUrl, emptyRegistroEvidencias, formatBytes, leerRegistroEvidenciaFile, REGISTRO_EVIDENCIA_FIELDS} from './registroEvidencias.js';
 import {generarRegistroEvidenciasPDF} from './registroEvidenciasPdf.js';
-
-const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
-const MONEY_RE = /^\d+(\.\d{1,2})?$/;
-const PHONE_RE = /^9\d{8}$/;
-const clean = value => String(value || '').trim();
-const SCAN_LOADING_INPUT_CLASS = 'bg-blue-50/70 placeholder:text-blue-700 placeholder:font-semibold';
-const REGISTRO_MARCAS = ['APPLE', 'SAMSUNG', 'HONOR', 'XIAOMI', 'OPPO', 'VIVO', 'TECNO', 'INFINIX', 'ZTE', 'MOTOROLA', 'PIXEL', 'HTC'];
-const APPLE_EVIDENCIA_ORDER = ['dniFrente', 'dniReverso', 'imeiLogico', 'cajaEquipo'];
-const AUTO_REGISTRO_REQUIRED_EVIDENCE = new Set(['dniFrente', 'dniReverso', 'imeiLogico']);
-const normalizarMarcaRegistro = value => {
-  const marca = clean(value).toUpperCase();
-  return REGISTRO_MARCAS.includes(marca) ? marca : '';
-};
-const normalizarTieneCaja = value => {
-  if (value === true || value === 'SI') return 'SI';
-  if (value === false || value === 'NO') return 'NO';
-  return '';
-};
-const emptyComprobanteApple = () => ({imei: '', status: 'idle', boleta: null});
-const uniqueClean = values => Array.from(new Set(values.map(clean).filter(Boolean)));
-const correosValidos = values => uniqueClean(values)
-  .map(correo => correo.toLowerCase())
-  .filter(correo => EMAIL_RE.test(correo));
-const opcionesContacto = (cliente, campoPrincipal, campoLista) => correosValidos([
-  cliente?.[campoPrincipal],
-  ...(Array.isArray(cliente?.[campoLista]) ? cliente[campoLista] : []),
-]);
-const opcionesCelulares = cliente => uniqueClean([
-  cliente?.celular,
-  cliente?.celularRef,
-  ...(Array.isArray(cliente?.celulares) ? cliente.celulares : []),
-]);
-const debeSincronizarCelularRef = form => !form.celularRef || form.celularRef === form.celular;
+import {
+  APPLE_EVIDENCIA_ORDER,
+  clean,
+  correosValidos,
+  createInitialRegistroForm,
+  debeSincronizarCelularRef,
+  emptyComprobanteApple,
+  EMAIL_RE,
+  normalizarMarcaRegistro,
+  normalizarTieneCaja,
+  opcionesCelulares,
+  opcionesContacto,
+  PHONE_RE,
+  REGISTRO_MARCAS,
+  SCAN_LOADING_INPUT_CLASS,
+  toLocalDatetimeValue,
+  uniqueClean,
+  validateRegistroDraft,
+} from './registroFormModel.js';
 
 export function RegistroForm({ clientes, equipos, registros, initialData, onCancel, onSave, onDirty, showToast }) {
-  const isAutoRegistro = initialData?.source === 'AUTO_REGISTRO' && Boolean(initialData?.autoRegistroSubmissionId);
-  const isEditing = Boolean(initialData?.id) && !isAutoRegistro;
-  const esRegistroSimple = !isAutoRegistro && !isEditing;
+  const isEditing = Boolean(initialData?.id);
+  const esRegistroSimple = !isEditing;
   const [loading, setLoading] = useState(false);
   const [showManualEqForm, setShowManualEqForm] = useState(true);
   const [equiposCliente, setEquiposCliente] = useState([]);
@@ -70,20 +55,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     return imeisRegistrados.has(imei);
   };
 
-  const toLocalDatetimeValue = (isoString) => {
-    if (!isoString) return '';
-    const d = new Date(isoString);
-    const pad = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-
-  const [formData, setFormData] = useState({
-    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', departamento: '', imei1: '', imei: '', imei2: '', marca: '', modelo: '', nombreComercial: '', color: '', memoria: '', ram: '', estado: 'NO BLOQUEADO', estadoSolicitud: 'PENDIENTE', operador: 'BITEL', tipo: 'TIENDA', tieneCaja: 'NO', precio: '0', fecha: toLocalDatetimeValue(new Date().toISOString())
-  });
+  const [formData, setFormData] = useState(createInitialRegistroForm);
   const [confirmarGuardado, setConfirmarGuardado] = useState(false);
   const [evidencias, setEvidencias] = useState(() => ({
     ...emptyRegistroEvidencias(),
-    ...(initialData?.autoRegistroEvidencias || {}),
   }));
   const [evidenciasProcesando, setEvidenciasProcesando] = useState({});
   const [recorteEvidencia, setRecorteEvidencia] = useState(null);
@@ -336,87 +311,23 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const validarFormularioCompleto = () => {
-    if (!validarDocumento(formData.tipoDocumento, clean(formData.dni))) {
-      showToast(`${etiquetaDocumento(formData.tipoDocumento)} no valido`, 'error'); return false;
-    }
-    if (!clean(formData.nombre)) {
-      showToast('Completa el nombre del cliente', 'error'); return false;
-    }
-    if (!PHONE_RE.test(clean(formData.celular))) {
-      showToast('El celular debe tener 9 digitos y empezar con 9', 'error'); return false;
-    }
-    if (clean(formData.celularRef) && !PHONE_RE.test(clean(formData.celularRef))) {
-      showToast('El celular de referencia debe tener 9 digitos y empezar con 9', 'error'); return false;
-    }
-    if (!clean(formData.direccion)) {
-      showToast('La direccion es obligatoria', 'error'); return false;
-    }
-    if (!clean(formData.departamento)) {
-      showToast('Selecciona el departamento', 'error'); return false;
-    }
-    if (direccionFinalCliente.length > 300) {
-      showToast('La direccion final no debe superar 300 caracteres', 'error'); return false;
-    }
-    if (!EMAIL_RE.test(clean(formData.correo))) {
-      showToast('Ingresa un correo electronico valido', 'error'); return false;
-    }
-    if (!luhn(clean(formData.imei1))) {
-      showToast('El IMEI 1 no es valido; verifica los digitos', 'error'); return false;
-    }
-    if (esRegistroSimple && !clean(formData.imei2)) {
-      showToast('El IMEI 2 es obligatorio', 'error'); return false;
-    }
-    if (clean(formData.imei2) && !luhn(clean(formData.imei2))) {
-      showToast('El IMEI 2 no es valido; verifica los digitos', 'error'); return false;
-    }
-    if (clean(formData.imei1) && clean(formData.imei1) === clean(formData.imei2)) {
-      showToast('El IMEI 1 y el IMEI 2 deben ser diferentes', 'error'); return false;
-    }
-    if (![clean(formData.imei1), clean(formData.imei2)].includes(clean(formData.imei))) {
-      showToast('Selecciona el IMEI que se va a registrar', 'error'); return false;
-    }
-    if (formData.marca && !REGISTRO_MARCAS.includes(formData.marca)) {
-      showToast('Selecciona una marca de la lista', 'error'); return false;
-    }
-    if (formData.marca === 'APPLE' && !comprobanteAppleValido) {
-      showToast('Primero verifica que el IMEI tenga una boleta extranjera', 'error'); return false;
-    }
-    if (!clean(formData.nombreComercial)) {
-      showToast('El nombre comercial es obligatorio', 'error'); return false;
-    }
-    if (!normalizarTieneCaja(formData.tieneCaja)) {
-      showToast('Indica si el cliente tiene la caja del equipo', 'error'); return false;
-    }
-    if (!isEditing && imeiYaRegistrado(formData.imei)) {
-      showToast(`El IMEI ${formData.imei} ya tiene un registro activo`, 'error'); return false;
-    }
-    const precio = clean(formData.precio);
-    if (!MONEY_RE.test(precio) || Number(precio) < 0 || (!permitePrecioCero && Number(precio) === 0)) {
-      showToast(
-        permitePrecioCero
-          ? 'El precio debe ser 0 o mayor y tener maximo 2 decimales'
-          : 'El precio debe ser mayor a 0 y tener maximo 2 decimales',
-        'error',
-      );
-      return false;
-    }
-    if (formData.estado === 'BLOQUEADO' && Number(precio) < 50) {
-      showToast('El precio minimo para un equipo BLOQUEADO es S/. 50.00', 'error'); return false;
-    }
-    if (!formData.fecha || Number.isNaN(new Date(formData.fecha).getTime())) {
-      showToast('La fecha no es valida', 'error'); return false;
-    }
-    return true;
+    const message = validateRegistroDraft(formData, {
+      direccionFinalCliente,
+      esRegistroSimple,
+      isEditing,
+      imeiYaRegistrado,
+      esApple,
+      comprobanteAppleValido,
+      permitePrecioCero,
+    });
+    if (message) showToast(message, 'error');
+    return !message;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!validarFormularioCompleto()) return;
-    if (isAutoRegistro && (!evidencias.dniFrente || !evidencias.dniReverso || !evidencias.imeiLogico)) {
-      showToast('El registro requiere ambas caras del DNI y la foto del IMEI lógico', 'error');
-      return;
-    }
     // Validar IMEI con algoritmo de Luhn
     if (!luhn(formData.imei)) {
       showToast('El IMEI ingresado no es válido — verifica los dígitos', 'error');
@@ -579,7 +490,6 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           cliente: clienteData,
           equipo: equipoData,
           registro: registroData,
-          ...(isAutoRegistro ? {autoRegistroSubmissionId: initialData.autoRegistroSubmissionId} : {}),
         });
         if (hayEvidenciasParaPdf) {
           await generarRegistroEvidenciasPDF({
@@ -591,7 +501,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             celularRef: clienteData.celularRef,
           }, evidenciasParaPdf, opcionesPdf);
         }
-        showToast(isAutoRegistro ? 'Registro creado y solicitud actualizada' : 'Guardado exitosamente');
+        showToast('Guardado exitosamente');
       }
       (onSave || onCancel)();
     } catch (error) {
@@ -714,10 +624,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       <div className="saas-form-header">
         <div>
           <p className="saas-page-kicker">Registros</p>
-          <h3 className="saas-page-title">{isEditing ? 'Editar registro' : isAutoRegistro ? 'Revisar solicitud del cliente' : 'Nuevo registro'}</h3>
-          <p className="saas-page-desc">{isAutoRegistro ? 'Verifica los datos recibidos, completa lo pendiente y genera el registro con su PDF.' : 'Completa los datos del cliente, equipo, precio y evidencias.'}</p>
+          <h3 id="registro-form-title" className="saas-page-title">{isEditing ? 'Editar registro' : 'Nuevo registro'}</h3>
+          <p className="saas-page-desc">Completa los datos del cliente, equipo, precio y evidencias.</p>
         </div>
-        <button onClick={onCancel} className="saas-form-close"><X size={20}/></button>
+        <button type="button" onClick={onCancel} aria-label="Cerrar formulario de registro" className="saas-form-close"><X size={20}/></button>
       </div>
 
       {/* Indicador de pasos */}
@@ -738,14 +648,11 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} className="saas-form">
+      <form onSubmit={handleSubmit} aria-labelledby="registro-form-title" noValidate className="saas-form">
+        {/*
 
-        {isAutoRegistro && (
-          <div className="mb-4 flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 text-sm text-blue-900">
-            <FileText size={18} className="mt-0.5 shrink-0 text-blue-700" />
             <div><p className="font-bold">Solicitud de autoservicio precargada</p><p className="mt-1 text-xs leading-5 text-blue-700">Contrasta cada campo con las fotografías. Puedes corregir datos y agregar evidencias antes de guardar.</p></div>
-          </div>
-        )}
+          </div> */}
 
         {/* PASO 1 — DATOS DEL CLIENTE */}
         {paso === 1 && (
@@ -1110,11 +1017,12 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           <div className="space-y-4">
             <div>
               <h4 className="saas-form-section-title">Evidencias fotograficas</h4>
-              <p className="mt-1 text-xs font-medium text-slate-500">
-                {isAutoRegistro
+              {/*
+                {removedBranch
                   ? 'Ambas caras del DNI y el IMEI lógico son obligatorios. Al guardar se descargará el PDF de evidencias.'
                   : 'Las evidencias son opcionales tanto en registros nuevos como al editar. Si adjuntas fotos, se generará el PDF de evidencias.'}
-              </p>
+              </p> */}
+              <p className="mt-1 text-xs font-medium text-slate-500">Las evidencias son opcionales tanto en registros nuevos como al editar. Si adjuntas fotos, se generará el PDF de evidencias.</p>
             </div>
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
@@ -1130,7 +1038,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   <div key={field.key} className={`rounded-lg border p-3 ${cajaDeshabilitada ? 'border-slate-200 bg-slate-100/70' : 'border-slate-200 bg-white'}`}>
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{field.label}{isAutoRegistro && AUTO_REGISTRO_REQUIRED_EVIDENCE.has(field.key) && <span className="text-red-500"> *</span>}</p>
+                        <p className="text-sm font-semibold text-slate-900">{field.label}</p>
                         <p className="text-xs text-slate-500">{cajaDeshabilitada ? 'Deshabilitada porque el cliente no tiene caja' : field.hint}</p>
                       </div>
                       {cajaDeshabilitada ? (

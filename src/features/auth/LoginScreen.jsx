@@ -106,8 +106,16 @@ export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
       if (auth.currentUser && error.code !== 'auth/popup-closed-by-user') {
         await signOut(auth).catch(() => {});
       }
-      if (error.code !== 'auth/popup-closed-by-user') {
-        showToast('No se pudo registrar el consentimiento legal.', 'error');
+      if (error.code === 'auth/unauthorized-domain') {
+        showToast('Firebase no autoriza este dominio. Usa localhost o agrega el dominio en Authentication > Settings.', 'error');
+      } else if (error.code === 'auth/popup-blocked') {
+        showToast('El navegador bloqueo la ventana de Google. Permite ventanas emergentes o usa Chrome.', 'error');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        showToast('La ventana de Google se cerro antes de completar el acceso.', 'error');
+      } else if (error.message === 'AUTH_REQUIRED') {
+        showToast('La sesion de Google no quedo disponible para registrar el consentimiento.', 'error');
+      } else {
+        showToast('No se pudo registrar el consentimiento legal. Revisa la conexion y vuelve a intentar.', 'error');
       }
     } finally {
       setIsLoading(false);

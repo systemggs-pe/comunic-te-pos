@@ -6,6 +6,7 @@ import { eliminarVenta } from '../../services/functionsClient.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
 import {ventaMatchesSearch} from '../../utils/searchRecords.js';
+import {indexClientesByDni, normalizeDni} from '../../utils/clientes.js';
 
 export function VentasList({ data, cargando, clientes, equipos, registeredImeis = null, logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,7 +22,8 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
   }, [onSearchAll]);
   const [ticketPendiente, setTicketPendiente] = useState(null); // data pendiente hasta elegir tamaño
 
-  const getCliente = (dni) => clientes.find(c => c.dni === dni) || {};
+  const clientePorDni = useMemo(() => indexClientesByDni(clientes), [clientes]);
+  const getCliente = (dni) => clientePorDni.get(normalizeDni(dni)) || {};
   const getEquipo  = (imei) => equipos.find(e => e.idEquipo === imei) || {};
   const imeiEstaRegistrado = imei => Boolean(
     imei && (
@@ -56,11 +58,11 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
 
   const filteredData = useMemo(() => {
     return data.filter(v => {
-      const cliente = clientes.find(c => c.dni === v.dniCliente) || {};
+      const cliente = clientePorDni.get(normalizeDni(v.dniCliente)) || {};
       const equipo = equipos.find(e => e.idEquipo === v.imeiEquipo) || {};
       return ventaMatchesSearch(v, searchTerm, cliente, equipo);
     });
-  }, [data, clientes, equipos, searchTerm]);
+  }, [data, clientePorDni, equipos, searchTerm]);
 
   const handleDelete = async () => {
     if (!ventaAEliminar) return;

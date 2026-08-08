@@ -10,32 +10,35 @@
     "dev:vite": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/autoRegistros.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs",
+    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/_sharedLimits.test.mjs netlify/tests/_storage.test.mjs netlify/tests/_retention.test.mjs netlify/tests/registroFormModel.test.mjs netlify/tests/registroPdf.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
-    "animejs": "^4.4.1",
-    "firebase": "^12.13.0",
+    "animejs": "^4.5.0",
+    "firebase": "^12.17.1",
     "firebase-admin": "^13.10.0",
     "jsbarcode": "^3.12.3",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.577.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
+    "@eslint/js": "^9.39.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^5.2.0",
-    "autoprefixer": "^10.5.0",
-    "eslint": "^9.39.1",
+    "autoprefixer": "^10.5.4",
+    "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "postcss": "^8.5.14",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.19",
-    "vite": "^7.3.3"
+    "vite": "^7.3.6"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

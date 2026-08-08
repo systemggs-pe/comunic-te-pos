@@ -92,6 +92,11 @@ export function DniFotosPage({showToast}) {
   const personName = [result?.apellidos, result?.nombres].filter(Boolean).join(', ');
   const images = result?.images || [];
 
+  const mergeHistoryEntry = entry => {
+    if (!entry?.id) return;
+    setHistory(prev => [entry, ...prev.filter(item => item.id !== entry.id)].slice(0, 30));
+  };
+
   const refreshHistory = useCallback(async ({silent = false} = {}) => {
     if (!silent) setHistoryLoading(true);
     try {
@@ -165,14 +170,15 @@ export function DniFotosPage({showToast}) {
       if (json.success && storedResult.images.length) {
         setResult(storedResult);
         setSuccessCount(Number(json.successCount || 0));
-        await refreshHistory({silent: true});
+        mergeHistoryEntry(json.historyEntry);
         return;
       }
 
       const message = `No se encontraron imagenes de ${selectedType.label}`;
       setError(message);
       showToast?.(message, 'error');
-      await refreshHistory({silent: true});
+      setSuccessCount(Number(json.successCount || 0));
+      mergeHistoryEntry(json.historyEntry);
     } catch (e) {
       console.error('DNI photos error:', e);
       const message = obtenerMensajeErrorFuncion(e, `Error al consultar imagenes de ${selectedType.label}`);

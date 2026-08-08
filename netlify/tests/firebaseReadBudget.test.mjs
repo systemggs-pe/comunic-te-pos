@@ -3,6 +3,7 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {__test} from '../functions/clientes.mjs';
 import {__test as registrosTest} from '../functions/registros.mjs';
+import {indexClientesByDni, mapClienteDocument, normalizeDni} from '../../src/utils/clientes.js';
 
 function makeDoc(id, data = {}) {
   return {
@@ -141,6 +142,21 @@ function seedOperationalData(count = 500) {
   return collections;
 }
 
+test('client lookup normalizes DNI values and falls back to the Firestore document ID', () => {
+  const fromDocument = mapClienteDocument({
+    id: '70358761',
+    data: () => ({nombre: 'QUISBERTH RODRIGUEZ LUCERO ALEXANDRA'}),
+  });
+  const index = indexClientesByDni([
+    fromDocument,
+    {id: 'legacy', dni: 45268260, nombre: 'MIRELES TICONA JULIO HUMBERTO'},
+  ]);
+
+  assert.equal(fromDocument.dni, '70358761');
+  assert.equal(index.get(normalizeDni(' 70358761 '))?.nombre, 'QUISBERTH RODRIGUEZ LUCERO ALEXANDRA');
+  assert.equal(index.get(normalizeDni('45268260'))?.nombre, 'MIRELES TICONA JULIO HUMBERTO');
+});
+
 test('queryOperational ignores searches shorter than 3 chars without Firestore reads', async () => {
   const db = createFakeDb(seedOperationalData(20));
 
@@ -208,18 +224,24 @@ test('client Firestore subscriptions and history searches keep strict free-tier 
     readFile(new URL('../../src/app/App.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/main.jsx', import.meta.url), 'utf8'),
   ]);
-  const [ventasList, registrosList, registroPdf, clientesFunction] = await Promise.all([
+  const [ventasList, registrosList, registroPdf, clientesFunction, repository] = await Promise.all([
     readFile(new URL('../../src/features/ventas/VentasList.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/registros/RegistrosList.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/registros/registroPdf.js', import.meta.url), 'utf8'),
     readFile(new URL('../functions/clientes.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/repositories/firestoreRepository.js', import.meta.url), 'utf8'),
   ]);
 
   assert.match(app, /const MAX_HISTORY_SEARCH_DOCS = 120;/);
   assert.match(app, /while \(revisados < MAX_HISTORY_SEARCH_DOCS\)/);
   assert.match(app, /const REFERENCE_DATA_LIMIT = 200;/);
-  assert.match(app, /query\(clientesRef, limit\(REFERENCE_DATA_LIMIT\)\)/);
-  assert.match(app, /query\(collection\([^;]+?'equipos'\), limit\(REFERENCE_DATA_LIMIT\)\)/s);
+  assert.match(app, /repository\.referenceQuery\('clientes', REFERENCE_DATA_LIMIT\)/);
+  assert.match(app, /repository\.referenceQuery\('equipos', REFERENCE_DATA_LIMIT\)/);
+  assert.match(app, /const requestedUid = user\.uid;/);
+  assert.match(app, /auth\.currentUser\?\.uid !== requestedUid/);
+  assert.doesNotMatch(app, /let active = true;\s*getDocs\(repository\.exactClientsQuery/);
+  assert.match(repository, /referenceQuery\(name, pageSize\)/);
+  assert.match(repository, /async fetchAllOrdered\(name, pageSize = 500\)/);
   assert.match(app, /unsubRegistrosRef\.current\(\);\s*unsubRegistrosRef\.current = null;/);
   assert.match(app, /unsubVentasRef\.current\(\);\s*unsubVentasRef\.current = null;/);
   assert.doesNotMatch(main, /StrictMode/);
@@ -236,18 +258,21 @@ test('client Firestore subscriptions and history searches keep strict free-tier 
   assert.match(clientesFunction, /const SUPPORT_COLLECTION_SCAN_LIMIT = 60;/);
 });
 
-test('API runtime rate limiting does not read or write Firestore counters', async () => {
-  const [shared, autoRegistros, registros] = await Promise.all([
+test('API runtime rate limiting distributes only sensitive endpoints', async () => {
+  const [shared, registros, dniFotos, reniec] = await Promise.all([
     readFile(new URL('../functions/_shared.mjs', import.meta.url), 'utf8'),
-    readFile(new URL('../functions/autoRegistros.mjs', import.meta.url), 'utf8'),
     readFile(new URL('../functions/registros.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../functions/dniFotos.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../functions/reniec.mjs', import.meta.url), 'utf8'),
   ]);
 
+  assert.match(shared, /enforcePersistentRateLimit/);
   assert.match(shared, /enforceMemoryRateLimit/);
-  assert.match(autoRegistros, /enforceMemoryRateLimit/);
-  assert.doesNotMatch(shared, /enforcePersistentRateLimit/);
-  assert.doesNotMatch(autoRegistros, /enforcePersistentRateLimit/);
-  assert.match(autoRegistros, /\.limit\(30\)/);
+  assert.match(shared, /verifyIdToken\(match\[1\], true\)/);
+  assert.doesNotMatch(shared, /accounts:lookup|AIzaSy/);
+  assert.match(dniFotos, /distributed: true/);
+  assert.match(reniec, /distributed: true/);
+  assert.match(registros, /rateLimit: \{name: 'registros', max: 120/);
   assert.match(registros, /action === 'checkImeis'/);
   assert.match(registros, /\.slice\(0, 120\)/);
   assert.match(registros, /where\('imeiRegistrado', 'in', chunk\)/);

@@ -1,4 +1,4 @@
-import {handlePost, valueOrEmpty} from './_shared.mjs';
+import {fetchWithTimeout, handlePost, valueOrEmpty} from './_shared.mjs';
 import {parseDniPayload} from './_validators.mjs';
 
 const RENIEC_URL = 'https://api-codart.cgrt.org/api/v1/consultas/reniec/dni';
@@ -28,13 +28,13 @@ function normalizeReniecResponse(data, dni) {
 export async function consultarReniecDniSeguro(dni) {
   if (!process.env.RENIEC_TOKEN) throw Object.assign(new Error('RENIEC_TOKEN_MISSING'), {status: 500});
 
-  const response = await fetch(`${RENIEC_URL}/${dni}`, {
+  const response = await fetchWithTimeout(`${RENIEC_URL}/${dni}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${process.env.RENIEC_TOKEN}`,
     },
-  });
+  }, Number(process.env.RENIEC_TIMEOUT_MS || 10 * 1000));
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw Object.assign(new Error(data.error || data.message || 'RENIEC_UPSTREAM_ERROR'), {status: response.status});
@@ -54,5 +54,5 @@ async function consultarReniec(body) {
 export const __test = {normalizeReniecResponse};
 
 export const handler = event => handlePost(event, consultarReniec, {
-  rateLimit: {name: 'reniec', max: 60, windowMs: 60 * 1000},
+  rateLimit: {name: 'reniec', max: 60, windowMs: 60 * 1000, distributed: true},
 });

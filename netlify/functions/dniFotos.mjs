@@ -1,7 +1,8 @@
 import admin from 'firebase-admin';
-import {handlePost, valueOrEmpty} from './_shared.mjs';
+import {fetchWithTimeout, handlePost, valueOrEmpty} from './_shared.mjs';
 import {parseDniPayload} from './_validators.mjs';
 import {getAdminDb} from './_firebaseAdmin.mjs';
+import {deleteStorageFiles, getPrivateDownloadUrl, uploadImageDataUri} from './_storage.mjs';
 import {queueAuditEvent} from './_observability.mjs';
 
 export const DNI_PHOTO_TYPES = {
@@ -17,7 +18,7 @@ export const DNI_PHOTO_TYPES = {
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
 const HISTORY_LIMIT = 30;
-const IMAGE_CHUNK_SIZE = 400_000;
+const SUCCESS_COUNTER_ID = 'dniFotosStats';
 const IMAGE_DATA_URI_RE = /^data:(image\/(?:png|jpe?g|webp));base64,([A-Za-z0-9+/=]+)$/i;
 
 function getCodartToken() {
@@ -115,12 +116,13 @@ function toIsoDate(value) {
   return '';
 }
 
-function publicResult(result = {}, includeImages = false) {
+function publicResult(result = {}, includeImages = false, includeStoragePath = false) {
   const images = Array.isArray(result.images)
     ? result.images.map(image => ({
       side: cleanText(image?.side, 40),
       mime: cleanText(image?.mime, 40),
       ...(includeImages && image?.dataUri ? {dataUri: image.dataUri} : {}),
+      ...(includeStoragePath && image?.storagePath ? {storagePath: cleanText(image.storagePath, 300)} : {}),
     })).filter(image => image.side)
     : [];
 
@@ -136,7 +138,7 @@ function publicResult(result = {}, includeImages = false) {
   };
 }
 
-function publicEntry(id, data = {}, includeImages = false) {
+function publicEntry(id, data = {}, includeImages = false, includeStoragePath = false) {
   return {
     id,
     createdAt: toIsoDate(data.createdAt) || cleanText(data.createdAtIso, 40),
@@ -147,7 +149,7 @@ function publicEntry(id, data = {}, includeImages = false) {
     message: cleanText(data.message, 300),
     hasImages: Boolean(data.hasImages),
     imageCount: Number(data.imageCount || 0),
-    result: data.result ? publicResult(data.result, includeImages) : null,
+    result: data.result ? publicResult(data.result, includeImages, includeStoragePath) : null,
   };
 }
 
@@ -163,49 +165,18 @@ function buildStoredResult(normalized) {
   }, true);
 }
 
-function splitImageChunks(image, imageIndex) {
-  const parsed = parseImageDataUri(image?.dataUri);
-  if (!parsed) return {meta: null, chunks: []};
-
-  const chunks = [];
-  for (let offset = 0; offset < parsed.base64.length; offset += IMAGE_CHUNK_SIZE) {
-    chunks.push(parsed.base64.slice(offset, offset + IMAGE_CHUNK_SIZE));
-  }
-
-  return {
-    meta: {
-      side: cleanText(image?.side, 40) || `image_${imageIndex + 1}`,
-      mime: parsed.mime,
-      chunkCount: chunks.length,
-      order: imageIndex,
-    },
-    chunks,
-  };
-}
-
-function queueImageChunks(batch, docRef, images = []) {
-  return images.slice(0, 2).reduce((metas, image, imageIndex) => {
-    const {meta, chunks} = splitImageChunks(image, imageIndex);
-    if (!meta || !chunks.length) return metas;
-
-    chunks.forEach((chunk, index) => {
-      batch.set(docRef.collection('imageChunks').doc(`${meta.side}_${String(index).padStart(4, '0')}`), {
-        side: meta.side,
-        mime: meta.mime,
-        index,
-        order: meta.order * 10_000 + index,
-        chunk,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    });
-
-    metas.push(meta);
-    return metas;
-  }, []);
-}
-
 async function hydrateEntryImages(docRef, entry) {
   if (!entry?.result?.images?.length) return entry;
+
+  const storageImages = await Promise.all(entry.result.images.map(async image => {
+    if (!image.storagePath) return image;
+    const dataUri = await getPrivateDownloadUrl(image.storagePath);
+    return dataUri ? {...image, dataUri} : image;
+  }));
+  const needsLegacyChunks = storageImages.some(image => !image.dataUri && !image.storagePath);
+  if (!needsLegacyChunks) {
+    return {...entry, result: {...entry.result, images: storageImages}};
+  }
 
   const snap = await docRef.collection('imageChunks').get();
   const chunksBySide = {};
@@ -225,7 +196,7 @@ async function hydrateEntryImages(docRef, entry) {
     ...entry,
     result: {
       ...entry.result,
-      images: entry.result.images.map(image => {
+      images: storageImages.map(image => {
         const chunks = (chunksBySide[image.side] || []).sort((a, b) => a.index - b.index);
         if (!chunks.length) return image;
         const mime = chunks[0]?.mime || image.mime || 'image/jpeg';
@@ -240,8 +211,51 @@ async function hydrateEntryImages(docRef, entry) {
 }
 
 async function countSuccessEntries(db) {
-  const snap = await historyRef(db).where('status', '==', 'success').get();
-  return snap.size;
+  const counterRef = baseRef(db).collection('configuracion').doc(SUCCESS_COUNTER_ID);
+  const counterSnapshot = await counterRef.get();
+  if (counterSnapshot.exists) return Math.max(0, Number(counterSnapshot.data()?.successCount || 0));
+
+  // One-time migration for historical records. Future requests use only this counter document.
+  const legacySnapshot = await historyRef(db).where('status', '==', 'success').get();
+  const successCount = legacySnapshot.size;
+  try {
+    await counterRef.create({
+      successCount,
+      migratedAt: new Date().toISOString(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    if (error?.code !== 6 && error?.code !== 'already-exists') throw error;
+  }
+  const finalSnapshot = await counterRef.get();
+  return Math.max(0, Number(finalSnapshot.data()?.successCount ?? successCount));
+}
+
+async function uploadDniImages(images, historyId) {
+  const uploadedPaths = [];
+  const storedImages = [];
+  try {
+    for (const [index, image] of (images || []).slice(0, 2).entries()) {
+      const uploaded = await uploadImageDataUri({
+        dataUri: image.dataUri,
+        folder: 'dni-fotos',
+        id: historyId,
+        key: image.side || `image_${index + 1}`,
+        metadata: {historyId, side: image.side || `image_${index + 1}`},
+      });
+      uploadedPaths.push(uploaded.storagePath);
+      storedImages.push({
+        side: cleanText(image.side, 40) || `image_${index + 1}`,
+        mime: uploaded.mimeType,
+        storagePath: uploaded.storagePath,
+        order: index,
+      });
+    }
+    return {storedImages, uploadedPaths};
+  } catch (error) {
+    await deleteStorageFiles(uploadedPaths);
+    throw error;
+  }
 }
 
 async function saveHistoryEntry(db, payload, user, context) {
@@ -251,10 +265,10 @@ async function saveHistoryEntry(db, payload, user, context) {
   const status = payload.status === 'success' ? 'success' : 'failed';
   const tipo = DNI_PHOTO_TYPES[payload.tipo] ? payload.tipo : 'azul';
   const result = payload.result ? publicResult(payload.result, true) : null;
-  const imageMetas = status === 'success' && result?.images?.length
-    ? queueImageChunks(batch, docRef, result.images)
-    : [];
-  const storedResult = result ? publicResult({...result, images: imageMetas}, false) : null;
+  const {storedImages: imageMetas, uploadedPaths} = status === 'success' && result?.images?.length
+    ? await uploadDniImages(result.images, docRef.id)
+    : {storedImages: [], uploadedPaths: []};
+  const storedResult = result ? publicResult({...result, images: imageMetas}, false, true) : null;
   const data = {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAtIso,
@@ -270,35 +284,48 @@ async function saveHistoryEntry(db, payload, user, context) {
     actorEmail: cleanText(user?.email, 200),
   };
 
-  batch.set(docRef, data);
-  queueAuditEvent(batch, baseRef(db), context, {
-    entityType: 'dniFotoConsulta',
-    entityId: docRef.id,
-    action: status,
-    metadata: {
-      dni: data.dni,
-      tipo,
-      imageCount: data.imageCount,
-    },
-  });
-  await batch.commit();
+  try {
+    await countSuccessEntries(db);
+    batch.set(docRef, data);
+    if (status === 'success') {
+      batch.set(baseRef(db).collection('configuracion').doc(SUCCESS_COUNTER_ID), {
+        successCount: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, {merge: true});
+    }
+    queueAuditEvent(batch, baseRef(db), context, {
+      entityType: 'dniFotoConsulta',
+      entityId: docRef.id,
+      action: status,
+      metadata: {
+        dni: data.dni,
+        tipo,
+        imageCount: data.imageCount,
+      },
+    });
+    await batch.commit();
+  } catch (error) {
+    await deleteStorageFiles(uploadedPaths);
+    throw error;
+  }
 
+  const entry = publicEntry(docRef.id, {...data, createdAt: createdAtIso}, false, true);
   return {
-    ...publicEntry(docRef.id, {...data, createdAt: createdAtIso}, true),
-    result,
+    ...entry,
+    result: (await hydrateEntryImages(docRef, entry)).result,
   };
 }
 
 async function fetchDniFotos(dni, tipo) {
   const config = DNI_PHOTO_TYPES[tipo];
 
-  const response = await fetch(`${config.url}/${dni}`, {
+  const response = await fetchWithTimeout(`${config.url}/${dni}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${getCodartToken()}`,
     },
-  });
+  }, Number(process.env.CODART_TIMEOUT_MS || 10 * 1000));
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw Object.assign(new Error(data.error || data.message || 'DNI_FOTOS_UPSTREAM_ERROR'), {
@@ -366,7 +393,7 @@ async function getHistoryEntry(db, body) {
   const snap = await docRef.get();
   if (!snap.exists) throw Object.assign(new Error('DNI_FOTO_HISTORIAL_NO_ENCONTRADO'), {status: 404});
 
-  const entry = publicEntry(snap.id, snap.data() || {}, false);
+  const entry = publicEntry(snap.id, snap.data() || {}, false, true);
   return {entry: await hydrateEntryImages(docRef, entry)};
 }
 
@@ -397,5 +424,5 @@ async function dispatchDniFotos(body, user, context) {
 }
 
 export const handler = event => handlePost(event, dispatchDniFotos, {
-  rateLimit: {name: 'dniFotos', max: 20, windowMs: 60 * 1000},
+  rateLimit: {name: 'dniFotos', max: 20, windowMs: 60 * 1000, distributed: true},
 });

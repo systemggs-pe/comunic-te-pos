@@ -59,39 +59,6 @@ export async function llamarFuncionSegura(nombre, payload) {
   return data;
 }
 
-export async function llamarFuncionPublica(nombre, payload) {
-  const resp = await fetch(`${BACKEND_BASE_URL}/api/${nombre}`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload),
-  });
-  const text = await resp.text();
-  const requestId = resp.headers.get('x-request-id') || '';
-
-  if (resp.status === 404 && looksLikeHtml(text)) {
-    const error = new Error('BACKEND_NOT_DEPLOYED');
-    error.requestId = requestId;
-    throw error;
-  }
-  let data = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    const error = new Error(IS_LOCAL_API_PROXY ? 'API_LOCAL_NO_DISPONIBLE' : 'BACKEND_INVALID_RESPONSE');
-    error.status = resp.status;
-    error.requestId = requestId;
-    throw error;
-  }
-  if (!resp.ok) {
-    const error = new Error(data.error || 'BACKEND_ERROR');
-    error.status = resp.status;
-    error.requestId = requestId || data.requestId || '';
-    error.payload = data;
-    throw error;
-  }
-  return data;
-}
-
 const VALIDATION_MESSAGES = {
   CELULAR_INVALIDO: 'el celular debe tener 9 digitos y empezar con 9',
   CIUDAD_REQUERIDA: 'la ciudad es obligatoria',
@@ -216,6 +183,9 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'BACKEND_ERROR') return fallback;
   if (error?.message === 'BACKEND_INVALID_RESPONSE') return 'Respuesta invalida de Netlify Functions';
   if (error?.message === 'BACKEND_NOT_DEPLOYED') return 'Funciones Netlify no desplegadas';
+  if (error?.message === 'CUERPO_MUY_GRANDE') return 'La solicitud supera el limite permitido';
+  if (error?.message === 'MIME_NO_PERMITIDO') return 'El tipo de archivo o solicitud no esta permitido';
+  if (error?.message === 'UPSTREAM_TIMEOUT') return 'El servicio externo tardo demasiado; intenta nuevamente';
   if (error?.message === 'BOLETA_EQUIPO_YA_EXISTE') {
     const imei = error?.payload?.details?.imei || error?.payload?.imei;
     return imei ? `El equipo ${imei} ya tiene una boleta extranjera` : 'Ese equipo ya tiene una boleta extranjera';
@@ -238,14 +208,8 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'EVIDENCIA_FORMATO_INVALIDO') return 'Una evidencia tiene un formato no permitido';
   if (error?.message === 'EVIDENCIA_MUY_GRANDE') return 'Una imagen es demasiado pesada; toma otra con menor resolución';
   if (error?.message === 'EVIDENCIAS_MUY_GRANDES') return 'Las imágenes juntas son demasiado pesadas';
-  if (error?.message?.startsWith('ENLACE_')) {
-    if (error.message === 'ENLACE_VENCIDA') return 'El enlace venció; solicita uno nuevo a la tienda';
-    if (error.message === 'ENLACE_BLOQUEADA') return 'El enlace está bloqueado';
-    if (error.message === 'ENLACE_COMPLETADA') return 'La solicitud ya fue enviada';
-    if (error.message === 'ENLACE_REVOCADA') return 'La tienda revocó este enlace';
-    return 'El enlace no es válido';
-  }
-
+  if (error?.message === 'IMAGEN_MUY_GRANDE') return 'La imagen supera el limite permitido';
+  if (error?.message === 'IMAGEN_BASE64_INVALIDA') return 'La imagen no tiene un formato valido';
   if (error?.message === 'FIREBASE_SERVICE_ACCOUNT_INVALID') return 'FIREBASE_SERVICE_ACCOUNT no es un JSON valido';
   if (error?.message === 'IMEI_YA_REGISTRADO') {
     const imei = error?.payload?.details?.imei;
@@ -259,9 +223,6 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'RENIEC_PERSONA_NO_ENCONTRADA') return 'RENIEC no encontró nombres y apellidos para este DNI';
   if (error?.message === 'RENIEC_NO_VERIFICADO') return 'Verifica nuevamente tus datos con RENIEC';
   if (error?.message === 'RENIEC_UPSTREAM_ERROR') return 'RENIEC no está disponible en este momento';
-  if (error?.message === 'SOLICITUD_NO_ENCONTRADA') return 'No se encontró la solicitud del cliente';
-  if (error?.message === 'SOLICITUD_NO_REVISABLE') return 'Esta solicitud ya no se puede revisar';
-  if (error?.message === 'SOLICITUD_YA_PROCESADA') return 'Esta solicitud ya fue convertida en registro';
   if (error?.message === 'fetch failed') return 'No se pudo conectar con el servicio externo';
   return error?.message || fallback;
 }
@@ -388,72 +349,4 @@ export function consultarClientesOperativos(payload = {}) {
 
 export function registrarConsentimientoLegal(payload) {
   return llamarFuncionSegura('legalConsent', payload);
-}
-
-const AUTO_REGISTRO_LIST_TTL_MS = 15_000;
-let autoRegistroListCache = null;
-let autoRegistroListRequest = null;
-
-function invalidateAutoRegistroList() {
-  autoRegistroListCache = null;
-}
-
-export async function crearInvitacionAutoRegistro(dni, expiresDays = 7) {
-  const result = await llamarFuncionSegura('autoRegistros', {action: 'create', dni, expiresDays});
-  invalidateAutoRegistroList();
-  return result;
-}
-
-export function listarInvitacionesAutoRegistro({force = false} = {}) {
-  const userId = auth.currentUser?.uid || '';
-  const now = Date.now();
-  if (!force && autoRegistroListCache?.userId === userId && autoRegistroListCache.expiresAt > now) {
-    return Promise.resolve(autoRegistroListCache.data);
-  }
-  if (!force && autoRegistroListRequest?.userId === userId) return autoRegistroListRequest.promise;
-
-  const promise = llamarFuncionSegura('autoRegistros', {action: 'list'})
-    .then(data => {
-      autoRegistroListCache = {userId, data, expiresAt: Date.now() + AUTO_REGISTRO_LIST_TTL_MS};
-      return data;
-    })
-    .finally(() => {
-      if (autoRegistroListRequest?.promise === promise) autoRegistroListRequest = null;
-    });
-  autoRegistroListRequest = {userId, promise};
-  return promise;
-}
-
-export async function revocarInvitacionAutoRegistro(id) {
-  const result = await llamarFuncionSegura('autoRegistros', {action: 'revoke', id});
-  invalidateAutoRegistroList();
-  return result;
-}
-
-export async function eliminarInvitacionAutoRegistro(id) {
-  const result = await llamarFuncionSegura('autoRegistros', {action: 'delete', id});
-  invalidateAutoRegistroList();
-  return result;
-}
-
-export function obtenerSolicitudAutoRegistro(id) {
-  return llamarFuncionSegura('autoRegistros', {action: 'getSubmission', id});
-}
-
-export async function iniciarRevisionAutoRegistro(id) {
-  const result = await llamarFuncionSegura('autoRegistros', {action: 'startReview', id});
-  invalidateAutoRegistroList();
-  return result;
-}
-
-export function consultarEstadoAutoRegistro(token) {
-  return llamarFuncionPublica('autoRegistros', {action: 'status', token});
-}
-
-export function verificarDniAutoRegistro(token, dni) {
-  return llamarFuncionPublica('autoRegistros', {action: 'verify', token, dni});
-}
-
-export function enviarSolicitudAutoRegistro(payload) {
-  return llamarFuncionPublica('autoRegistros', {action: 'submit', ...payload});
 }

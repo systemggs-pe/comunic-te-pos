@@ -32,7 +32,7 @@ async function dispatchComprobanteApple(body) {
 }
 
 export const handler = event => handlePost(event, dispatchComprobanteApple, {
-  rateLimit: {name: 'comprobanteApple', max: 60, windowMs: 60 * 1000},
+  rateLimit: {name: 'comprobanteApple', max: 60, windowMs: 60 * 1000, distributed: true},
 });
 
 export const __test = {buscarComprobanteApple};
