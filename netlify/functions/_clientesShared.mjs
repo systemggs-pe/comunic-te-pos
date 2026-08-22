@@ -1,3 +1,5 @@
+import {buildClienteSearchTerms} from './_searchIndex.mjs';
+
 const unique = values => Array.from(new Set(
   values
     .map(value => String(value || '').trim())
@@ -24,7 +26,7 @@ export function withContactHistory(existing = {}, incoming = {}, options = {}) {
   const correoEntrante = String(incoming.correo || '').trim().toLowerCase();
   const correoExistente = String(existing.correo || '').trim().toLowerCase();
 
-  return {
+  const merged = {
     ...existing,
     ...incoming,
     celular: preservePrimary ? (existing.celular || incoming.celular || celulares[0] || '') : (incoming.celular || celulares[0] || ''),
@@ -35,6 +37,10 @@ export function withContactHistory(existing = {}, incoming = {}, options = {}) {
       || '',
     celulares,
     correos,
+  };
+  return {
+    ...merged,
+    searchTerms: buildClienteSearchTerms(merged),
   };
 }
 

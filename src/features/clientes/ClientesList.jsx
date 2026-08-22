@@ -90,7 +90,11 @@ export function ClientesList({showToast}) {
           searchField,
           limit,
         });
-        clientesCacheRef.current.set(cacheKey, response);
+        if (!term || (Array.isArray(response.clientes) && response.clientes.length)) {
+          clientesCacheRef.current.set(cacheKey, response);
+        } else {
+          clientesCacheRef.current.delete(cacheKey);
+        }
         if (!active || requestId !== requestIdRef.current) return;
         setClientesOperativos(Array.isArray(response.clientes) ? response.clientes : []);
         setTotalResultados(Number(response.total || 0));
@@ -126,7 +130,9 @@ export function ClientesList({showToast}) {
         limit: CLIENTES_LIMIT,
         cursor: nextCursor,
       });
-      if (!cached) clientesCacheRef.current.set(cacheKey, response);
+      if (!cached && Array.isArray(response.clientes) && response.clientes.length) {
+        clientesCacheRef.current.set(cacheKey, response);
+      }
       const nuevos = Array.isArray(response.clientes) ? response.clientes : [];
       setClientesOperativos(prev => {
         const mapa = new Map(prev.map(cliente => [cliente.dni, cliente]));

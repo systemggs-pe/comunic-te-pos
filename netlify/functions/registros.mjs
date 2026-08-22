@@ -4,6 +4,7 @@ import {getAdminDb} from './_firebaseAdmin.mjs';
 import {withContactHistory} from './_clientesShared.mjs';
 import {normalizeImeiList, releaseImeiLocks, syncImeiLocks} from './_imeiLocks.mjs';
 import {queueAuditEvent} from './_observability.mjs';
+import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex.mjs';
 import {parseEstadoSolicitudPayload, parseIdPayload, parseRegistroPayload} from './_validators.mjs';
 import {findComprobanteAppleByIdAndImei} from './_comprobanteApple.mjs';
 
@@ -129,9 +130,18 @@ async function createRegistro(db, payload, context) {
       next = Math.max(next, getNextFromExisting(existingSnap, 'nRegistro', 'RECO'));
     }
     const nRegistro = `RECO-${String(next).padStart(5, '0')}`;
-    const registroData = {
+    const registroBase = {
       ...registro,
       nRegistro,
+    };
+    const registroData = {
+      ...registroBase,
+      nombreCliente: cliente.nombre || '',
+      searchTerms: buildMovimientoSearchTerms(registroBase, cliente.nombre),
+    };
+    const equipoData = {
+      ...equipo,
+      searchTerms: buildEquipoSearchTerms(equipo, cliente.nombre),
     };
     const lockImeis = registroLockImeis(registroData);
     await assertNoOtherRegistroWithImeis(registrosRef, lockImeis, registroRef.id, transaction);
@@ -146,7 +156,7 @@ async function createRegistro(db, payload, context) {
     });
     transaction.set(clienteRef, clienteData, {merge: true});
     transaction.set(counterRef, {last: next, updatedAt: new Date().toISOString()}, {merge: true});
-    transaction.set(equipoRef, equipo, {merge: true});
+    transaction.set(equipoRef, equipoData, {merge: true});
     transaction.set(registroRef, registroData);
     queueAuditEvent(transaction, base, context, {
       entityType: 'registro',
@@ -201,16 +211,25 @@ async function updateRegistro(db, payload, context) {
     if (oldDniChanged) {
       oldOtherEquipo = await hasOther(equiposRef, 'idDuenio', oldDni, oldImei, transaction);
     }
-    const registroData = {
+    const registroBase = {
       ...registro,
       estadoSolicitud: resolveEstadoSolicitud(current, registro),
       nRegistro: current.nRegistro || registro.nRegistro || '',
     };
     const oldLockImeis = registroLockImeis(current);
-    const lockImeis = registroLockImeis(registroData);
+    const lockImeis = registroLockImeis(registroBase);
     await assertNoOtherRegistroWithImeis(registrosRef, lockImeis, id, transaction);
     const clienteSnap = await transaction.get(clienteRef);
     const clienteData = withContactHistory(clienteSnap.exists ? clienteSnap.data() || {} : {}, cliente);
+    const registroData = {
+      ...registroBase,
+      nombreCliente: clienteData.nombre || cliente.nombre || '',
+      searchTerms: buildMovimientoSearchTerms(registroBase, clienteData.nombre || cliente.nombre),
+    };
+    const equipoData = {
+      ...equipo,
+      searchTerms: buildEquipoSearchTerms(equipo, clienteData.nombre || cliente.nombre),
+    };
 
     await syncImeiLocks({
       transaction,
@@ -227,7 +246,7 @@ async function updateRegistro(db, payload, context) {
     if (oldDniChanged && !oldOtherEquipo) {
       transaction.delete(clientesRef.doc(oldDni));
     }
-    transaction.set(equipoRef, equipo, {merge: true});
+    transaction.set(equipoRef, equipoData, {merge: true});
     transaction.set(registroRef, registroData);
     queueAuditEvent(transaction, base, context, {
       entityType: 'registro',

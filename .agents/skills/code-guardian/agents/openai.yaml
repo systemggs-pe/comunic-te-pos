@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Guardian"
+  short_description: "Auditoria integral basada en evidencia"
+  default_prompt: "Usa $code-guardian para auditar este sistema de extremo a extremo y reportar evidencia verificable."

@@ -35,7 +35,7 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
     const eq = getEquipo(row.imeiEquipo);
     return {
       ...row,
-      nombreCliente: getCliente(row.dniCliente).nombre || row.dniCliente,
+      nombreCliente: getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente,
       celularCliente: row.celularCliente || getCliente(row.dniCliente).celular || '',
       sn:            eq.sn    || row.sn    || '',
       imei2Equipo:   eq.imei2 || row.imei2Equipo || '',
@@ -50,7 +50,11 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
 
   useEffect(() => {
     const term = searchTerm.trim();
-    if (term.length < 3 || !onSearchAllRef.current || (total && data.length >= total) || ultimaBusquedaHistorialRef.current === term) return undefined;
+    if (term.length < 3) {
+      ultimaBusquedaHistorialRef.current = '';
+      return undefined;
+    }
+    if (!onSearchAllRef.current || (total && data.length >= total) || ultimaBusquedaHistorialRef.current === term) return undefined;
     ultimaBusquedaHistorialRef.current = term;
     const timeoutId = window.setTimeout(() => onSearchAllRef.current?.(term), 900);
     return () => window.clearTimeout(timeoutId);
@@ -157,7 +161,7 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
               <div>
                 <p className="text-xs font-semibold text-green-600 uppercase mb-2 border-b pb-1">Cliente</p>
                 <div className="grid grid-cols-1 gap-y-1.5 rounded border border-gray-100 bg-gray-50 p-3 sm:grid-cols-[145px_minmax(0,1fr)] sm:gap-x-4">
-                  <p><strong className="text-gray-700">Nombre:</strong></p><p className="text-gray-600">{getCliente(viewingVenta.dniCliente).nombre || '-'}</p>
+                  <p><strong className="text-gray-700">Nombre:</strong></p><p className="text-gray-600">{getCliente(viewingVenta.dniCliente).nombre || viewingVenta.nombreCliente || '-'}</p>
                   <p><strong className="text-gray-700">{etiquetaDocumento(viewingVenta.tipoDocumentoCliente || getCliente(viewingVenta.dniCliente).tipoDocumento)}:</strong></p><p className="text-gray-600">{viewingVenta.dniCliente}</p>
                   <p><strong className="text-gray-700">Celular usado:</strong></p><p className="text-gray-600">{viewingVenta.celularCliente || getCliente(viewingVenta.dniCliente).celular || '-'}</p>
                 </div>
@@ -231,7 +235,7 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
           <div key={row.id} className="saas-mobile-row">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <p className="font-semibold text-gray-800 text-sm">{getCliente(row.dniCliente).nombre || row.dniCliente}</p>
+                <p className="font-semibold text-gray-800 text-sm">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</p>
                 <p className="text-xs text-gray-400">{row.nVenta} · {new Date(row.fecha).toLocaleDateString()}</p>
               </div>
               <span className="font-bold text-green-600 text-sm">S/ {parseFloat(row.precio).toFixed(2)}</span>
@@ -288,7 +292,7 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
             ) : filteredData.map(row => (
               <tr key={row.id}>
                 <td className="px-6 py-4"><div className="font-medium">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs">{row.nVenta}</div></td>
-                <td className="px-6 py-4"><div className="font-medium">{getCliente(row.dniCliente).nombre || row.dniCliente}</div><div className="text-xs">{row.dniCliente}</div></td>
+                <td className="px-6 py-4"><div className="font-medium">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</div><div className="text-xs">{row.dniCliente}</div></td>
                 <td className="px-6 py-4">
                   {(() => {
                     const eq = getEquipo(row.imeiEquipo);

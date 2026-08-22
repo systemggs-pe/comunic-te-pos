@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  documentId,
   getCountFromServer,
   getDocs,
   limit,
@@ -41,7 +42,7 @@ export function createFirestoreRepository(db, appId) {
       return query(refs[name], ...constraints);
     },
     exactClientsQuery(dnis) {
-      return query(refs.clientes, where('dni', 'in', dnis));
+      return query(refs.clientes, where(documentId(), 'in', dnis));
     },
     async counts() {
       const [registros, ventas, clientes] = await Promise.all([

@@ -17,7 +17,7 @@ import { isLegalPath, slugFromPath } from '../features/legal/legalRouting.js';
 import {clientLogger} from '../utils/logger.js';
 import {normalizeSearchTerm, registroMatchesSearch, ventaMatchesSearch} from '../utils/searchRecords.js';
 import {indexClientesByDni, mapClienteDocument, normalizeDni} from '../utils/clientes.js';
-import {consultarEstadosRegistroImeis} from '../services/functionsClient.js';
+import {consultarEstadosRegistroImeis, consultarHistorialOperativo} from '../services/functionsClient.js';
 import {createFirestoreRepository, mapSnapshotDocs} from '../repositories/firestoreRepository.js';
 
 const lazyNamed = (loader, name) => lazy(() => loader().then(module => ({default: module[name]})));
@@ -35,8 +35,6 @@ const INTRO_LOGIN_KEY = 'ggs_intro_after_login_uid';
 const INTRO_SEEN_PREFIX = 'ggs_intro_seen_at_';
 const INTRO_REPEAT_AFTER_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 40;
-const SEARCH_PAGE_SIZE = 60;
-const MAX_HISTORY_SEARCH_DOCS = 120;
 const REFERENCE_DATA_LIMIT = 200;
 
 function sortByDateDesc(items) {
@@ -295,8 +293,8 @@ function App() {
 
     const loadedDnis = new Set(clientes.map(cliente => normalizeDni(cliente.dni || cliente.id)).filter(Boolean));
     const movementDnis = Array.from(new Set([
-      ...ventas.slice(0, PAGE_SIZE).map(venta => normalizeDni(venta.dniCliente)),
-      ...registros.slice(0, PAGE_SIZE).map(registro => normalizeDni(registro.dniCliente)),
+      ...ventas.map(venta => normalizeDni(venta.dniCliente)),
+      ...registros.map(registro => normalizeDni(registro.dniCliente)),
     ].filter(Boolean)));
     const pendingDnis = movementDnis
       .filter(dni => !loadedDnis.has(dni) && !clientesConsultadosRef.current.has(dni))
@@ -351,7 +349,9 @@ function App() {
     unsubRegistrosRef.current = onSnapshot(
       registrosQuery,
       (snap) => {
-        const removedIds = applySnapshotChanges(registrosRealtimeRef.current, snap.docChanges());
+        const changes = snap.docChanges();
+        const removedIds = applySnapshotChanges(registrosRealtimeRef.current, changes);
+        if (changes.length) searchCacheRef.current.registros.clear();
         removedIds.forEach(id => {
           registrosCacheRef.current.delete(id);
           removeItemFromSearchCache(searchCacheRef.current.registros, id);
@@ -379,7 +379,9 @@ function App() {
     unsubVentasRef.current = onSnapshot(
       ventasQuery,
       (snap) => {
-        const removedIds = applySnapshotChanges(ventasRealtimeRef.current, snap.docChanges());
+        const changes = snap.docChanges();
+        const removedIds = applySnapshotChanges(ventasRealtimeRef.current, changes);
+        if (changes.length) searchCacheRef.current.ventas.clear();
         removedIds.forEach(id => {
           ventasCacheRef.current.delete(id);
           removeItemFromSearchCache(searchCacheRef.current.ventas, id);
@@ -406,6 +408,7 @@ function App() {
       lastRegistroDocRef.current = snap.docs.at(-1) || lastRegistroDocRef.current;
       setHayMasRegistros(snap.size === PAGE_SIZE);
       addItemsToCache(registrosCacheRef.current, data);
+      searchCacheRef.current.registros.clear();
       rebuildRegistrosState();
     } catch (err) {
       clientLogger.error('app.registros.load_more_error', err, {pageSize: PAGE_SIZE});
@@ -424,6 +427,7 @@ function App() {
       lastVentaDocRef.current = snap.docs.at(-1) || lastVentaDocRef.current;
       setHayMasVentas(snap.size === PAGE_SIZE);
       addItemsToCache(ventasCacheRef.current, data);
+      searchCacheRef.current.ventas.clear();
       rebuildVentasState();
     } catch (err) {
       clientLogger.error('app.ventas.load_more_error', err, {pageSize: PAGE_SIZE});
@@ -454,33 +458,25 @@ function App() {
     [repository],
   );
 
-  const leerCoincidenciasHistorial = React.useCallback(async (nombre, term, matchesItem) => {
-    const resultados = [];
-    let cursor = null;
-    let revisados = 0;
-    while (revisados < MAX_HISTORY_SEARCH_DOCS) {
-      const pageSize = Math.min(SEARCH_PAGE_SIZE, MAX_HISTORY_SEARCH_DOCS - revisados);
-      const snap = await getDocs(repository.pageQuery(nombre, pageSize, cursor));
-      revisados += snap.size;
-      snap.docs.forEach(documento => {
-        const item = {id: documento.id, ...documento.data()};
-        if (matchesItem(item)) resultados.push(item);
-      });
-      if (snap.size < pageSize) break;
-      cursor = snap.docs.at(-1);
-    }
-    return resultados;
-  }, [repository]);
+  const incorporarClientesConsultados = React.useCallback((items = []) => {
+    let changed = false;
+    items.forEach(item => {
+      const cliente = {...item, dni: normalizeDni(item?.dni || item?.id)};
+      if (!cliente.dni) return;
+      clientesExactosRef.current.set(cliente.dni, cliente);
+      clientesConsultadosRef.current.add(cliente.dni);
+      changed = true;
+    });
+    if (changed) rebuildClientesState();
+  }, [rebuildClientesState]);
 
   const buscarRegistrosEnHistorial = React.useCallback(async (term) => {
     const needle = normalizeSearchTerm(term);
     if (needle.length < 3) return [];
     const cached = searchCacheRef.current.registros.get(needle);
-    if (cached) {
-      if (cached.length) {
-        addItemsToCache(registrosCacheRef.current, cached);
-        rebuildRegistrosState();
-      }
+    if (Array.isArray(cached) && cached.length) {
+      addItemsToCache(registrosCacheRef.current, cached);
+      rebuildRegistrosState();
       return cached;
     }
 
@@ -488,11 +484,11 @@ function App() {
     searchRequestRef.current.registros = requestId;
     setBuscandoHistorial(prev => ({...prev, registros: true}));
     try {
-      const resultados = await leerCoincidenciasHistorial('registros', needle, registro => {
-        const cliente = clientePorDni.get(String(registro.dniCliente || '')) || {};
-        return registroMatchesSearch(registro, needle, cliente);
-      });
-      searchCacheRef.current.registros.set(needle, resultados);
+      const response = await consultarHistorialOperativo({searchTerm: needle, limit: 120});
+      incorporarClientesConsultados(Array.isArray(response.clientes) ? response.clientes : []);
+      const resultados = Array.isArray(response.registros) ? response.registros : [];
+      if (resultados.length) searchCacheRef.current.registros.set(needle, resultados);
+      else searchCacheRef.current.registros.delete(needle);
       if (requestId === searchRequestRef.current.registros && resultados.length) {
         addItemsToCache(registrosCacheRef.current, resultados);
         rebuildRegistrosState();
@@ -506,17 +502,15 @@ function App() {
         setBuscandoHistorial(prev => ({...prev, registros: false}));
       }
     }
-  }, [clientePorDni, leerCoincidenciasHistorial, rebuildRegistrosState]);
+  }, [incorporarClientesConsultados, rebuildRegistrosState]);
 
   const buscarVentasEnHistorial = React.useCallback(async (term) => {
     const needle = normalizeSearchTerm(term);
     if (needle.length < 3) return [];
     const cached = searchCacheRef.current.ventas.get(needle);
-    if (cached) {
-      if (cached.length) {
-        addItemsToCache(ventasCacheRef.current, cached);
-        rebuildVentasState();
-      }
+    if (Array.isArray(cached) && cached.length) {
+      addItemsToCache(ventasCacheRef.current, cached);
+      rebuildVentasState();
       return cached;
     }
 
@@ -524,12 +518,11 @@ function App() {
     searchRequestRef.current.ventas = requestId;
     setBuscandoHistorial(prev => ({...prev, ventas: true}));
     try {
-      const resultados = await leerCoincidenciasHistorial('ventas', needle, venta => {
-        const cliente = clientePorDni.get(String(venta.dniCliente || '')) || {};
-        const equipo = equipoPorImei.get(String(venta.imeiEquipo || '')) || {};
-        return ventaMatchesSearch(venta, needle, cliente, equipo);
-      });
-      searchCacheRef.current.ventas.set(needle, resultados);
+      const response = await consultarHistorialOperativo({searchTerm: needle, limit: 120});
+      incorporarClientesConsultados(Array.isArray(response.clientes) ? response.clientes : []);
+      const resultados = Array.isArray(response.ventas) ? response.ventas : [];
+      if (resultados.length) searchCacheRef.current.ventas.set(needle, resultados);
+      else searchCacheRef.current.ventas.delete(needle);
       if (requestId === searchRequestRef.current.ventas && resultados.length) {
         addItemsToCache(ventasCacheRef.current, resultados);
         rebuildVentasState();
@@ -543,7 +536,7 @@ function App() {
         setBuscandoHistorial(prev => ({...prev, ventas: false}));
       }
     }
-  }, [clientePorDni, equipoPorImei, leerCoincidenciasHistorial, rebuildVentasState]);
+  }, [incorporarClientesConsultados, rebuildVentasState]);
 
   useEffect(() => {
     searchCacheRef.current.registros.clear();
@@ -631,7 +624,7 @@ function App() {
         cl.nombre?.toLowerCase().includes(q) ||
         r.modeloEquipo?.toLowerCase().includes(q) ||
         r.nRegistro?.toLowerCase().includes(q))
-      ) res.push({ tipo: 'registro', icono: '📋', titulo: `${cl.nombre || r.dniCliente}`, subtitulo: `${r.nRegistro} · IMEI ${r.imeiRegistrado || r.imeiEquipo}`, data: r });
+      ) res.push({ tipo: 'registro', icono: '📋', titulo: `${cl.nombre || r.nombreCliente || r.dniCliente}`, subtitulo: `${r.nRegistro} · IMEI ${r.imeiRegistrado || r.imeiEquipo}`, data: r });
     });
     // Buscar en ventas
     ventas.forEach(v => {
@@ -645,7 +638,7 @@ function App() {
         cl.nombre?.toLowerCase().includes(q) ||
         v.modeloEquipo?.toLowerCase().includes(q) ||
         v.nVenta?.toLowerCase().includes(q))
-      ) res.push({ tipo: 'venta', icono: '🛒', titulo: `${cl.nombre || v.dniCliente}`, subtitulo: `${v.nVenta} · ${v.marcaEquipo || ''} ${v.modeloEquipo || ''}`, data: v });
+      ) res.push({ tipo: 'venta', icono: '🛒', titulo: `${cl.nombre || v.nombreCliente || v.dniCliente}`, subtitulo: `${v.nVenta} · ${v.marcaEquipo || ''} ${v.modeloEquipo || ''}`, data: v });
     });
     // Buscar en clientes
     clientes.forEach(c => {

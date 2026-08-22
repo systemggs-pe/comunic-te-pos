@@ -3,6 +3,7 @@ import {getAdminDb} from './_firebaseAdmin.mjs';
 import {withContactHistory} from './_clientesShared.mjs';
 import {normalizeImeiList, releaseImeiLocks, syncImeiLocks} from './_imeiLocks.mjs';
 import {queueAuditEvent} from './_observability.mjs';
+import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex.mjs';
 import {parseIdPayload, parseVentaPayload} from './_validators.mjs';
 
 const APP_ID = 'comunicate-pos';
@@ -71,7 +72,16 @@ async function createVenta(db, payload, context) {
       next = Math.max(next, getNextFromExisting(existingSnap, 'nVenta', 'VEN'));
     }
     const nVenta = `VEN-${String(next).padStart(4, '0')}`;
-    const ventaData = {...venta, nVenta};
+    const ventaData = {
+      ...venta,
+      nVenta,
+      nombreCliente: cliente.nombre || '',
+      searchTerms: buildMovimientoSearchTerms({...venta, nVenta}, cliente.nombre),
+    };
+    const equipoData = {
+      ...equipo,
+      searchTerms: buildEquipoSearchTerms(equipo, cliente.nombre),
+    };
     const lockImeis = ventaLockImeis(ventaData);
     await assertNoOtherVentaWithImeis(ventasRef, lockImeis, ventaRef.id, transaction);
     const clienteSnap = await transaction.get(clienteRef);
@@ -86,7 +96,7 @@ async function createVenta(db, payload, context) {
     });
     transaction.set(clienteRef, clienteData, {merge: true});
     transaction.set(counterRef, {last: next, updatedAt: new Date().toISOString()}, {merge: true});
-    transaction.set(equipoRef, equipo, {merge: true});
+    transaction.set(equipoRef, equipoData, {merge: true});
     transaction.set(ventaRef, ventaData);
     queueAuditEvent(transaction, base, context, {
       entityType: 'venta',
@@ -138,12 +148,22 @@ async function updateVenta(db, payload, context) {
     if (oldDniChanged) {
       oldOtherEquipo = await hasOther(equiposRef, 'idDuenio', oldDni, oldImei, transaction);
     }
-    const ventaData = {...venta, nVenta: current.nVenta || venta.nVenta || ''};
+    const nVenta = current.nVenta || venta.nVenta || '';
+    const ventaBase = {...venta, nVenta};
     const oldLockImeis = ventaLockImeis(current);
-    const lockImeis = ventaLockImeis(ventaData);
+    const lockImeis = ventaLockImeis(ventaBase);
     await assertNoOtherVentaWithImeis(ventasRef, lockImeis, id, transaction);
     const clienteSnap = await transaction.get(clienteRef);
     const clienteData = withContactHistory(clienteSnap.exists ? clienteSnap.data() || {} : {}, cliente);
+    const ventaData = {
+      ...ventaBase,
+      nombreCliente: clienteData.nombre || cliente.nombre || '',
+      searchTerms: buildMovimientoSearchTerms(ventaBase, clienteData.nombre || cliente.nombre),
+    };
+    const equipoData = {
+      ...equipo,
+      searchTerms: buildEquipoSearchTerms(equipo, clienteData.nombre || cliente.nombre),
+    };
 
     await syncImeiLocks({
       transaction,
@@ -160,7 +180,7 @@ async function updateVenta(db, payload, context) {
     if (oldDniChanged && !oldOtherEquipo) {
       transaction.delete(clientesRef.doc(oldDni));
     }
-    transaction.set(equipoRef, equipo, {merge: true});
+    transaction.set(equipoRef, equipoData, {merge: true});
     transaction.set(ventaRef, ventaData);
     queueAuditEvent(transaction, base, context, {
       entityType: 'venta',

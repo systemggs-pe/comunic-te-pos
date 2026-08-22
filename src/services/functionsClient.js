@@ -254,9 +254,12 @@ export function eliminarDniFotoHistorial(id) {
 const CLIENTES_QUERY_TTL_MS = 20_000;
 const clientesQueryCache = new Map();
 const clientesQueryRequests = new Map();
+const historialQueryCache = new Map();
+const historialQueryRequests = new Map();
 
 function invalidateClientesQueryCache() {
   clientesQueryCache.clear();
+  historialQueryCache.clear();
 }
 
 async function runClientMutation(nombre, payload) {
@@ -338,12 +341,39 @@ export function consultarClientesOperativos(payload = {}) {
 
   const promise = llamarFuncionSegura('clientes', {action: 'queryOperational', ...payload})
     .then(data => {
-      if (clientesQueryCache.size >= 30) clientesQueryCache.clear();
-      clientesQueryCache.set(key, {data, expiresAt: Date.now() + CLIENTES_QUERY_TTL_MS});
+      const isSearch = Boolean(String(payload.searchTerm || '').trim());
+      const hasResults = Array.isArray(data?.clientes) && data.clientes.length > 0;
+      if (!isSearch || hasResults) {
+        if (clientesQueryCache.size >= 30) clientesQueryCache.clear();
+        clientesQueryCache.set(key, {data, expiresAt: Date.now() + CLIENTES_QUERY_TTL_MS});
+      }
       return data;
     })
     .finally(() => clientesQueryRequests.delete(key));
   clientesQueryRequests.set(key, promise);
+  return promise;
+}
+
+export function consultarHistorialOperativo(payload = {}) {
+  const userId = auth.currentUser?.uid || '';
+  const key = `${userId}|${JSON.stringify(payload)}`;
+  const now = Date.now();
+  const cached = historialQueryCache.get(key);
+  if (cached?.expiresAt > now) return Promise.resolve(cached.data);
+  if (historialQueryRequests.has(key)) return historialQueryRequests.get(key);
+
+  const promise = llamarFuncionSegura('clientes', {action: 'queryHistory', ...payload})
+    .then(data => {
+      const hasResults = ['clientes', 'ventas', 'registros']
+        .some(name => Array.isArray(data?.[name]) && data[name].length > 0);
+      if (hasResults) {
+        if (historialQueryCache.size >= 30) historialQueryCache.clear();
+        historialQueryCache.set(key, {data, expiresAt: Date.now() + CLIENTES_QUERY_TTL_MS});
+      }
+      return data;
+    })
+    .finally(() => historialQueryRequests.delete(key));
+  historialQueryRequests.set(key, promise);
   return promise;
 }
 

@@ -66,7 +66,11 @@ IMEI A REGISTRAR: ${imeiRegistrar}`;
 
   useEffect(() => {
     const term = searchTerm.trim() || HISTORY_TERM_BY_FILTER[statusFilter] || '';
-    if (term.length < 3 || !onSearchAllRef.current || (total && data.length >= total) || ultimaBusquedaHistorialRef.current === term) return undefined;
+    if (term.length < 3) {
+      ultimaBusquedaHistorialRef.current = '';
+      return undefined;
+    }
+    if (!onSearchAllRef.current || (total && data.length >= total) || ultimaBusquedaHistorialRef.current === term) return undefined;
     ultimaBusquedaHistorialRef.current = term;
     const timeoutId = window.setTimeout(() => onSearchAllRef.current?.(term), 900);
     return () => window.clearTimeout(timeoutId);
@@ -255,7 +259,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
             </div>
             <div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
               <aside className="space-y-2">
-                <button type="button" onClick={() => { const cl = getCliente(viewingRegistro.dniCliente); generarTicketRegistroPDF({...viewingRegistro, nombreCliente: cl.nombre || viewingRegistro.dniCliente, correoCliente: cl.correo || '', celularCliente: viewingRegistro.celularCliente || cl.celular || '', celularRef: viewingRegistro.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
+                <button type="button" onClick={() => { const cl = getCliente(viewingRegistro.dniCliente); generarTicketRegistroPDF({...viewingRegistro, nombreCliente: cl.nombre || viewingRegistro.nombreCliente || viewingRegistro.dniCliente, correoCliente: cl.correo || '', celularCliente: viewingRegistro.celularCliente || cl.celular || '', celularRef: viewingRegistro.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
                 <button type="button" onClick={() => { onEdit(viewingRegistro); setViewingRegistro(null); }} className="saas-secondary w-full justify-start"><Edit size={16}/> Editar</button>
                 <button type="button" onClick={() => { handleShare(viewingRegistro); }} className="saas-secondary w-full justify-start"><Share2 size={16}/> Compartir</button>
                 <button type="button" onClick={() => { setRegistroAEliminar(viewingRegistro); setViewingRegistro(null); }} className="saas-secondary w-full justify-start text-red-600"><Trash2 size={16}/> Eliminar</button>
@@ -315,7 +319,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                 <p className="text-xs font-semibold text-blue-600 uppercase mb-2 border-b pb-1">Cliente</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
                   <p><strong className="text-gray-700">Nombre:</strong></p>
-                  <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).nombre || '-'}</p>
+                  <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).nombre || viewingRegistro.nombreCliente || '-'}</p>
                   <p><strong className="text-gray-700">{etiquetaDocumento(viewingRegistro.tipoDocumentoCliente || getCliente(viewingRegistro.dniCliente).tipoDocumento)}:</strong></p>
                   <p className="text-gray-600">{viewingRegistro.dniCliente}</p>
                   <p><strong className="text-gray-700">Celular usado:</strong></p>
@@ -393,7 +397,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
           <div key={row.id} className="saas-mobile-row">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <p className="font-semibold text-gray-800 text-sm">{getCliente(row.dniCliente).nombre || row.dniCliente}</p>
+                <p className="font-semibold text-gray-800 text-sm">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</p>
                 <p className="text-xs text-gray-400">{row.nRegistro} · {new Date(row.fecha).toLocaleDateString()}</p>
               </div>
               <div className="flex flex-col items-end gap-1.5">
@@ -431,7 +435,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
             <div className="flex gap-2">
               <button onClick={() => setViewingRegistro(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Ver registro" title="Ver"><Eye size={16}/><span className="sr-only">Ver</span></button>
               <button onClick={() => onEdit(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Editar registro" title="Editar"><Edit size={16}/><span className="sr-only">Editar</span></button>
-              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
+              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.nombreCliente || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
               <button onClick={() => handleShare(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Compartir registro" title="Compartir"><Share2 size={16}/><span className="sr-only">Compartir</span></button>
               <button onClick={() => setRegistroAEliminar(row)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar registro" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
             </div>
@@ -457,7 +461,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
               filteredData.map(row => (
                 <tr key={row.id}>
                   <td className="px-6 py-4"><div className="font-medium text-gray-800">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs text-gray-400">{row.nRegistro}</div></td>
-                  <td className="px-6 py-4"><div className="font-medium">{getCliente(row.dniCliente).nombre || row.dniCliente}</div><div className="text-xs">{row.dniCliente}</div></td>
+                  <td className="px-6 py-4"><div className="font-medium">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</div><div className="text-xs">{row.dniCliente}</div></td>
                   <td className="px-6 py-4"><div>{row.nombreComercialEquipo || row.modeloEquipo || '-'}</div><div className="text-xs text-blue-600 font-mono">IMEI registrado: {row.imeiRegistrado || row.imeiEquipo}</div></td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap items-center gap-2">
@@ -494,7 +498,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
                     <div className="flex justify-end gap-1">
                       <button onClick={() => setViewingRegistro(row)} className="saas-icon-button" title="Ver detalle"><Eye size={18} /></button>
                       <button onClick={() => onEdit(row)} className="saas-icon-button" title="Editar"><Edit size={18} /></button>
-                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
+                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.nombreCliente || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
                       <button onClick={() => handleShare(row)} className="saas-icon-button" title="Compartir registro"><Share2 size={18} /></button>
                       <button onClick={() => setRegistroAEliminar(row)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
                     </div>

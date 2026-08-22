@@ -13,6 +13,8 @@ const SUPPORT_COLLECTION_SCAN_LIMIT = 60;
 const MIN_SEARCH_LENGTH = 3;
 const DEFAULT_CLIENT_LIMIT = 10;
 const MAX_CLIENT_LIMIT = 50;
+const HISTORY_SEARCH_LIMIT = 120;
+const HISTORY_CLIENT_LIMIT = 120;
 const SEARCH_FIELDS = new Set(['todo', 'dni', 'imei', 'modelo', 'nombreComercial', 'sn', 'nombre']);
 
 function baseRef(db) {
@@ -167,7 +169,7 @@ async function readByField(collectionRef, field, value, maxDocs) {
   return readDocs(collectionRef.where(field, '==', value).limit(Math.max(Number(maxDocs || 1), 1)));
 }
 
-async function readByFieldIn(collectionRef, field, values) {
+async function readByFieldIn(collectionRef, field, values, maxDocs = Number.POSITIVE_INFINITY) {
   const cleanValues = uniqueClean(values);
   if (!cleanValues.length) return [];
 
@@ -175,10 +177,26 @@ async function readByFieldIn(collectionRef, field, values) {
   // Firestore limits an `in` filter to 30 values. Keep each lookup bounded so
   // the client directory never falls back to a full collection scan.
   for (let index = 0; index < cleanValues.length; index += 30) {
+    if (docs.length >= maxDocs) break;
     const chunk = cleanValues.slice(index, index + 30);
-    docs.push(...await readDocs(collectionRef.where(field, 'in', chunk)));
+    let queryRef = collectionRef.where(field, 'in', chunk);
+    if (Number.isFinite(maxDocs)) queryRef = queryRef.limit(Math.max(maxDocs - docs.length, 1));
+    docs.push(...await readDocs(queryRef));
   }
   return docs;
+}
+
+async function readDocumentsByIds(collectionRef, ids, maxDocs = HISTORY_SEARCH_LIMIT) {
+  const cleanIds = uniqueClean(ids).slice(0, Math.max(Number(maxDocs || 1), 1));
+  const refs = cleanIds.map(id => collectionRef.doc(id));
+  const snapshots = typeof collectionRef.firestore?.getAll === 'function'
+    ? await collectionRef.firestore.getAll(...refs)
+    : await Promise.all(refs.map(ref => ref.get()));
+  return snapshots.filter(snapshot => snapshot.exists);
+}
+
+async function readIndexed(collectionRef, searchTerm, maxDocs) {
+  return readDocs(collectionRef.where('searchTerms', 'array-contains', searchTerm).limit(maxDocs));
 }
 
 async function readMovements(collectionRef, maxDocs = QUERY_PAGE_SIZE) {
@@ -196,6 +214,145 @@ async function readMovements(collectionRef, maxDocs = QUERY_PAGE_SIZE) {
     cursor = snap.docs.at(-1);
   }
   return items;
+}
+
+async function findHistoryDocs(base, payload = {}) {
+  const rawTerm = clean(payload.searchTerm);
+  const searchTerm = normalizeSearchTerm(rawTerm);
+  const resultLimit = Math.min(Math.max(Number(payload.limit || HISTORY_SEARCH_LIMIT), 1), HISTORY_SEARCH_LIMIT);
+  if (searchTerm.length < MIN_SEARCH_LENGTH) {
+    return {clientesDocs: [], equiposDocs: [], ventasDocs: [], registrosDocs: []};
+  }
+
+  const clientesRef = base.collection('clientes');
+  const equiposRef = base.collection('equipos');
+  const ventasRef = base.collection('ventas');
+  const registrosRef = base.collection('registros');
+  const exactDniSearch = /^\d{6,12}$/.test(searchTerm);
+  const exactImeiSearch = /^\d{14,15}$/.test(searchTerm);
+  const exactVentaNumber = /^ven-\d+$/i.test(rawTerm);
+  const exactRegistroNumber = /^reco-\d+$/i.test(rawTerm);
+
+  let clientesDocs = [];
+  let equiposDocs = [];
+  let ventasDocs = [];
+  let registrosDocs = [];
+
+  if (exactDniSearch) {
+    const [clienteSnap, equiposResult, ventasResult, registrosResult] = await Promise.all([
+      clientesRef.doc(rawTerm).get(),
+      readByField(equiposRef, 'idDuenio', rawTerm, resultLimit),
+      readByField(ventasRef, 'dniCliente', rawTerm, resultLimit),
+      readByField(registrosRef, 'dniCliente', rawTerm, resultLimit),
+    ]);
+    clientesDocs = docsFromSnap(clienteSnap);
+    equiposDocs = equiposResult;
+    ventasDocs = ventasResult;
+    registrosDocs = registrosResult;
+  } else if (exactImeiSearch) {
+    const [equipoSnap, equiposImei2, ventasImei1, ventasImei2, registrosImei1, registrosImei2, registrosRegistrado] = await Promise.all([
+      equiposRef.doc(rawTerm).get(),
+      readByField(equiposRef, 'imei2', rawTerm, resultLimit),
+      readByField(ventasRef, 'imeiEquipo', rawTerm, resultLimit),
+      readByField(ventasRef, 'imei2Equipo', rawTerm, resultLimit),
+      readByField(registrosRef, 'imeiEquipo', rawTerm, resultLimit),
+      readByField(registrosRef, 'imei2Equipo', rawTerm, resultLimit),
+      readByField(registrosRef, 'imeiRegistrado', rawTerm, resultLimit),
+    ]);
+    equiposDocs = uniqueDocs(docsFromSnap(equipoSnap), equiposImei2);
+    ventasDocs = uniqueDocs(ventasImei1, ventasImei2);
+    registrosDocs = uniqueDocs(registrosImei1, registrosImei2, registrosRegistrado);
+  } else {
+    const [clientesIndexed, equiposIndexed, ventasIndexed, registrosIndexed] = await Promise.all([
+      readIndexed(clientesRef, searchTerm, HISTORY_CLIENT_LIMIT),
+      readIndexed(equiposRef, searchTerm, resultLimit),
+      readIndexed(ventasRef, searchTerm, resultLimit),
+      readIndexed(registrosRef, searchTerm, resultLimit),
+    ]);
+    clientesDocs = clientesIndexed;
+    equiposDocs = equiposIndexed;
+    ventasDocs = ventasIndexed;
+    registrosDocs = registrosIndexed;
+
+    if (exactVentaNumber) {
+      ventasDocs = uniqueDocs(ventasDocs, await readByField(ventasRef, 'nVenta', rawTerm.toUpperCase(), resultLimit));
+    }
+    if (exactRegistroNumber) {
+      registrosDocs = uniqueDocs(registrosDocs, await readByField(registrosRef, 'nRegistro', rawTerm.toUpperCase(), resultLimit));
+    }
+    if (['pendiente', 'realizado'].includes(searchTerm)) {
+      registrosDocs = uniqueDocs(registrosDocs, await readByField(registrosRef, 'estadoSolicitud', searchTerm.toUpperCase(), resultLimit));
+    }
+    if (searchTerm === 'bloqueado') {
+      registrosDocs = uniqueDocs(registrosDocs, await readByField(registrosRef, 'estado', 'BLOQUEADO', resultLimit));
+    }
+  }
+
+  const relatedDnis = uniqueClean([
+    ...clientesDocs.map(doc => doc.data()?.dni || doc.id),
+    ...equiposDocs.map(doc => doc.data()?.idDuenio),
+  ]);
+  if (relatedDnis.length && !exactDniSearch) {
+    const [ventasRelated, registrosRelated] = await Promise.all([
+      readByFieldIn(ventasRef, 'dniCliente', relatedDnis, resultLimit),
+      readByFieldIn(registrosRef, 'dniCliente', relatedDnis, resultLimit),
+    ]);
+    ventasDocs = uniqueDocs(ventasDocs, ventasRelated);
+    registrosDocs = uniqueDocs(registrosDocs, registrosRelated);
+  }
+
+  const movementDnis = uniqueClean([
+    ...ventasDocs.map(doc => doc.data()?.dniCliente),
+    ...registrosDocs.map(doc => doc.data()?.dniCliente),
+    ...equiposDocs.map(doc => doc.data()?.idDuenio),
+  ]);
+  const loadedDnis = new Set(clientesDocs.map(doc => clean(doc.data()?.dni || doc.id)));
+  const missingDnis = movementDnis.filter(dni => !loadedDnis.has(dni));
+  if (missingDnis.length) {
+    clientesDocs = uniqueDocs(clientesDocs, await readDocumentsByIds(clientesRef, missingDnis));
+  }
+
+  const movementImeis = uniqueClean([
+    ...ventasDocs.flatMap(doc => [doc.data()?.imeiEquipo, doc.data()?.imei2Equipo]),
+    ...registrosDocs.flatMap(doc => [doc.data()?.imeiEquipo, doc.data()?.imeiRegistrado, doc.data()?.imei2Equipo]),
+  ]);
+  const loadedImeis = new Set(equiposDocs.map(doc => clean(doc.data()?.idEquipo || doc.id)));
+  const missingImeis = movementImeis.filter(imei => !loadedImeis.has(imei));
+  if (missingImeis.length) {
+    equiposDocs = uniqueDocs(equiposDocs, await readDocumentsByIds(equiposRef, missingImeis));
+  }
+
+  return {
+    clientesDocs,
+    equiposDocs,
+    ventasDocs: ventasDocs.slice(0, resultLimit),
+    registrosDocs: registrosDocs.slice(0, resultLimit),
+  };
+}
+
+async function queryHistory(db, payload) {
+  const base = baseRef(db);
+  const searchTerm = normalizeSearchTerm(payload?.searchTerm);
+  if (searchTerm.length < MIN_SEARCH_LENGTH) {
+    return {clientes: [], ventas: [], registros: [], minSearchLength: MIN_SEARCH_LENGTH};
+  }
+
+  const resultLimit = Math.min(Math.max(Number(payload?.limit || HISTORY_SEARCH_LIMIT), 1), HISTORY_SEARCH_LIMIT);
+  const {clientesDocs, ventasDocs, registrosDocs} = await findHistoryDocs(base, {...payload, limit: resultLimit});
+  const clientes = clientesDocs.map(doc => ({id: doc.id, dni: clean(doc.data()?.dni || doc.id), ...doc.data()}));
+  const clientePorDni = new Map(clientes.map(cliente => [clean(cliente.dni || cliente.id), cliente]));
+  const withClientName = item => ({
+    ...item,
+    nombreCliente: item.nombreCliente || clientePorDni.get(clean(item.dniCliente))?.nombre || '',
+  });
+
+  return {
+    clientes,
+    ventas: sortByDateDesc(docsToItems(ventasDocs)).slice(0, resultLimit).map(withClientName),
+    registros: sortByDateDesc(docsToItems(registrosDocs)).slice(0, resultLimit).map(withClientName),
+    indexed: true,
+    resultLimit,
+  };
 }
 
 function clienteMatchesSearch(cliente, searchField, term) {
@@ -254,35 +411,17 @@ async function queryOperationalClientes(db, payload) {
   }
 
   const activityScanLimit = searchTerm ? SEARCH_ACTIVITY_SCAN_LIMIT : DEFAULT_ACTIVITY_SCAN_LIMIT;
-  const exactDniSearch = searchTerm && /^\d{6,12}$/.test(searchTerm) && (searchField === 'todo' || searchField === 'dni');
-  const exactImeiSearch = searchTerm && /^\d{14,15}$/.test(searchTerm) && (searchField === 'todo' || searchField === 'imei');
   let clientesDocs = [];
   let equiposDocs = [];
   let ventas = [];
   let registros = [];
 
-  if (exactDniSearch) {
-    const [clienteSnap, equiposResult, ventasResult, registrosResult] = await Promise.all([
-      base.collection('clientes').doc(searchTerm).get(),
-      readByField(base.collection('equipos'), 'idDuenio', searchTerm, SUPPORT_COLLECTION_SCAN_LIMIT),
-      readByField(base.collection('ventas'), 'dniCliente', searchTerm, activityScanLimit),
-      readByField(base.collection('registros'), 'dniCliente', searchTerm, activityScanLimit),
-    ]);
-    clientesDocs = docsFromSnap(clienteSnap);
-    equiposDocs = equiposResult;
-    ventas = sortByDateDesc(docsToItems(ventasResult));
-    registros = sortByDateDesc(docsToItems(registrosResult));
-  } else if (exactImeiSearch) {
-    const [equipoSnap, equiposImei2Result, ventasResult, registrosImeiResult, registrosImeiRegistradoResult] = await Promise.all([
-      base.collection('equipos').doc(searchTerm).get(),
-      readByField(base.collection('equipos'), 'imei2', searchTerm, SUPPORT_COLLECTION_SCAN_LIMIT),
-      readByField(base.collection('ventas'), 'imeiEquipo', searchTerm, activityScanLimit),
-      readByField(base.collection('registros'), 'imeiEquipo', searchTerm, activityScanLimit),
-      readByField(base.collection('registros'), 'imeiRegistrado', searchTerm, activityScanLimit),
-    ]);
-    equiposDocs = uniqueDocs(docsFromSnap(equipoSnap), equiposImei2Result);
-    ventas = sortByDateDesc(docsToItems(ventasResult));
-    registros = sortByDateDesc(docsToItems(uniqueDocs(registrosImeiResult, registrosImeiRegistradoResult)));
+  if (searchTerm) {
+    const matched = await findHistoryDocs(base, {searchTerm: payload?.searchTerm, limit: Math.max(limit, QUERY_PAGE_SIZE)});
+    clientesDocs = matched.clientesDocs;
+    equiposDocs = matched.equiposDocs;
+    ventas = sortByDateDesc(docsToItems(matched.ventasDocs));
+    registros = sortByDateDesc(docsToItems(matched.registrosDocs));
   } else {
     const [clientesResult, equiposResult, ventasResult, registrosResult] = await Promise.all([
       readCollectionDocs(base.collection('clientes'), SUPPORT_COLLECTION_SCAN_LIMIT),
@@ -305,7 +444,7 @@ async function queryOperationalClientes(db, payload) {
       ...registros.map(registro => registro.dniCliente),
     ]).filter(dni => !loadedDnis.has(dni));
     if (movementDnis.length) {
-      clientesDocs = uniqueDocs(clientesDocs, await readByFieldIn(base.collection('clientes'), 'dni', movementDnis));
+      clientesDocs = uniqueDocs(clientesDocs, await readDocumentsByIds(base.collection('clientes'), movementDnis));
     }
   }
 
@@ -398,7 +537,8 @@ async function queryOperationalClientes(db, payload) {
     nextCursor: nextOffset < filtrados.length ? encodeCursor(nextOffset) : null,
     stats: summarize(clientesOperativos),
     filteredStats: summarize(filtrados),
-    scanLimited: true,
+    scanLimited: !searchTerm,
+    indexed: Boolean(searchTerm),
     activityScanLimit,
     supportCollectionScanLimit: SUPPORT_COLLECTION_SCAN_LIMIT,
   };
@@ -474,6 +614,7 @@ async function dispatchClientes(body, user, context) {
   const db = getAdminDb();
   const action = String(body?.action || '');
   if (action === 'queryOperational') return queryOperationalClientes(db, body);
+  if (action === 'queryHistory') return queryHistory(db, body);
   if (action === 'update') return updateCliente(db, body, context);
   if (action === 'delete') return deleteCliente(db, body, context);
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
@@ -484,5 +625,7 @@ export const handler = event => handlePost(event, dispatchClientes, {
 });
 
 export const __test = {
+  findHistoryDocs,
+  queryHistory,
   queryOperationalClientes,
 };

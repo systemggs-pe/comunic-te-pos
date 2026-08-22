@@ -3,6 +3,11 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {__test} from '../functions/clientes.mjs';
 import {__test as registrosTest} from '../functions/registros.mjs';
+import {
+  buildClienteSearchTerms,
+  buildEquipoSearchTerms,
+  buildMovimientoSearchTerms,
+} from '../functions/_searchIndex.mjs';
 import {indexClientesByDni, mapClienteDocument, normalizeDni} from '../../src/utils/clientes.js';
 
 function makeDoc(id, data = {}) {
@@ -134,10 +139,35 @@ function seedOperationalData(count = 500) {
   for (let i = 1; i <= count; i += 1) {
     const dni = String(40000000 + i);
     const imei = `99000000000${String(i).padStart(4, '0')}`.slice(0, 15);
-    collections.clientes[dni] = {dni, nombre: `Cliente ${i}`};
-    collections.equipos[imei] = {idEquipo: imei, idDuenio: dni, imei2: `88000000000${String(i).padStart(4, '0')}`.slice(0, 15), modelo: `Modelo ${i}`};
-    collections.ventas[`venta-${i}`] = {dniCliente: dni, imeiEquipo: imei, precio: 100, fecha: `2026-06-${String((i % 28) + 1).padStart(2, '0')}T10:00:00.000Z`};
-    collections.registros[`registro-${i}`] = {dniCliente: dni, imeiEquipo: imei, imeiRegistrado: imei, precio: 10, fecha: `2026-06-${String((i % 28) + 1).padStart(2, '0')}T09:00:00.000Z`};
+    const nombreCliente = `Cliente Historico ${i}`;
+    const cliente = {dni, nombre: nombreCliente};
+    const equipo = {
+      idEquipo: imei,
+      idDuenio: dni,
+      imei2: `88000000000${String(i).padStart(4, '0')}`.slice(0, 15),
+      modelo: `Modelo ${i}`,
+    };
+    const venta = {
+      dniCliente: dni,
+      imeiEquipo: imei,
+      nVenta: `VEN-${String(i).padStart(4, '0')}`,
+      nombreCliente,
+      precio: 100,
+      fecha: `2026-06-${String((i % 28) + 1).padStart(2, '0')}T10:00:00.000Z`,
+    };
+    const registro = {
+      dniCliente: dni,
+      imeiEquipo: imei,
+      imeiRegistrado: imei,
+      nRegistro: `RECO-${String(i).padStart(5, '0')}`,
+      nombreCliente,
+      precio: 10,
+      fecha: `2026-06-${String((i % 28) + 1).padStart(2, '0')}T09:00:00.000Z`,
+    };
+    collections.clientes[dni] = {...cliente, searchTerms: buildClienteSearchTerms(cliente)};
+    collections.equipos[imei] = {...equipo, searchTerms: buildEquipoSearchTerms(equipo, nombreCliente)};
+    collections.ventas[`venta-${i}`] = {...venta, searchTerms: buildMovimientoSearchTerms(venta, nombreCliente)};
+    collections.registros[`registro-${i}`] = {...registro, searchTerms: buildMovimientoSearchTerms(registro, nombreCliente)};
   }
   return collections;
 }
@@ -173,12 +203,11 @@ test('queryOperational default load uses capped reads and fills recent client na
   const response = await __test.queryOperationalClientes(db, {searchTerm: '', searchField: 'todo', limit: 10});
 
   const byCollection = Object.groupBy(db.store.calls, call => call.collection);
-  assert.equal(db.store.calls.length, 5);
-  assert.equal(byCollection.clientes.length, 2);
+  assert.ok(db.store.calls.length > 4);
+  assert.ok(byCollection.clientes.length > 1);
   assert.equal(byCollection.clientes[0].limit, 60);
-  assert.equal(byCollection.clientes[1].limit, null);
-  assert.equal(byCollection.clientes[1].operations[0].field, 'dni');
-  assert.equal(byCollection.clientes[1].operations[0].op, 'in');
+  assert.ok(byCollection.clientes.slice(1).every(call => call.operations[0].type === 'doc'));
+  assert.ok(byCollection.clientes.slice(1).length <= 30);
   assert.equal(byCollection.equipos[0].limit, 60);
   assert.equal(byCollection.ventas[0].limit, 25);
   assert.equal(byCollection.registros[0].limit, 25);
@@ -196,9 +225,43 @@ test('queryOperational exact DNI/IMEI searches use targeted limited queries', as
 
   const dbImei = createFakeDb(seedOperationalData(500));
   await __test.queryOperationalClientes(dbImei, {searchTerm: '990000000000010', searchField: 'imei', limit: 10});
-  assert.equal(dbImei.store.calls.length, 5);
-  assert.deepEqual(dbImei.store.calls.map(call => call.collection).sort(), ['equipos', 'equipos', 'registros', 'registros', 'ventas']);
+  assert.ok(dbImei.store.calls.length <= 10);
+  assert.ok(dbImei.store.calls.filter(call => call.collection === 'equipos').length >= 2);
+  assert.ok(dbImei.store.calls.some(call => call.collection === 'clientes' && call.doc === '40000010'));
+  assert.ok(dbImei.store.calls.some(call => call.collection === 'ventas'));
+  assert.ok(dbImei.store.calls.some(call => call.collection === 'registros'));
   assert.ok(dbImei.store.calls.every(call => Number.isFinite(call.limit)));
+});
+
+test('indexed history search finds clients and movements beyond the former scan window', async () => {
+  const db = createFakeDb(seedOperationalData(500));
+
+  const history = await __test.queryHistory(db, {searchTerm: 'historico 500', limit: 20});
+  const operational = await __test.queryOperationalClientes(db, {
+    searchTerm: 'historico 500',
+    searchField: 'nombre',
+    limit: 10,
+  });
+
+  assert.equal(history.clientes[0]?.dni, '40000500');
+  assert.equal(history.ventas[0]?.nVenta, 'VEN-0500');
+  assert.equal(history.registros[0]?.nRegistro, 'RECO-00500');
+  assert.equal(history.ventas[0]?.nombreCliente, 'Cliente Historico 500');
+  assert.equal(operational.clientes[0]?.nombre, 'Cliente Historico 500');
+  assert.equal(operational.scanLimited, false);
+  assert.ok(db.store.calls.some(call => call.operations.some(operation => operation.op === 'array-contains')));
+});
+
+test('exact history lookup supports legacy clients whose DNI exists only as document ID', async () => {
+  const seed = seedOperationalData(1);
+  delete seed.clientes['40000001'].dni;
+  const db = createFakeDb(seed);
+
+  const history = await __test.queryHistory(db, {searchTerm: '40000001', limit: 20});
+
+  assert.equal(history.clientes[0]?.dni, '40000001');
+  assert.equal(history.ventas[0]?.nombreCliente, 'Cliente Historico 1');
+  assert.equal(history.registros[0]?.nombreCliente, 'Cliente Historico 1');
 });
 
 test('checkRegisteredImeis finds old registrations with bounded exact queries', async () => {
@@ -219,7 +282,7 @@ test('checkRegisteredImeis finds old registrations with bounded exact queries', 
   assert.ok(db.store.calls.every(call => call.limit === 30));
 });
 
-test('client Firestore subscriptions and history searches keep strict free-tier caps', async () => {
+test('client hydration and indexed history searches do not truncate old records', async () => {
   const [app, main] = await Promise.all([
     readFile(new URL('../../src/app/App.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/main.jsx', import.meta.url), 'utf8'),
@@ -232,8 +295,10 @@ test('client Firestore subscriptions and history searches keep strict free-tier 
     readFile(new URL('../../src/repositories/firestoreRepository.js', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(app, /const MAX_HISTORY_SEARCH_DOCS = 120;/);
-  assert.match(app, /while \(revisados < MAX_HISTORY_SEARCH_DOCS\)/);
+  assert.doesNotMatch(app, /MAX_HISTORY_SEARCH_DOCS|while \(revisados/);
+  assert.match(app, /consultarHistorialOperativo\(\{searchTerm: needle, limit: 120\}\)/);
+  assert.doesNotMatch(app, /ventas\.slice\(0, PAGE_SIZE\)/);
+  assert.doesNotMatch(app, /registros\.slice\(0, PAGE_SIZE\)/);
   assert.match(app, /const REFERENCE_DATA_LIMIT = 200;/);
   assert.match(app, /repository\.referenceQuery\('clientes', REFERENCE_DATA_LIMIT\)/);
   assert.match(app, /repository\.referenceQuery\('equipos', REFERENCE_DATA_LIMIT\)/);
@@ -242,6 +307,7 @@ test('client Firestore subscriptions and history searches keep strict free-tier 
   assert.doesNotMatch(app, /let active = true;\s*getDocs\(repository\.exactClientsQuery/);
   assert.match(repository, /referenceQuery\(name, pageSize\)/);
   assert.match(repository, /async fetchAllOrdered\(name, pageSize = 500\)/);
+  assert.match(repository, /where\(documentId\(\), 'in', dnis\)/);
   assert.match(app, /unsubRegistrosRef\.current\(\);\s*unsubRegistrosRef\.current = null;/);
   assert.match(app, /unsubVentasRef\.current\(\);\s*unsubVentasRef\.current = null;/);
   assert.doesNotMatch(main, /StrictMode/);
@@ -256,6 +322,8 @@ test('client Firestore subscriptions and history searches keep strict free-tier 
   assert.match(clientesFunction, /const DEFAULT_ACTIVITY_SCAN_LIMIT = 25;/);
   assert.match(clientesFunction, /const SEARCH_ACTIVITY_SCAN_LIMIT = 60;/);
   assert.match(clientesFunction, /const SUPPORT_COLLECTION_SCAN_LIMIT = 60;/);
+  assert.match(clientesFunction, /where\('searchTerms', 'array-contains', searchTerm\)/);
+  assert.match(clientesFunction, /action === 'queryHistory'/);
 });
 
 test('API runtime rate limiting distributes only sensitive endpoints', async () => {
