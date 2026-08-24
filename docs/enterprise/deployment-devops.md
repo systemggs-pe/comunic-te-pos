@@ -128,6 +128,24 @@ Recommended action:
 }
 ```
 
+## One-time DNI photo history cleanup
+
+The application no longer stores a DNI photo query history or success counter. Existing legacy documents are removed separately with the guarded cleanup script.
+
+Preview the exact legacy document count without deleting anything:
+
+```bash
+node --env-file=.env scripts/purge-dni-photo-history.mjs
+```
+
+After verifying the environment and count, delete the legacy collection, image chunks and counter:
+
+```bash
+node --env-file=.env scripts/purge-dni-photo-history.mjs --apply
+```
+
+The command targets only `dniFotosConsultas` and `configuracion/dniFotosStats` under the shared application scope.
+
 ## Netlify Deployment
 
 Configuration:

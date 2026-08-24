@@ -145,9 +145,12 @@ Enterprise recommendation:
 Purpose:
 
 - Capture phone box images using browser camera.
+- Detect and enlarge the most likely label region before recognition.
 - Read supported barcodes locally with the browser detector and ZXing fallback.
+- Scan overlapping barcode bands to recover multiple IMEI and serial labels.
 - Run Tesseract.js locally in a Web Worker with same-origin OCR assets.
 - Normalize IMEI, serial, brand, model, memory, RAM and color.
+- Reject invalid IMEI candidates with Luhn validation and prefer the shared device TAC for an unlabeled secondary IMEI.
 - Require operator review before applying extracted values.
 
 Current constraints:

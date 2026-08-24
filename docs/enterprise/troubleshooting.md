@@ -84,7 +84,8 @@ Fix:
 
 - Run `npm run prepare:ocr-assets` before serving or building the app.
 - Confirm `/ocr/worker.min.js`, `/ocr/lang/eng.traineddata.gz` and a compatible LSTM core return HTTP 200.
-- Retry with the label closer, focused and without reflections.
+- Keep the full label visible; the scanner automatically selects and enlarges the most likely label region.
+- Retry with the label focused and without reflections when individual digits remain unclear.
 - Use the gallery option if the live camera image is unstable.
 
 ## Camera Scanner Does Not Open

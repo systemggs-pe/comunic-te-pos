@@ -1,12 +1,6 @@
-import React, {useCallback, useEffect, useState} from 'react';
-import {CheckCircle2, Clock3, Eye, ImagePlus, RefreshCw, Search, Trash2, XCircle} from 'lucide-react';
-import {
-  consultarDniFotos,
-  eliminarDniFotoHistorial,
-  listarDniFotosHistorial,
-  obtenerDniFotoHistorial,
-  obtenerMensajeErrorFuncion,
-} from '../../services/functionsClient.js';
+import React, {useState} from 'react';
+import {CheckCircle2, ImagePlus, RefreshCw, Search} from 'lucide-react';
+import {consultarDniFotos, obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
 
 const DNI_RE = /^\d{8}$/;
 const imageLabels = ['Anverso', 'Reverso'];
@@ -23,20 +17,7 @@ const photoTypes = [
   },
 ];
 
-const historyDateFormatter = new Intl.DateTimeFormat('es-PE', {
-  day: '2-digit',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-function formatHistoryDate(value) {
-  const date = new Date(value || 0);
-  if (Number.isNaN(date.getTime())) return 'Sin fecha';
-  return historyDateFormatter.format(date);
-}
-
-function buildStoredResult(data, fallbackDni, selectedType) {
+function buildResult(data, fallbackDni, selectedType) {
   const images = Array.isArray(data?.images)
     ? data.images
       .filter(image => image?.dataUri)
@@ -56,84 +37,18 @@ function buildStoredResult(data, fallbackDni, selectedType) {
   };
 }
 
-function statusClasses(status) {
-  if (status === 'success') {
-    return {
-      chip: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-      icon: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-      label: 'Exitoso',
-      Icon: CheckCircle2,
-    };
-  }
-
-  return {
-    chip: 'border-red-100 bg-red-50 text-red-700',
-    icon: 'border-red-100 bg-red-50 text-red-700',
-    label: 'Fallido',
-    Icon: XCircle,
-  };
-}
-
 export function DniFotosPage({showToast}) {
   const [tipo, setTipo] = useState('azul');
   const [dni, setDni] = useState('');
   const [loading, setLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [historyError, setHistoryError] = useState('');
-  const [history, setHistory] = useState([]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
-  const [successCount, setSuccessCount] = useState(0);
-  const [openingHistoryId, setOpeningHistoryId] = useState('');
 
   const cleanDni = dni.trim();
   const canSearch = DNI_RE.test(cleanDni) && !loading;
   const selectedType = photoTypes.find(item => item.value === tipo) || photoTypes[0];
   const personName = [result?.apellidos, result?.nombres].filter(Boolean).join(', ');
   const images = result?.images || [];
-
-  const mergeHistoryEntry = entry => {
-    if (!entry?.id) return;
-    setHistory(prev => [entry, ...prev.filter(item => item.id !== entry.id)].slice(0, 30));
-  };
-
-  const refreshHistory = useCallback(async ({silent = false} = {}) => {
-    if (!silent) setHistoryLoading(true);
-    try {
-      const data = await listarDniFotosHistorial();
-      setHistory(Array.isArray(data.entries) ? data.entries : []);
-      setSuccessCount(Number(data.successCount || 0));
-      setHistoryError('');
-    } catch (err) {
-      console.error('DNI photos history load error:', err);
-      setHistoryError('No se pudo cargar el historial de la DB');
-    } finally {
-      if (!silent) setHistoryLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    listarDniFotosHistorial()
-      .then(data => {
-        if (!active) return;
-        setHistory(Array.isArray(data.entries) ? data.entries : []);
-        setSuccessCount(Number(data.successCount || 0));
-        setHistoryError('');
-      })
-      .catch(err => {
-        console.error('DNI photos history load error:', err);
-        if (active) setHistoryError('No se pudo cargar el historial de la DB');
-      })
-      .finally(() => {
-        if (active) setHistoryLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const clearResult = () => {
     if (result || error) {
@@ -153,7 +68,7 @@ export function DniFotosPage({showToast}) {
     clearResult();
   };
 
-  const consultar = async (event, forceRefresh = false) => {
+  const consultar = async event => {
     event?.preventDefault();
     if (!DNI_RE.test(cleanDni)) {
       showToast?.('Ingresa un DNI valido de 8 digitos', 'error');
@@ -164,85 +79,23 @@ export function DniFotosPage({showToast}) {
     setError('');
     setResult(null);
     try {
-      const json = await consultarDniFotos(cleanDni, tipo, forceRefresh);
-      const data = json.data || {};
-      const storedResult = buildStoredResult(data, cleanDni, selectedType);
-      if (json.success && storedResult.images.length) {
-        setResult(storedResult);
-        setSuccessCount(Number(json.successCount || 0));
-        mergeHistoryEntry(json.historyEntry);
+      const json = await consultarDniFotos(cleanDni, tipo);
+      const queriedResult = buildResult(json.data || {}, cleanDni, selectedType);
+      if (json.success && queriedResult.images.length) {
+        setResult(queriedResult);
         return;
       }
 
       const message = `No se encontraron imagenes de ${selectedType.label}`;
       setError(message);
       showToast?.(message, 'error');
-      setSuccessCount(Number(json.successCount || 0));
-      mergeHistoryEntry(json.historyEntry);
-    } catch (e) {
-      console.error('DNI photos error:', e);
-      const message = obtenerMensajeErrorFuncion(e, `Error al consultar imagenes de ${selectedType.label}`);
+    } catch (queryError) {
+      console.error('DNI photos error:', queryError);
+      const message = obtenerMensajeErrorFuncion(queryError, `Error al consultar imagenes de ${selectedType.label}`);
       setError(message);
       showToast?.(message, 'error');
-      await refreshHistory({silent: true});
     } finally {
       setLoading(false);
-    }
-  };
-
-  const openHistoryItem = async item => {
-    setTipo(item.tipo || 'azul');
-    setDni(item.dni || '');
-
-    if (item.status === 'success' && item.result?.images?.length) {
-      if (item.result.images.some(image => image.dataUri)) {
-        setResult(item.result);
-        setError('');
-        return;
-      }
-
-      setOpeningHistoryId(item.id);
-      try {
-        const data = await obtenerDniFotoHistorial(item.id);
-        const entry = data.entry || item;
-        setHistory(prev => prev.map(historyItem => historyItem.id === entry.id ? entry : historyItem));
-
-        if (entry.result?.images?.some(image => image.dataUri)) {
-          setResult(entry.result);
-          setError('');
-        } else {
-          setResult(null);
-          setError('Las imagenes de esta consulta no estan disponibles en la DB');
-        }
-      } catch (err) {
-        console.error('DNI photos history open error:', err);
-        const message = obtenerMensajeErrorFuncion(err, 'No se pudo abrir la consulta del historial');
-        setResult(null);
-        setError(message);
-        showToast?.(message, 'error');
-      } finally {
-        setOpeningHistoryId('');
-      }
-      return;
-    }
-
-    setResult(null);
-    setError(item.message || 'Consulta fallida');
-  };
-
-  const deleteHistoryItem = async item => {
-    if (item.status === 'success') {
-      showToast?.('Las consultas exitosas no se pueden borrar', 'error');
-      return;
-    }
-
-    try {
-      const data = await eliminarDniFotoHistorial(item.id);
-      setHistory(prev => prev.filter(entry => entry.id !== item.id));
-      setSuccessCount(Number(data.successCount || successCount));
-    } catch (err) {
-      console.error('DNI photos history delete error:', err);
-      showToast?.(obtenerMensajeErrorFuncion(err, 'No se pudo eliminar la consulta del historial'), 'error');
     }
   };
 
@@ -252,11 +105,8 @@ export function DniFotosPage({showToast}) {
         <div>
           <p className="saas-page-kicker">Documento</p>
           <h3 className="saas-page-title">Foto DNI</h3>
-          <p className="saas-page-desc">Consulta anverso y reverso por numero de DNI. Cada consulta nueva consume creditos del proveedor.</p>
+          <p className="saas-page-desc">Consulta anverso y reverso por numero de DNI. Cada consulta consume creditos del proveedor y no se guarda en el historial.</p>
         </div>
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-          Consulta FOTO DNI: {successCount}
-        </p>
       </div>
 
       <div className="border-b border-slate-200 p-4">
@@ -307,7 +157,7 @@ export function DniFotosPage({showToast}) {
             )}
           </button>
           {result && (
-            <button type="button" onClick={event => consultar(event, true)} disabled={loading} className="saas-secondary disabled:opacity-50" title="Realiza una nueva consulta con costo">
+            <button type="button" onClick={consultar} disabled={loading} className="saas-secondary disabled:opacity-50" title="Realiza una nueva consulta con costo">
               <RefreshCw size={14} />
               Actualizar
             </button>
@@ -371,89 +221,6 @@ export function DniFotosPage({showToast}) {
                 );
               })}
             </div>
-          </div>
-        )}
-      </div>
-
-      <div className="border-t border-slate-200 p-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h4 className="text-sm font-bold text-slate-900">Historial de consultas</h4>
-            <p className="text-xs font-medium text-slate-500">Fotos guardadas en la base de datos.</p>
-          </div>
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{history.length} registros</p>
-        </div>
-
-        {historyError && (
-          <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-            {historyError}
-          </div>
-        )}
-
-        {historyLoading ? (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-500">
-            <Clock3 size={16} />
-            Cargando historial...
-          </div>
-        ) : history.length === 0 ? (
-          <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-semibold text-slate-400">
-            Sin consultas guardadas.
-          </div>
-        ) : (
-          <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
-            {history.map(item => {
-              const styles = statusClasses(item.status);
-              const StatusIcon = styles.Icon;
-              const subtitle = [item.tipoLabel, formatHistoryDate(item.createdAt), item.message].filter(Boolean).join(' / ');
-              const isOpening = openingHistoryId === item.id;
-
-              return (
-                <div key={item.id} className="flex items-stretch border-b border-slate-100 last:border-b-0">
-                  <button
-                    type="button"
-                    onClick={() => openHistoryItem(item)}
-                    disabled={isOpening}
-                    className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset disabled:cursor-wait disabled:opacity-70"
-                  >
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${styles.icon}`}>
-                      <StatusIcon size={17} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold text-slate-900">DNI {item.dni || '--------'}</span>
-                        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${styles.chip}`}>
-                          {styles.label}
-                        </span>
-                      </span>
-                      <span className="mt-1 block truncate text-xs font-medium text-slate-500">{subtitle}</span>
-                    </span>
-                    {isOpening ? (
-                      <span className="hidden h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600 sm:block" />
-                    ) : (
-                      <Eye size={16} className="hidden shrink-0 text-slate-400 sm:block" />
-                    )}
-                  </button>
-                  {item.status === 'success' ? (
-                    <span
-                      title="Consulta protegida"
-                      className="flex w-11 shrink-0 items-center justify-center border-l border-slate-100 text-emerald-600"
-                    >
-                      <CheckCircle2 size={16} />
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => deleteHistoryItem(item)}
-                      aria-label={`Eliminar consulta DNI ${item.dni || ''}`}
-                      title="Eliminar"
-                      className="flex w-11 shrink-0 items-center justify-center border-l border-slate-100 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
           </div>
         )}
       </div>

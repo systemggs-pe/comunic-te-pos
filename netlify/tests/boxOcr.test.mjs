@@ -71,3 +71,36 @@ test('local box parser never returns an IMEI that fails Luhn', () => {
   assert.equal(result.data.modelo, 'XT2343-1');
   assert.match(result.warnings[0], /No se encontro un IMEI valido/);
 });
+
+test('local box parser handles the Redmi A7 Pro label layout and separates its color', () => {
+  const result = parseBoxOcr({
+    barcodes: [
+      {rawValue: 'https://www.mi.com/cl/regulatoryinfo/subt', y: 10},
+      {rawValue: '74440/66NN07979', y: 20},
+    ],
+    text: [
+      'REDMI A7 Pro Black',
+      '4GB RAM 64GB ROM',
+      'Product Model: 25128RN17L',
+      'Manufacturer: Xiaomi Communications Co., Ltd.',
+      'IMEI1:869084082793146',
+      'Regulatory: 781517700107715',
+      '869084082793153',
+    ].join('\n'),
+    ocrConfidence: 82,
+  });
+
+  assert.deepEqual(result.data, {
+    imei1: '869084082793146',
+    imei2: '869084082793153',
+    sn: '74440/66NN07979',
+    marca: 'XIAOMI',
+    modelo: '25128RN17L',
+    nombreComercial: 'REDMI A7 PRO',
+    ram: '4',
+    memoria: '64',
+    color: 'BLACK',
+  });
+  assert.equal(result.fields.sn.source, 'barcode');
+  assert.equal(result.fields.color.source, 'ocr-suffix');
+});

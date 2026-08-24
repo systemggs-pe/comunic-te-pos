@@ -18,8 +18,36 @@ const BRAND_ALIASES = [
 
 const RAM_VALUES = new Set(['1', '2', '3', '4', '6', '8', '12', '16', '18', '24', '32']);
 const STORAGE_VALUES = new Set(['8', '16', '32', '64', '128', '256', '512', '1024', '2048']);
-const DIGIT_CONFUSIONS = {O: '0', Q: '0', D: '0', I: '1', L: '1', '|': '1', Z: '2', S: '5', B: '8'};
+const DIGIT_CONFUSIONS = {O: '0', Q: '0', D: '0', I: '1', L: '1', '|': '1', Z: '2', S: '5', G: '6', T: '7', B: '8'};
 const STOP_LABELS_RE = /\b(?:IMEI|S\/?N|SERIAL|MODEL|MODELO|PRODUCT|MARKETING|RAM|ROM|STORAGE|MEMORY|CAPACITY|COLOR|COLOUR)\b/i;
+const COLOR_SUFFIXES = [
+  'AWESOME BLACK',
+  'MIDNIGHT BLACK',
+  'GRAPHITE BLACK',
+  'PHANTOM BLACK',
+  'TITANIUM BLACK',
+  'TITANIUM GRAY',
+  'TITANIUM GREY',
+  'FOREST GREEN',
+  'MINT GREEN',
+  'SKY BLUE',
+  'NAVY BLUE',
+  'OCEAN BLUE',
+  'ROSE GOLD',
+  'BLACK',
+  'WHITE',
+  'BLUE',
+  'GREEN',
+  'GRAY',
+  'GREY',
+  'GOLD',
+  'SILVER',
+  'PURPLE',
+  'PINK',
+  'RED',
+  'ORANGE',
+  'YELLOW',
+];
 
 function cleanLine(value) {
   return String(value || '')
@@ -93,7 +121,7 @@ function collectImeiCandidates(text, barcodes = []) {
 
   const lines = text.split('\n');
   lines.forEach((line, lineIndex) => {
-    const labelledPattern = /IMEI\s*([12])?\s*[:#-]?\s*([0-9OQDILSBZ|][0-9OQDILSBZ| .:/-]{13,34})/gi;
+    const labelledPattern = /IMEI\s*([12])?\s*[:#-]?\s*([0-9OQDGILSTBZ|][0-9OQDGILSTBZ| .:/-]{13,34})/gi;
     for (const match of line.matchAll(labelledPattern)) {
       validImeisFrom(match[2], true).forEach(value => addImeiCandidate(candidates, value, {
         label: match[1] || '',
@@ -119,7 +147,16 @@ function chooseImeis(candidates) {
   const labelledOne = candidates.find(candidate => candidate.label === '1');
   const labelledTwo = candidates.find(candidate => candidate.label === '2' && candidate.value !== labelledOne?.value);
   const imei1 = labelledOne || candidates[0] || null;
-  const imei2 = labelledTwo || candidates.find(candidate => candidate.value !== imei1?.value) || null;
+  const sameTac = imei1 && candidates.find(candidate => (
+    candidate.value !== imei1.value
+    && candidate.value.slice(0, 8) === imei1.value.slice(0, 8)
+  ));
+  const reliableAlternative = candidates.find(candidate => (
+    candidate.value !== imei1?.value
+    && ['barcode', 'ocr-labelled'].includes(candidate.source)
+    && candidate.score >= 88
+  ));
+  const imei2 = labelledTwo || sameTac || reliableAlternative || null;
   return {imei1, imei2};
 }
 
@@ -148,11 +185,31 @@ function sanitizeTextField(value, max = 50) {
     .slice(0, max);
 }
 
-function extractSerial(lines) {
+function serialFromBarcode(barcodes = []) {
+  return barcodes.map(barcode => {
+    const rawValue = typeof barcode === 'string' ? barcode : barcode?.rawValue;
+    return sanitizeTextField(rawValue, 40).replace(/\s+/g, '');
+  }).find(value => (
+    value.length >= 7
+    && value.length <= 40
+    && /^[A-Z0-9._/-]+$/.test(value)
+    && /[A-Z/_-]/.test(value)
+    && !/^\d{15}$/.test(value)
+    && !/^(?:HTTPS?|WWW)[/:.]/.test(value)
+    && !/(?:\.COM|REGULATORY|SUBT)/.test(value)
+  )) || '';
+}
+
+function extractSerial(lines, barcodes) {
   const value = remainderAfterLabel(lines, ['S\\s*\\/\\s*N', 'SERIAL(?:\\s+(?:NO|NUMBER|NUMERO))?', 'SN']);
   const match = sanitizeTextField(value, 40).match(/[A-Z0-9][A-Z0-9._/-]{4,39}/);
-  if (!match || /^\d{15}$/.test(match[0])) return '';
-  return match[0];
+  const ocrValue = match && !/^\d{15}$/.test(match[0]) ? match[0] : '';
+  const barcodeValue = serialFromBarcode(barcodes);
+  return {
+    value: barcodeValue || ocrValue,
+    source: barcodeValue ? 'barcode' : ocrValue ? 'ocr-labelled' : '',
+    score: barcodeValue ? 98 : 0,
+  };
 }
 
 function extractBrand(text) {
@@ -178,18 +235,20 @@ function extractModel(lines, text) {
 }
 
 function extractCommercialName(lines) {
+  const branded = lines.map(line => {
+    const match = line.match(/\b((?:SAMSUNG\s+)?GALAXY\s+[A-Z0-9+ -]{1,30}|(?:XIAOMI\s+)?(?:REDMI|POCO)\s+[A-Z0-9+ -]{1,30}|IPHONE\s+[A-Z0-9+ -]{1,24}|MOTO\s+[A-Z0-9+ -]{1,24}|PIXEL\s+[A-Z0-9+ -]{1,24})\b/i);
+    return sanitizeTextField(match?.[1], 60);
+  }).find(Boolean);
+  if (branded) return branded;
+
   const labelled = sanitizeTextField(remainderAfterLabel(lines, [
-    'PRODUCT(?:\\s+NAME)?',
+    'PRODUCT\\s+NAME',
     'MARKETING(?:\\s+NAME)?',
     'DEVICE(?:\\s+NAME)?',
     'NOMBRE(?:\\s+COMERCIAL)?',
   ]), 60);
   if (labelled.length >= 3) return labelled;
-
-  return lines.map(line => {
-    const match = line.match(/\b((?:SAMSUNG\s+)?GALAXY\s+[A-Z0-9+ -]{1,30}|(?:XIAOMI\s+)?(?:REDMI|POCO)\s+[A-Z0-9+ -]{1,30}|IPHONE\s+[A-Z0-9+ -]{1,24}|MOTO\s+[A-Z0-9+ -]{1,24}|PIXEL\s+[A-Z0-9+ -]{1,24})\b/i);
-    return sanitizeTextField(match?.[1], 60);
-  }).find(Boolean) || '';
+  return '';
 }
 
 function firstAllowedCapacity(value, allowed) {
@@ -200,6 +259,11 @@ function firstAllowedCapacity(value, allowed) {
 function extractCapacities(lines, text) {
   let ram = firstAllowedCapacity(remainderAfterLabel(lines, ['RAM']), RAM_VALUES);
   let memoria = firstAllowedCapacity(remainderAfterLabel(lines, ['ROM', 'STORAGE', 'MEMORY', 'CAPACITY']), STORAGE_VALUES);
+
+  const ramBeforeLabel = text.match(/\b(\d{1,2})\s*GB\s*RAM\b/i);
+  const storageBeforeLabel = text.match(/\b(\d{2,4})\s*GB\s*(?:ROM|STORAGE|MEMORY|CAPACITY)\b/i);
+  if (ramBeforeLabel && RAM_VALUES.has(String(Number(ramBeforeLabel[1])))) ram = String(Number(ramBeforeLabel[1]));
+  if (storageBeforeLabel && STORAGE_VALUES.has(String(Number(storageBeforeLabel[1])))) memoria = String(Number(storageBeforeLabel[1]));
 
   const combined = text.match(/\b(\d{1,2})\s*(?:GB)?\s*(?:\+|\/|\|)\s*(\d{2,4})\s*GB\b/i);
   if (combined) {
@@ -214,33 +278,46 @@ function extractColor(lines) {
   return sanitizeTextField(raw, 35).replace(/\b(?:RAM|ROM|GB)\b.*$/, '').trim();
 }
 
+function splitCommercialColor(value) {
+  const commercialName = sanitizeTextField(value, 60);
+  const suffix = COLOR_SUFFIXES.find(color => commercialName.endsWith(' ' + color));
+  if (!suffix) return {commercialName, color: ''};
+  return {
+    commercialName: commercialName.slice(0, -(suffix.length + 1)).trim(),
+    color: suffix,
+  };
+}
+
 export function parseBoxOcr({text = '', barcodes = [], ocrConfidence = 0} = {}) {
   const normalizedText = normalizeOcrText(text);
   const lines = normalizedText.split('\n').filter(Boolean);
   const imeiCandidates = collectImeiCandidates(normalizedText, barcodes);
   const {imei1, imei2} = chooseImeis(imeiCandidates);
   const score = Math.max(55, Math.min(88, Number(ocrConfidence) || 65));
+  const serial = extractSerial(lines, barcodes);
+  const commercial = splitCommercialColor(extractCommercialName(lines));
+  const explicitColor = extractColor(lines);
   const rawData = {
     imei1: imei1?.value || '',
     imei2: imei2?.value || '',
-    sn: extractSerial(lines),
+    sn: serial.value,
     marca: extractBrand(normalizedText),
     modelo: extractModel(lines, normalizedText),
-    nombreComercial: extractCommercialName(lines),
+    nombreComercial: commercial.commercialName,
     ...extractCapacities(lines, normalizedText),
-    color: extractColor(lines),
+    color: explicitColor || commercial.color,
   };
   const data = normalizarEscaneo(rawData);
   const fields = {
     imei1: fieldResult(data.imei1, imei1?.source, imei1?.score),
     imei2: fieldResult(data.imei2, imei2?.source, imei2?.score),
-    sn: fieldResult(data.sn, data.sn ? 'ocr-labelled' : '', score),
+    sn: fieldResult(data.sn, serial.source, serial.score || score),
     marca: fieldResult(data.marca, data.marca ? 'ocr-dictionary' : '', data.marca ? Math.max(score, 80) : 0),
     modelo: fieldResult(data.modelo, data.modelo ? 'ocr' : '', score),
     nombreComercial: fieldResult(data.nombreComercial, data.nombreComercial ? 'ocr' : '', score),
     ram: fieldResult(data.ram, data.ram ? 'ocr' : '', score),
     memoria: fieldResult(data.memoria, data.memoria ? 'ocr' : '', score),
-    color: fieldResult(data.color, data.color ? 'ocr' : '', score),
+    color: fieldResult(data.color, data.color ? explicitColor ? 'ocr' : 'ocr-suffix' : '', score),
   };
   const warnings = [];
   if (!data.imei1) warnings.push('No se encontro un IMEI valido. Revisa la foto o ingresalo manualmente.');

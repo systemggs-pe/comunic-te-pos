@@ -200,8 +200,6 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'CODART_CREDITOS_INSUFICIENTES') return 'No hay creditos suficientes en CODART';
   if (error?.message === 'CODART_RATE_LIMIT') return 'CODART recibio demasiadas consultas; intenta nuevamente en unos minutos';
   if (error?.message === 'ACTION_INVALIDA') return 'La accion solicitada no es valida';
-  if (error?.message === 'DNI_FOTO_HISTORIAL_NO_ENCONTRADO') return 'No se encontro la consulta en el historial';
-  if (error?.message === 'DNI_FOTO_SUCCESS_PROTEGIDA') return 'Las consultas exitosas no se pueden borrar';
   if (error?.message === 'DNI_FOTOS_UPSTREAM_ERROR') return 'No se pudo consultar la foto del DNI';
   if (error?.message === 'DNI_FOTO_TIPO_INVALIDO') return 'El tipo de foto DNI no es valido';
   if (error?.message === 'DNI_INVALIDO') return 'El DNI debe tener 8 digitos';
@@ -234,24 +232,12 @@ export function consultarReniecDni(dni) {
   return llamarFuncionSegura('reniec', {dni: String(dni)});
 }
 
-export function consultarDniFotos(dni, tipo = 'azul', forceRefresh = false) {
-  return llamarFuncionSegura('dniFotos', {action: 'consult', dni: String(dni), tipo, forceRefresh});
+export function consultarDniFotos(dni, tipo = 'azul') {
+  return llamarFuncionSegura('dniFotos', {dni: String(dni), tipo});
 }
 
 export function consultarComprobanteApplePorImei(imei) {
   return llamarFuncionSegura('comprobanteApple', {imei: String(imei)});
-}
-
-export function listarDniFotosHistorial() {
-  return llamarFuncionSegura('dniFotos', {action: 'list'});
-}
-
-export function obtenerDniFotoHistorial(id) {
-  return llamarFuncionSegura('dniFotos', {action: 'get', id});
-}
-
-export function eliminarDniFotoHistorial(id) {
-  return llamarFuncionSegura('dniFotos', {action: 'delete', id});
 }
 
 const CLIENTES_QUERY_TTL_MS = 20_000;

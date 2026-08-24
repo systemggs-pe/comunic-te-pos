@@ -43,6 +43,89 @@ function scaledCanvas(source, maxSide = MAX_SCAN_SIDE) {
   return canvas;
 }
 
+function croppedCanvas(source, region, maxSide = MAX_SCAN_SIDE, maxUpscale = 3) {
+  const sourceWidth = Math.max(1, Math.round(region.width));
+  const sourceHeight = Math.max(1, Math.round(region.height));
+  const scale = Math.min(maxUpscale, maxSide / Math.max(sourceWidth, sourceHeight));
+  const canvas = createCanvas(sourceWidth * scale, sourceHeight * scale);
+  const context = canvas.getContext('2d', {willReadFrequently: true});
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(
+    source,
+    Math.max(0, Math.round(region.x)),
+    Math.max(0, Math.round(region.y)),
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+  return canvas;
+}
+
+function focusRegionScore(source, region) {
+  const sample = croppedCanvas(source, region, 320, 1);
+  const context = sample.getContext('2d', {willReadFrequently: true});
+  const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
+  const grayscale = new Uint8Array(sample.width * sample.height);
+  let total = 0;
+  let squareTotal = 0;
+  let lightPixels = 0;
+  let darkPixels = 0;
+  let edgeTotal = 0;
+
+  for (let pixel = 0, index = 0; pixel < pixels.length; pixel += 4, index += 1) {
+    const gray = Math.round(pixels[pixel] * 0.299 + pixels[pixel + 1] * 0.587 + pixels[pixel + 2] * 0.114);
+    grayscale[index] = gray;
+    total += gray;
+    squareTotal += gray * gray;
+    if (gray >= 155) lightPixels += 1;
+    if (gray <= 105) darkPixels += 1;
+    if (index % sample.width) edgeTotal += Math.abs(gray - grayscale[index - 1]);
+    if (index >= sample.width) edgeTotal += Math.abs(gray - grayscale[index - sample.width]);
+  }
+
+  const count = grayscale.length || 1;
+  const average = total / count;
+  const deviation = Math.sqrt(Math.max(0, squareTotal / count - average * average));
+  const lightRatio = lightPixels / count;
+  const darkRatio = darkPixels / count;
+  const averageEdge = edgeTotal / (count * 2);
+  return (
+    lightRatio * 55
+    + Math.min(darkRatio, 0.35) * 85
+    + Math.min(averageEdge, 24) * 1.8
+    + Math.min(deviation, 80) * 0.35
+  );
+}
+
+function selectFocusCanvas(original) {
+  const width = original.width;
+  const height = original.height;
+  const regions = [
+    {name: 'top', x: width * 0.025, y: 0, width: width * 0.95, height: height * 0.58},
+    {name: 'middle', x: width * 0.025, y: height * 0.21, width: width * 0.95, height: height * 0.58},
+    {name: 'bottom', x: width * 0.025, y: height * 0.42, width: width * 0.95, height: height * 0.58},
+  ];
+  const ranked = regions
+    .map(region => ({...region, score: focusRegionScore(original, region)}))
+    .sort((left, right) => right.score - left.score);
+  const selected = ranked[0];
+  return {
+    canvas: croppedCanvas(original, selected),
+    region: {
+      name: selected.name,
+      x: Math.round(selected.x),
+      y: Math.round(selected.y),
+      width: Math.round(selected.width),
+      height: Math.round(selected.height),
+      score: Math.round(selected.score * 10) / 10,
+    },
+  };
+}
+
 function otsuThreshold(histogram, total) {
   let sum = 0;
   for (let index = 0; index < 256; index += 1) sum += index * histogram[index];
@@ -166,6 +249,22 @@ function cropRegions(canvas) {
     {x: 0, y: canvas.height * 0.22, width: canvas.width, height: canvas.height * 0.56},
     {x: 0, y: canvas.height * 0.45, width: canvas.width, height: canvas.height * 0.55},
   ];
+  [0, 0.14, 0.28, 0.42, 0.56, 0.7, 0.78].forEach(start => {
+    regions.push({
+      x: 0,
+      y: canvas.height * start,
+      width: canvas.width,
+      height: canvas.height * Math.min(0.24, 1 - start),
+    });
+  });
+  [0.2, 0.3, 0.4, 0.5, 0.6, 0.7].forEach(start => {
+    regions.push({
+      x: canvas.width * 0.38,
+      y: canvas.height * start,
+      width: canvas.width * 0.62,
+      height: canvas.height * Math.min(0.16, 1 - start),
+    });
+  });
   return regions.map(region => {
     const cropped = createCanvas(region.width, region.height);
     cropped.getContext('2d').drawImage(
@@ -185,8 +284,22 @@ function cropRegions(canvas) {
 
 async function detectZxingBarcodes(canvases) {
   try {
-    const {BrowserMultiFormatReader} = await import('@zxing/browser');
-    const reader = new BrowserMultiFormatReader();
+    const [{BrowserMultiFormatReader}, {BarcodeFormat, DecodeHintType}] = await Promise.all([
+      import('@zxing/browser'),
+      import('@zxing/library'),
+    ]);
+    const hints = new Map();
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.CODE_93,
+      BarcodeFormat.DATA_MATRIX,
+      BarcodeFormat.QR_CODE,
+      BarcodeFormat.ITF,
+      BarcodeFormat.EAN_13,
+    ]);
+    const reader = new BrowserMultiFormatReader(hints);
     const results = [];
     for (const source of canvases) {
       for (const region of cropRegions(source)) {
@@ -210,10 +323,13 @@ async function detectZxingBarcodes(canvases) {
   }
 }
 
-async function detectBarcodes(original, binary) {
+async function detectBarcodes(original, focused, binary) {
   report('barcodes', 0.18, 'Leyendo codigos de barras');
-  const native = await detectNativeBarcodes(original);
-  const fallback = native.length >= 2 ? [] : await detectZxingBarcodes([original, binary]);
+  const native = uniqueBarcodes([
+    ...await detectNativeBarcodes(focused),
+    ...await detectNativeBarcodes(original),
+  ]);
+  const fallback = native.length >= 3 ? [] : await detectZxingBarcodes([focused, binary]);
   return uniqueBarcodes([...native, ...fallback]);
 }
 
@@ -291,17 +407,18 @@ export async function scanBoxImage(sourceCanvas, {onProgress} = {}) {
   progressReporter = onProgress || null;
   report('preprocess', 0.03, 'Mejorando la etiqueta');
   const original = scaledCanvas(sourceCanvas);
-  const {grayscale, binary, quality} = preprocessCanvas(original);
+  const focus = selectFocusCanvas(original);
+  const {grayscale, binary, quality} = preprocessCanvas(focus.canvas);
 
   try {
-    const barcodes = await detectBarcodes(original, binary);
+    const barcodes = await detectBarcodes(original, focus.canvas, binary);
     const worker = await getWorker();
     const first = await recognize(worker, grayscale);
     let text = first.data?.text || '';
     let ocrConfidence = Number(first.data?.confidence || 0);
     let result = parseBoxOcr({text, barcodes, ocrConfidence});
 
-    if (!result.data.imei1 && populatedFields(result) < 3) {
+    if (!result.data.imei1 || !result.data.imei2 || populatedFields(result) < 6) {
       report('ocr', 0.62, 'Intentando una segunda mejora de contraste');
       const second = await recognize(worker, binary);
       text = `${text}\n${second.data?.text || ''}`;
@@ -309,11 +426,23 @@ export async function scanBoxImage(sourceCanvas, {onProgress} = {}) {
       result = parseBoxOcr({text, barcodes, ocrConfidence});
     }
 
+    if (populatedFields(result) < 7) {
+      report('ocr', 0.82, 'Revisando el encuadre completo');
+      const fullPage = preprocessCanvas(original);
+      const third = await recognize(worker, fullPage.grayscale);
+      text += '\n' + (third.data?.text || '');
+      ocrConfidence = Math.max(ocrConfidence, Number(third.data?.confidence || 0));
+      result = parseBoxOcr({text, barcodes, ocrConfidence});
+    }
+
     report('validate', 0.96, 'Validando IMEI y campos');
+    const qualityWarnings = result.data.imei1 && result.data.imei2 && populatedFields(result) >= 7
+      ? quality.warnings.filter(warning => !warning.includes('borrosa'))
+      : quality.warnings;
     return {
       ...result,
-      warnings: [...quality.warnings, ...result.warnings],
-      diagnostics: {...result.diagnostics, quality},
+      warnings: [...qualityWarnings, ...result.warnings],
+      diagnostics: {...result.diagnostics, quality, focusRegion: focus.region},
     };
   } catch (error) {
     if (error?.message === 'OCR_LOCAL_TIMEOUT') await terminateWorker();
@@ -325,6 +454,8 @@ export async function scanBoxImage(sourceCanvas, {onProgress} = {}) {
 }
 
 export const __test = {
+  focusRegionScore,
   otsuThreshold,
+  selectFocusCanvas,
   uniqueBarcodes,
 };
