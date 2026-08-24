@@ -151,6 +151,8 @@ Purpose:
 - Run Tesseract.js locally in a Web Worker with same-origin OCR assets.
 - Normalize IMEI, serial, brand, model, memory, RAM and color.
 - Reject invalid IMEI candidates with Luhn validation and prefer the shared device TAC for an unlabeled secondary IMEI.
+- Reconcile commercial names, specific colors, canonical brands and capacities with local catalogs and a versioned trainable verifier.
+- Store only sanitized non-sensitive correction pairs in browser IndexedDB for optional export and offline training.
 - Require operator review before applying extracted values.
 
 Current constraints:
@@ -158,6 +160,7 @@ Current constraints:
 - Requires camera permissions and secure context.
 - Requires WebAssembly and Web Worker support for text OCR.
 - Does not send the scanner image to a server or external OCR provider.
+- Does not include photos, IMEI, serial number, customer data or full OCR text in learning examples.
 
 ## Legal and Cookie Workflow
 

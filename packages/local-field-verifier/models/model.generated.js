@@ -1,0 +1,116 @@
+const model = {
+  "schemaVersion": 1,
+  "kind": "correction-memory-v1",
+  "version": "1.0.0",
+  "trainedAt": "2026-08-24T21:10:01.113Z",
+  "exampleCount": 16,
+  "fields": [
+    "color",
+    "marca",
+    "nombreComercial"
+  ],
+  "replacements": {
+    "color": {
+      "BLUE": [
+        {
+          "output": "GLACIAR BLUE",
+          "count": 2,
+          "confidence": 0.5
+        },
+        {
+          "output": "GLACIER BLUE",
+          "count": 2,
+          "confidence": 0.5
+        }
+      ],
+      "BLACK": [
+        {
+          "output": "MIDNIGHT BLACK",
+          "count": 2,
+          "confidence": 0.5
+        },
+        {
+          "output": "AWESOME BLACK",
+          "count": 2,
+          "confidence": 0.5
+        }
+      ],
+      "GRAY": [
+        {
+          "output": "TITANIUM GRAY",
+          "count": 2,
+          "confidence": 1
+        }
+      ],
+      "GREEN": [
+        {
+          "output": "FOREST GREEN",
+          "count": 2,
+          "confidence": 1
+        }
+      ]
+    },
+    "marca": {
+      "REDMI": [
+        {
+          "output": "XIAOMI",
+          "count": 2,
+          "confidence": 1
+        }
+      ],
+      "GALAXY": [
+        {
+          "output": "SAMSUNG",
+          "count": 2,
+          "confidence": 1
+        }
+      ]
+    }
+  },
+  "transfers": [
+    {
+      "fromField": "nombreComercial",
+      "toField": "color",
+      "phrase": "MIDNIGHT BLACK",
+      "count": 2,
+      "confidence": 1
+    },
+    {
+      "fromField": "nombreComercial",
+      "toField": "color",
+      "phrase": "AWESOME BLACK",
+      "count": 2,
+      "confidence": 1
+    },
+    {
+      "fromField": "nombreComercial",
+      "toField": "color",
+      "phrase": "TITANIUM GRAY",
+      "count": 2,
+      "confidence": 1
+    },
+    {
+      "fromField": "nombreComercial",
+      "toField": "color",
+      "phrase": "GLACIAR BLUE",
+      "count": 2,
+      "confidence": 1
+    },
+    {
+      "fromField": "nombreComercial",
+      "toField": "color",
+      "phrase": "GLACIER BLUE",
+      "count": 2,
+      "confidence": 1
+    },
+    {
+      "fromField": "nombreComercial",
+      "toField": "color",
+      "phrase": "FOREST GREEN",
+      "count": 2,
+      "confidence": 1
+    }
+  ]
+};
+
+export default model;

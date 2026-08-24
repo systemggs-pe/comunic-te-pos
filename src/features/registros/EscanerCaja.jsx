@@ -1,6 +1,7 @@
 import React from 'react';
-import {AlertTriangle, Check, ImagePlus, RotateCcw, ScanBarcode, ShieldCheck, X} from 'lucide-react';
+import {AlertTriangle, Check, Download, ImagePlus, RotateCcw, ScanBarcode, ShieldCheck, Trash2, X} from 'lucide-react';
 import {scanBoxImage} from '../../services/localBoxScanner.js';
+import {buildBoxCorrectionExample, clearBoxCorrections, exportBoxCorrections, saveBoxCorrection} from '../../services/boxLearningStore.js';
 import {luhn} from '../../utils/imei.js';
 import {normalizarEscaneo} from '../../utils/scanner.js';
 
@@ -23,6 +24,9 @@ function emptyScan() {
 
 function confidenceLabel(field, edited) {
   if (edited) return {text: 'Editado', classes: 'border-blue-200 bg-blue-50 text-blue-700'};
+  if (field?.source === 'domain-rule' || field?.source?.startsWith('model-')) {
+    return {text: 'Corregido', classes: 'border-violet-200 bg-violet-50 text-violet-700'};
+  }
   if (field?.confidence === 'high') return {text: 'Alta', classes: 'border-emerald-200 bg-emerald-50 text-emerald-700'};
   if (field?.confidence === 'medium') return {text: 'Media', classes: 'border-amber-200 bg-amber-50 text-amber-700'};
   if (field?.confidence === 'low') return {text: 'Baja', classes: 'border-red-200 bg-red-50 text-red-700'};
@@ -81,6 +85,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
   const [progress, setProgress] = React.useState({progress: 0, detail: ''});
   const [scanResult, setScanResult] = React.useState(null);
   const [draft, setDraft] = React.useState(emptyScan);
+  const [learningNotice, setLearningNotice] = React.useState('');
 
   const stopCamera = React.useCallback(() => {
     cameraRequestRef.current += 1;
@@ -208,7 +213,32 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
       setError('El IMEI 1 y el IMEI 2 deben ser diferentes.');
       return;
     }
+    try {
+      const example = buildBoxCorrectionExample(scanResult, normalized);
+      if (example) void saveBoxCorrection(example).catch(() => {});
+    } catch {
+      // El aprendizaje local nunca debe bloquear el registro o la venta.
+    }
     onResult(normalized);
+  };
+
+  const exportarAprendizaje = async () => {
+    try {
+      const count = await exportBoxCorrections();
+      setLearningNotice(count ? `Se exportaron ${count} correcciones sanitizadas.` : 'Todavia no hay correcciones para exportar.');
+    } catch {
+      setLearningNotice('No se pudieron exportar las correcciones locales.');
+    }
+  };
+
+  const borrarAprendizaje = async () => {
+    if (!window.confirm('¿Borrar todas las correcciones OCR guardadas en este navegador?')) return;
+    try {
+      await clearBoxCorrections();
+      setLearningNotice('Las correcciones locales fueron eliminadas.');
+    } catch {
+      setLearningNotice('No se pudieron borrar las correcciones locales.');
+    }
   };
 
   const cerrar = () => {
@@ -297,10 +327,27 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
                 </div>
               )}
 
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-blue-900">
+                <p className="text-xs font-bold">Aprendizaje privado en este dispositivo</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-blue-700">
+                  Solo se guardan correcciones de marca, modelo, nombre, RAM, memoria y color. Nunca se guardan la foto, el IMEI, la serie ni datos del cliente.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={exportarAprendizaje} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100">
+                    <Download size={12} /> Exportar aprendizaje
+                  </button>
+                  <button type="button" onClick={borrarAprendizaje} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100">
+                    <Trash2 size={12} /> Borrar aprendizaje
+                  </button>
+                </div>
+                {learningNotice && <p className="mt-2 text-[11px] font-semibold text-blue-800" aria-live="polite">{learningNotice}</p>}
+              </div>
+
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {FIELD_CONFIG.map(field => {
                   const edited = draft[field.key] !== scanResult?.data?.[field.key];
-                  const confidence = confidenceLabel(scanResult?.fields?.[field.key], edited);
+                  const fieldResult = scanResult?.fields?.[field.key];
+                  const confidence = confidenceLabel(fieldResult, edited);
                   const invalidImei = field.key.startsWith('imei') && draft[field.key] && !luhn(draft[field.key]);
                   return (
                     <label key={field.key} className={field.key === 'nombreComercial' ? 'sm:col-span-2' : ''}>
@@ -318,6 +365,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
                         className={`w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 ${field.mono ? 'font-mono' : ''} ${invalidImei ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
                       />
                       {invalidImei && <span className="mt-1 block text-xs font-semibold text-red-600">IMEI invalido</span>}
+                      {!edited && fieldResult?.reason && <span className="mt-1 block text-[11px] font-medium text-violet-700">{fieldResult.reason}</span>}
                     </label>
                   );
                 })}

@@ -1,53 +1,11 @@
 import {luhn} from './imei.js';
-import {normalizarEscaneo} from './scanner.js';
-
-const BRAND_ALIASES = [
-  ['APPLE', /\b(?:APPLE|IPHONE)\b/i],
-  ['SAMSUNG', /\b(?:SAMSUNG|GALAXY)\b/i],
-  ['HONOR', /\bHONOR\b/i],
-  ['XIAOMI', /\b(?:XIAOMI|REDMI|POCO)\b/i],
-  ['OPPO', /\bOPPO\b/i],
-  ['VIVO', /\bVIVO\b/i],
-  ['TECNO', /\bTECNO\b/i],
-  ['INFINIX', /\bINFINIX\b/i],
-  ['ZTE', /\bZTE\b/i],
-  ['MOTOROLA', /\b(?:MOTOROLA|MOTO)\b/i],
-  ['PIXEL', /\b(?:GOOGLE\s+PIXEL|PIXEL)\b/i],
-  ['HTC', /\bHTC\b/i],
-];
+import {canonicalBrandFromText, DEVICE_COLOR_NAMES} from './deviceCatalog.js';
+import {verifyBoxData} from './boxDataVerifier.js';
 
 const RAM_VALUES = new Set(['1', '2', '3', '4', '6', '8', '12', '16', '18', '24', '32']);
 const STORAGE_VALUES = new Set(['8', '16', '32', '64', '128', '256', '512', '1024', '2048']);
 const DIGIT_CONFUSIONS = {O: '0', Q: '0', D: '0', I: '1', L: '1', '|': '1', Z: '2', S: '5', G: '6', T: '7', B: '8'};
 const STOP_LABELS_RE = /\b(?:IMEI|S\/?N|SERIAL|MODEL|MODELO|PRODUCT|MARKETING|RAM|ROM|STORAGE|MEMORY|CAPACITY|COLOR|COLOUR)\b/i;
-const COLOR_SUFFIXES = [
-  'AWESOME BLACK',
-  'MIDNIGHT BLACK',
-  'GRAPHITE BLACK',
-  'PHANTOM BLACK',
-  'TITANIUM BLACK',
-  'TITANIUM GRAY',
-  'TITANIUM GREY',
-  'FOREST GREEN',
-  'MINT GREEN',
-  'SKY BLUE',
-  'NAVY BLUE',
-  'OCEAN BLUE',
-  'ROSE GOLD',
-  'BLACK',
-  'WHITE',
-  'BLUE',
-  'GREEN',
-  'GRAY',
-  'GREY',
-  'GOLD',
-  'SILVER',
-  'PURPLE',
-  'PINK',
-  'RED',
-  'ORANGE',
-  'YELLOW',
-];
 
 function cleanLine(value) {
   return String(value || '')
@@ -92,12 +50,13 @@ function confidenceName(score) {
   return 'low';
 }
 
-function fieldResult(value = '', source = '', score = 0) {
+function fieldResult(value = '', source = '', score = 0, reason = '') {
   return {
     value: String(value || ''),
     source,
     score: value ? Math.max(0, Math.min(100, Math.round(score))) : 0,
     confidence: value ? confidenceName(score) : 'none',
+    ...(reason ? {reason} : {}),
   };
 }
 
@@ -213,7 +172,7 @@ function extractSerial(lines, barcodes) {
 }
 
 function extractBrand(text) {
-  return BRAND_ALIASES.find(([, pattern]) => pattern.test(text))?.[0] || '';
+  return canonicalBrandFromText(text);
 }
 
 function extractModel(lines, text) {
@@ -236,7 +195,7 @@ function extractModel(lines, text) {
 
 function extractCommercialName(lines) {
   const branded = lines.map(line => {
-    const match = line.match(/\b((?:SAMSUNG\s+)?GALAXY\s+[A-Z0-9+ -]{1,30}|(?:XIAOMI\s+)?(?:REDMI|POCO)\s+[A-Z0-9+ -]{1,30}|IPHONE\s+[A-Z0-9+ -]{1,24}|MOTO\s+[A-Z0-9+ -]{1,24}|PIXEL\s+[A-Z0-9+ -]{1,24})\b/i);
+    const match = line.match(/\b((?:SAMSUNG\s+)?GALAXY\s+[A-Z0-9+ -]{1,50}|(?:XIAOMI\s+)?(?:REDMI|POCO)\s+[A-Z0-9+ -]{1,50}|IPHONE\s+[A-Z0-9+ -]{1,40}|MOTO\s+[A-Z0-9+ -]{1,40}|PIXEL\s+[A-Z0-9+ -]{1,40})\b/i);
     return sanitizeTextField(match?.[1], 60);
   }).find(Boolean);
   if (branded) return branded;
@@ -280,7 +239,7 @@ function extractColor(lines) {
 
 function splitCommercialColor(value) {
   const commercialName = sanitizeTextField(value, 60);
-  const suffix = COLOR_SUFFIXES.find(color => commercialName.endsWith(' ' + color));
+  const suffix = DEVICE_COLOR_NAMES.find(color => commercialName.endsWith(' ' + color));
   if (!suffix) return {commercialName, color: ''};
   return {
     commercialName: commercialName.slice(0, -(suffix.length + 1)).trim(),
@@ -307,19 +266,30 @@ export function parseBoxOcr({text = '', barcodes = [], ocrConfidence = 0} = {}) 
     ...extractCapacities(lines, normalizedText),
     color: explicitColor || commercial.color,
   };
-  const data = normalizarEscaneo(rawData);
-  const fields = {
-    imei1: fieldResult(data.imei1, imei1?.source, imei1?.score),
-    imei2: fieldResult(data.imei2, imei2?.source, imei2?.score),
-    sn: fieldResult(data.sn, serial.source, serial.score || score),
-    marca: fieldResult(data.marca, data.marca ? 'ocr-dictionary' : '', data.marca ? Math.max(score, 80) : 0),
-    modelo: fieldResult(data.modelo, data.modelo ? 'ocr' : '', score),
-    nombreComercial: fieldResult(data.nombreComercial, data.nombreComercial ? 'ocr' : '', score),
-    ram: fieldResult(data.ram, data.ram ? 'ocr' : '', score),
-    memoria: fieldResult(data.memoria, data.memoria ? 'ocr' : '', score),
-    color: fieldResult(data.color, data.color ? explicitColor ? 'ocr' : 'ocr-suffix' : '', score),
+  const verified = verifyBoxData(rawData, {colorCandidates: [commercial.color]});
+  const data = verified.data;
+  const verificationChanges = new Map(verified.changes.map(change => [change.field, change]));
+  const resultFor = (field, value, source, fieldScore) => {
+    const change = verificationChanges.get(field);
+    return fieldResult(
+      value,
+      change?.source || source,
+      change ? Number(change.confidence || 0) * 100 : fieldScore,
+      change?.reason || '',
+    );
   };
-  const warnings = [];
+  const fields = {
+    imei1: resultFor('imei1', data.imei1, imei1?.source, imei1?.score),
+    imei2: resultFor('imei2', data.imei2, imei2?.source, imei2?.score),
+    sn: resultFor('sn', data.sn, serial.source, serial.score || score),
+    marca: resultFor('marca', data.marca, data.marca ? 'ocr-dictionary' : '', data.marca ? Math.max(score, 80) : 0),
+    modelo: resultFor('modelo', data.modelo, data.modelo ? 'ocr' : '', score),
+    nombreComercial: resultFor('nombreComercial', data.nombreComercial, data.nombreComercial ? 'ocr' : '', score),
+    ram: resultFor('ram', data.ram, data.ram ? 'ocr' : '', score),
+    memoria: resultFor('memoria', data.memoria, data.memoria ? 'ocr' : '', score),
+    color: resultFor('color', data.color, data.color ? explicitColor ? 'ocr' : 'ocr-suffix' : '', score),
+  };
+  const warnings = [...verified.warnings];
   if (!data.imei1) warnings.push('No se encontro un IMEI valido. Revisa la foto o ingresalo manualmente.');
   else if (!data.imei2) warnings.push('Solo se encontro un IMEI valido.');
   if (normalizedText && Number(ocrConfidence) < 55) warnings.push('El texto tiene baja confianza; revisa los campos antes de aplicarlos.');
@@ -333,6 +303,8 @@ export function parseBoxOcr({text = '', barcodes = [], ocrConfidence = 0} = {}) 
       validImeiCandidates: imeiCandidates.length,
       ocrConfidence: Math.max(0, Math.min(100, Math.round(Number(ocrConfidence) || 0))),
       textLength: normalizedText.length,
+      verifierChanges: verified.changes.length,
+      modelVersion: verified.modelVersion,
     },
   };
 }

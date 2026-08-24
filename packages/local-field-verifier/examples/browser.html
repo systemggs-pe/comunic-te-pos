@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="es">
+  <head><meta charset="UTF-8"><title>Local Field Verifier</title></head>
+  <body>
+    <pre id="result"></pre>
+    <script type="module">
+      import model from '../models/model.generated.js';
+      import {verifyFields} from '../src/index.js';
+      const result = verifyFields({
+        extracted: {nombreComercial: 'EQUIPO EXAMPLE BLUE', color: 'BLUE'},
+        model,
+      });
+      document.querySelector('#result').textContent = JSON.stringify(result, null, 2);
+    </script>
+  </body>
+</html>

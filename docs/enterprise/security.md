@@ -189,6 +189,8 @@ Risks:
 - Camera/gallery images remain in browser memory and are not posted to a Function.
 - Tesseract worker, language data and WASM cores are served from the same application origin.
 - Extracted IMEIs are accepted only after Luhn validation and operator review.
+- OCR corrections are stored only in local IndexedDB after removing photos, IMEI, serial, customer data and full OCR text.
+- The operator can export sanitized examples for offline training or erase the local learning dataset from the scanner.
 - Image files selected from the gallery are limited by MIME and size before processing.
 
 ## Security Headers

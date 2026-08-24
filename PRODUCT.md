@@ -36,7 +36,7 @@ Core outcomes:
 - Maintain searchable customer and equipment history.
 - Generate thermal sale tickets and foreign receipt PDFs.
 - Query RENIEC for DNI assistance.
-- Extract phone box information with OCR to reduce manual entry errors.
+- Extract phone box information with local OCR and reconcile fields with a reusable trainable verifier.
 - Capture legal acceptance and cookie preferences.
 - Track app/web problems, affected files, solutions and changelog entries.
 
@@ -65,7 +65,7 @@ Core outcomes:
 1. Operator enters document data and customer contact details.
 2. Existing customer data or RENIEC data can prefill fields.
 3. Operator enters IMEI, serial, brand, model, commercial name and device status.
-4. OCR scanner can extract box information.
+4. OCR scanner extracts box information, reconciles brand/name/color/capacity locally and lets the operator correct it.
 5. Client validation guides the operator.
 6. Netlify Function validates and writes customer, equipment and registration data.
 

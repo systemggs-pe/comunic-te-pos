@@ -142,6 +142,17 @@ The box scanner requires no API key. The build copies the Tesseract worker, Engl
 language data and compatible WASM cores from installed npm packages into `/ocr`.
 Run `npm run prepare:ocr-assets` when serving Vite outside the provided npm scripts.
 
+The reusable verifier is located at `packages/local-field-verifier`. Export sanitized
+corrections from the scanner and train/evaluate a version with:
+
+```powershell
+npm run train:box-verifier -- --input correcciones-ocr.json --min-count 2 --version 1.0.0
+npm run evaluate:box-verifier -- --input evaluacion-ocr.json
+```
+
+Training updates both the portable JSON model and the JavaScript module consumed by
+the web application. Review the diff and evaluation metrics before committing a new model.
+
 ## Build Configuration
 
 Vite config:

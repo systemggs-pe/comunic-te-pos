@@ -104,3 +104,22 @@ test('local box parser handles the Redmi A7 Pro label layout and separates its c
   assert.equal(result.fields.sn.source, 'barcode');
   assert.equal(result.fields.color.source, 'ocr-suffix');
 });
+
+test('local verifier moves a specific color out of the commercial name and upgrades a generic color', () => {
+  const result = parseBoxOcr({
+    text: [
+      'REDMI NOTE 15 PRO + 5G GLACIAR BLUE',
+      'MODEL: 2601RN15G',
+      'RAM: 8GB',
+      'ROM: 256GB',
+      'COLOR: BLUE',
+    ].join('\n'),
+    ocrConfidence: 86,
+  });
+
+  assert.equal(result.data.marca, 'XIAOMI');
+  assert.equal(result.data.nombreComercial, 'REDMI NOTE 15 PRO + 5G');
+  assert.equal(result.data.color, 'GLACIAR BLUE');
+  assert.equal(result.fields.color.source, 'domain-rule');
+  assert.match(result.fields.color.reason, /color comercial/i);
+});

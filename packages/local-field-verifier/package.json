@@ -1,0 +1,15 @@
+{
+  "name": "@comunicate/local-field-verifier",
+  "version": "1.0.0",
+  "description": "Verificador local entrenable para reconciliar campos extraidos sin servicios externos.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "train": "node training/train.mjs",
+    "evaluate": "node training/evaluate.mjs"
+  },
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,66 @@
+[
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO A GLACIAR BLUE", "color": "BLUE"},
+    "after": {"nombreComercial": "EQUIPO DEMO A", "color": "GLACIAR BLUE"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO B GLACIAR BLUE", "color": "BLUE"},
+    "after": {"nombreComercial": "EQUIPO DEMO B", "color": "GLACIAR BLUE"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO C GLACIER BLUE", "color": "BLUE"},
+    "after": {"nombreComercial": "EQUIPO DEMO C", "color": "GLACIER BLUE"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO D GLACIER BLUE", "color": "BLUE"},
+    "after": {"nombreComercial": "EQUIPO DEMO D", "color": "GLACIER BLUE"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO E MIDNIGHT BLACK", "color": "BLACK"},
+    "after": {"nombreComercial": "EQUIPO DEMO E", "color": "MIDNIGHT BLACK"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO F MIDNIGHT BLACK", "color": "BLACK"},
+    "after": {"nombreComercial": "EQUIPO DEMO F", "color": "MIDNIGHT BLACK"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO G AWESOME BLACK", "color": "BLACK"},
+    "after": {"nombreComercial": "EQUIPO DEMO G", "color": "AWESOME BLACK"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO H AWESOME BLACK", "color": "BLACK"},
+    "after": {"nombreComercial": "EQUIPO DEMO H", "color": "AWESOME BLACK"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO I TITANIUM GRAY", "color": "GRAY"},
+    "after": {"nombreComercial": "EQUIPO DEMO I", "color": "TITANIUM GRAY"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO J TITANIUM GRAY", "color": "GRAY"},
+    "after": {"nombreComercial": "EQUIPO DEMO J", "color": "TITANIUM GRAY"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO K FOREST GREEN", "color": "GREEN"},
+    "after": {"nombreComercial": "EQUIPO DEMO K", "color": "FOREST GREEN"}
+  },
+  {
+    "before": {"nombreComercial": "EQUIPO DEMO L FOREST GREEN", "color": "GREEN"},
+    "after": {"nombreComercial": "EQUIPO DEMO L", "color": "FOREST GREEN"}
+  },
+  {
+    "before": {"marca": "REDMI"},
+    "after": {"marca": "XIAOMI"}
+  },
+  {
+    "before": {"marca": "REDMI"},
+    "after": {"marca": "XIAOMI"}
+  },
+  {
+    "before": {"marca": "GALAXY"},
+    "after": {"marca": "SAMSUNG"}
+  },
+  {
+    "before": {"marca": "GALAXY"},
+    "after": {"marca": "SAMSUNG"}
+  }
+]

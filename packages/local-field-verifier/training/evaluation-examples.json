@@ -1,0 +1,26 @@
+[
+  {
+    "before": {"nombreComercial": "REDMI NOTE DEMO GLACIAR BLUE", "color": "BLUE"},
+    "after": {"nombreComercial": "REDMI NOTE DEMO", "color": "GLACIAR BLUE"}
+  },
+  {
+    "before": {"nombreComercial": "GALAXY DEMO GLACIER BLUE", "color": "BLUE"},
+    "after": {"nombreComercial": "GALAXY DEMO", "color": "GLACIER BLUE"}
+  },
+  {
+    "before": {"nombreComercial": "MOTO DEMO MIDNIGHT BLACK", "color": "BLACK"},
+    "after": {"nombreComercial": "MOTO DEMO", "color": "MIDNIGHT BLACK"}
+  },
+  {
+    "before": {"nombreComercial": "HONOR DEMO AWESOME BLACK", "color": "BLACK"},
+    "after": {"nombreComercial": "HONOR DEMO", "color": "AWESOME BLACK"}
+  },
+  {
+    "before": {"nombreComercial": "PIXEL DEMO TITANIUM GRAY", "color": "GRAY"},
+    "after": {"nombreComercial": "PIXEL DEMO", "color": "TITANIUM GRAY"}
+  },
+  {
+    "before": {"nombreComercial": "POCO DEMO FOREST GREEN", "color": "GREEN"},
+    "after": {"nombreComercial": "POCO DEMO", "color": "FOREST GREEN"}
+  }
+]
