@@ -11,7 +11,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "backfill:search-index": "node scripts/backfill-search-index.mjs",
-    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/_sharedLimits.test.mjs netlify/tests/_storage.test.mjs netlify/tests/_retention.test.mjs netlify/tests/registroFormModel.test.mjs netlify/tests/registroPdf.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs netlify/tests/searchIndex.test.mjs",
+    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/_sharedLimits.test.mjs netlify/tests/_retention.test.mjs netlify/tests/registroFormModel.test.mjs netlify/tests/registroPdf.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs netlify/tests/searchIndex.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

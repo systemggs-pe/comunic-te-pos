@@ -153,7 +153,7 @@ export function DniFotosPage({showToast}) {
     clearResult();
   };
 
-  const consultar = async event => {
+  const consultar = async (event, forceRefresh = false) => {
     event?.preventDefault();
     if (!DNI_RE.test(cleanDni)) {
       showToast?.('Ingresa un DNI valido de 8 digitos', 'error');
@@ -164,7 +164,7 @@ export function DniFotosPage({showToast}) {
     setError('');
     setResult(null);
     try {
-      const json = await consultarDniFotos(cleanDni, tipo);
+      const json = await consultarDniFotos(cleanDni, tipo, forceRefresh);
       const data = json.data || {};
       const storedResult = buildStoredResult(data, cleanDni, selectedType);
       if (json.success && storedResult.images.length) {
@@ -252,7 +252,7 @@ export function DniFotosPage({showToast}) {
         <div>
           <p className="saas-page-kicker">Documento</p>
           <h3 className="saas-page-title">Foto DNI</h3>
-          <p className="saas-page-desc">Consulta anverso y reverso por numero de DNI.</p>
+          <p className="saas-page-desc">Consulta anverso y reverso por numero de DNI. Cada consulta nueva consume creditos del proveedor.</p>
         </div>
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-600">
           Consulta FOTO DNI: {successCount}
@@ -307,7 +307,7 @@ export function DniFotosPage({showToast}) {
             )}
           </button>
           {result && (
-            <button type="button" onClick={consultar} disabled={loading} className="saas-secondary disabled:opacity-50">
+            <button type="button" onClick={event => consultar(event, true)} disabled={loading} className="saas-secondary disabled:opacity-50" title="Realiza una nueva consulta con costo">
               <RefreshCw size={14} />
               Actualizar
             </button>

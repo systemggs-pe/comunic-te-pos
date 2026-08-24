@@ -196,6 +196,9 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   }
   if (error?.message === 'BOLETA_SIN_EQUIPO' || error?.message === 'BOLETA_SIN_IMEI') return 'La boleta debe tener un equipo valido';
   if (error?.message === 'CODART_TOKEN_MISSING') return 'Falta configurar CODART_TOKEN o RENIEC_TOKEN en .env local';
+  if (error?.message === 'CODART_TOKEN_INVALID') return 'El token de CODART no es valido o ya vencio';
+  if (error?.message === 'CODART_CREDITOS_INSUFICIENTES') return 'No hay creditos suficientes en CODART';
+  if (error?.message === 'CODART_RATE_LIMIT') return 'CODART recibio demasiadas consultas; intenta nuevamente en unos minutos';
   if (error?.message === 'ACTION_INVALIDA') return 'La accion solicitada no es valida';
   if (error?.message === 'DNI_FOTO_HISTORIAL_NO_ENCONTRADO') return 'No se encontro la consulta en el historial';
   if (error?.message === 'DNI_FOTO_SUCCESS_PROTEGIDA') return 'Las consultas exitosas no se pueden borrar';
@@ -231,8 +234,8 @@ export function consultarReniecDni(dni) {
   return llamarFuncionSegura('reniec', {dni: String(dni)});
 }
 
-export function consultarDniFotos(dni, tipo = 'azul') {
-  return llamarFuncionSegura('dniFotos', {action: 'consult', dni: String(dni), tipo});
+export function consultarDniFotos(dni, tipo = 'azul', forceRefresh = false) {
+  return llamarFuncionSegura('dniFotos', {action: 'consult', dni: String(dni), tipo, forceRefresh});
 }
 
 export function consultarComprobanteApplePorImei(imei) {

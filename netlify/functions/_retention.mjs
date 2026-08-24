@@ -1,5 +1,3 @@
-import {deleteStorageFiles} from './_storage.mjs';
-
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
 const DEFAULT_DNI_DAYS = 90;
@@ -33,35 +31,25 @@ async function deleteBatch(db, refs) {
   }
 }
 
-function collectDniStoragePaths(doc, storagePaths) {
-  const images = doc.data()?.result?.images;
-  if (!Array.isArray(images)) return;
-  images.forEach(image => {
-    const path = String(image?.storagePath || '');
-    if (path) storagePaths.push(path);
-  });
-}
-
 export async function purgeRetention(db, input = {}) {
   const config = getRetentionConfig(input);
-  const nowMs = Date.now();
+  const nowMs = Number(input.nowMs || Date.now());
   const dniCutoff = retentionCutoffIso(config.dniFotosDays, nowMs);
   const base = baseRef(db);
-  const storagePaths = [];
 
   const dniPhotos = await base.collection('dniFotosConsultas')
     .where('createdAtIso', '<', dniCutoff)
     .limit(config.batchSize)
     .get();
-  const dniRefs = [];
-  for (const doc of dniPhotos.docs) {
-    collectDniStoragePaths(doc, storagePaths);
-    const chunks = await doc.ref.collection('imageChunks').get();
-    dniRefs.push(...chunks.docs.map(chunk => chunk.ref), doc.ref);
-  }
+  const chunkSnapshots = await Promise.all(dniPhotos.docs.map(doc => {
+    const chunksRef = doc.ref.collection('imageChunks');
+    return typeof chunksRef.select === 'function' ? chunksRef.select().get() : chunksRef.get();
+  }));
+  const dniRefs = dniPhotos.docs.flatMap((doc, index) => [
+    ...chunkSnapshots[index].docs.map(chunk => chunk.ref),
+    doc.ref,
+  ]);
   await deleteBatch(db, dniRefs);
-  const uniqueStoragePaths = [...new Set(storagePaths)];
-  await deleteStorageFiles(uniqueStoragePaths);
 
   return {
     ok: true,
@@ -70,7 +58,7 @@ export async function purgeRetention(db, input = {}) {
       dniCutoff,
     },
     purgedDniFotos: dniPhotos.size,
-    purgedStorageFiles: uniqueStoragePaths.length,
+    purgedImageChunks: dniRefs.length - dniPhotos.size,
     hasMore: dniPhotos.size >= config.batchSize,
   };
 }
