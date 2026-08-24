@@ -72,21 +72,20 @@ Fix:
 - Check Netlify Function logs.
 - Validate DNI format.
 
-## Gemini OCR Fails
+## Local OCR Fails
 
 Symptoms:
 
-- `Falta configurar GEMINI_API_KEY`.
-- Gemini API key blocked message.
-- Scanner says no text returned.
+- Scanner cannot load local OCR resources.
+- Scanner returns no valid IMEI or little text.
+- Processing takes too long on the device.
 
 Fix:
 
-- Confirm `GEMINI_API_KEY`.
-- Confirm `GEMINI_MODEL`.
-- Confirm image capture is valid JPEG base64.
-- Check provider quota.
-- Retry with clearer image.
+- Run `npm run prepare:ocr-assets` before serving or building the app.
+- Confirm `/ocr/worker.min.js`, `/ocr/lang/eng.traineddata.gz` and a compatible LSTM core return HTTP 200.
+- Retry with the label closer, focused and without reflections.
+- Use the gallery option if the live camera image is unstable.
 
 ## Camera Scanner Does Not Open
 
@@ -100,7 +99,7 @@ Fix:
 - Use HTTPS or localhost.
 - Check browser camera permissions.
 - Check system camera permissions.
-- Review `Permissions-Policy` headers. Current headers deny camera globally and may need adjustment for scanner usage.
+- Confirm `Permissions-Policy` allows `camera=(self)`.
 
 ## Login Denied
 
@@ -240,4 +239,3 @@ Fix:
 
 - Click "Cargar mas" where available.
 - For enterprise accuracy, implement server-side search and aggregate endpoints.
-

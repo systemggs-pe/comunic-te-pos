@@ -96,7 +96,6 @@ netlify/functions
 +-- ventas.mjs
 +-- clientes.mjs
 +-- reniec.mjs
-+-- analizarCajaGemini.mjs
 +-- legalConsent.mjs
 ```
 

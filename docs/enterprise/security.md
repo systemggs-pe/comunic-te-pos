@@ -121,7 +121,6 @@ Limits:
 | Endpoint | Limit |
 |---|---|
 | `reniec` | 60 requests per minute per UID |
-| `gemini` | 15 requests per minute per UID |
 | `registros` | 120 requests per minute per UID |
 | `ventas` | 120 requests per minute per UID |
 | `clientes` | 120 requests per minute per UID |
@@ -185,21 +184,12 @@ Risks:
 - PII is sent to an external provider.
 - Timeout and circuit breaker are not currently implemented.
 
-### Gemini OCR
+### Local Box OCR
 
-Secret:
-
-- `GEMINI_API_KEY`
-
-Request:
-
-- Server function sends image base64 to Gemini generateContent API.
-
-Risks:
-
-- Image may contain device identifiers and potentially personal or commercial information.
-- Server-side payload size enforcement should be added.
-- Timeout and provider cost controls should be added.
+- Camera/gallery images remain in browser memory and are not posted to a Function.
+- Tesseract worker, language data and WASM cores are served from the same application origin.
+- Extracted IMEIs are accepted only after Luhn validation and operator review.
+- Image files selected from the gallery are limited by MIME and size before processing.
 
 ## Security Headers
 
@@ -207,7 +197,7 @@ Currently configured:
 
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy: strict-origin-when-cross-origin`
-- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+- `Permissions-Policy: camera=(self), microphone=(), geolocation=()`
 - `X-Frame-Options: DENY`
 
 Missing or recommended:
@@ -219,7 +209,7 @@ Missing or recommended:
 
 Important note:
 
-- `Permissions-Policy: camera=()` can conflict with camera scanning depending on browser and hosting behavior. The scanner requires camera access. Review this before production hardening.
+- The scanner requires `Permissions-Policy: camera=(self)` and a secure context.
 
 ## OWASP-Oriented Assessment
 

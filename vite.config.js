@@ -24,6 +24,8 @@ export default defineConfig(({mode}) => {
             if (id.includes('html2canvas')) return 'vendor-html2canvas';
             if (id.includes('dompurify')) return 'vendor-dompurify';
             if (id.includes('jsbarcode')) return 'vendor-barcode';
+            if (id.includes('tesseract.js')) return 'vendor-ocr';
+            if (id.includes('@zxing')) return 'vendor-scanner';
             if (id.includes('firebase')) return 'vendor-firebase';
             if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';
             if (id.includes('lucide-react')) return 'vendor-icons';

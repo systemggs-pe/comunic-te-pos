@@ -69,7 +69,6 @@ The same ID is written to structured function logs and server-side audit events 
 | Method | URL | Function | Auth Required | Purpose |
 |---|---|---|---|---|
 | POST | `/api/reniec` | `reniec.mjs` | Yes | Lookup DNI data. |
-| POST | `/api/analizarCajaGemini` | `analizarCajaGemini.mjs` | Yes | OCR phone box image. |
 | POST | `/api/registros` | `registros.mjs` | Yes | Create, update, delete and unlock registrations. |
 | POST | `/api/ventas` | `ventas.mjs` | Yes | Create, update and delete sales. |
 | POST | `/api/clientes` | `clientes.mjs` | Yes | Update and delete customers. |
@@ -142,57 +141,8 @@ Validation:
 {name: 'reniec', max: 60, windowMs: 60 * 1000}
 ```
 
-## POST /api/analizarCajaGemini
-
-Analyzes a phone box image with Gemini OCR.
-
-### Request Body
-
-```json
-{
-  "imageBase64": "<jpeg-base64-without-data-prefix>"
-}
-```
-
-### Success Response
-
-Raw Gemini response is returned. The frontend reads:
-
-```text
-candidates[0].content.parts[0].text
-```
-
-Expected model text is JSON shaped like:
-
-```json
-{
-  "imei1": "",
-  "imei2": "",
-  "sn": "",
-  "marca": "",
-  "modelo": "",
-  "nombreComercial": "",
-  "ram": "",
-  "memoria": "",
-  "color": ""
-}
-```
-
-### Errors
-
-| Status | Error | Cause |
-|---|---|---|
-| 400 | `Falta imageBase64` | No image sent. |
-| 401/403 | Auth errors | Invalid or unauthorized user. |
-| 429 | rate limit message | Too many requests. |
-| 500 | `Falta configurar GEMINI_API_KEY` | Missing Gemini key. |
-| upstream status | `GEMINI_UPSTREAM_ERROR` or provider message | Gemini failure. |
-
-### Rate Limit
-
-```js
-{name: 'gemini', max: 15, windowMs: 60 * 1000}
-```
+Phone-box OCR is not an API endpoint. `EscanerCaja.jsx` processes the image locally with
+`localBoxScanner.js`, validates IMEIs and asks the operator to review fields before applying them.
 
 ## POST /api/registros
 

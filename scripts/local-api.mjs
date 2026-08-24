@@ -6,7 +6,6 @@ import {fileURLToPath} from 'node:url';
 
 const rootDir = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const routeModules = {
-  '/api/analizarCajaGemini': '../netlify/functions/analizarCajaGemini.mjs',
   '/api/clientes': '../netlify/functions/clientes.mjs',
   '/api/comprobanteApple': '../netlify/functions/comprobanteApple.mjs',
   '/api/dniFotos': '../netlify/functions/dniFotos.mjs',
@@ -121,7 +120,6 @@ function hasFirebaseAdminConfig() {
 function logConfigHints() {
   const hints = [];
   if (!process.env.RENIEC_TOKEN) hints.push('RENIEC_TOKEN no esta configurado; /api/reniec fallara.');
-  if (!process.env.GEMINI_API_KEY) hints.push('GEMINI_API_KEY no esta configurado; /api/analizarCajaGemini fallara.');
   if (!hasFirebaseAdminConfig()) {
     hints.push('Firebase Admin no esta configurado; /api/registros y /api/ventas fallaran.');
   }

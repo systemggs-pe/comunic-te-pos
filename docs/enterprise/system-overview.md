@@ -16,7 +16,7 @@ Primary goals:
 - Record equipment sales and generate thermal PDF tickets.
 - Maintain customer and equipment history.
 - Query RENIEC data for DNI-based customer assistance.
-- Scan phone boxes with Gemini OCR to reduce manual data entry.
+- Scan phone boxes locally in the browser to reduce manual data entry without uploading scanner images.
 - Generate foreign receipt formats for Chile-oriented workflows.
 - Capture legal acceptance and cookie preferences.
 - Keep privileged writes behind authenticated server functions.
@@ -74,7 +74,7 @@ COMUNIC@TE reduces operational friction in environments where staff must repeate
 | Validation | Zod | Server-side schema validation. |
 | Admin SDK | firebase-admin | Server-side Firestore writes. |
 | PDF | jsPDF, JsBarcode, local PDF417 script | Tickets and receipt generation. |
-| External OCR | Gemini API | Phone box extraction. |
+| Local OCR | Tesseract.js and ZXing | Phone box extraction inside the browser. |
 | External DNI | RENIEC provider via Codart API | DNI lookup. |
 
 ## Main User Flow
@@ -111,7 +111,7 @@ flowchart LR
   API --> FirebaseAdmin[Firebase Admin SDK]
   FirebaseAdmin --> Firestore[(Firestore)]
   API --> Reniec[RENIEC Provider]
-  API --> Gemini[Gemini OCR]
+  Browser --> LocalOCR[Local OCR and barcode reader]
   Browser --> PDF[Client-side PDF generation]
 ```
 

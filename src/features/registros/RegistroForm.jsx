@@ -5,7 +5,7 @@ import { luhn } from '../../utils/imei.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
 import {PERU_DEPARTAMENTOS, separarDireccionDepartamento, unirDireccionDepartamento} from '../../utils/peruDepartamentos.js';
 import { ImageCropModal } from '../../components/ui/ImageCropModal.jsx';
-import { EscanerIA } from './EscanerIA.jsx';
+import { EscanerCaja } from './EscanerCaja.jsx';
 import {comprimirRegistroEvidenciaDataUrl, emptyRegistroEvidencias, formatBytes, leerRegistroEvidenciaFile, REGISTRO_EVIDENCIA_FIELDS} from './registroEvidencias.js';
 import {generarRegistroEvidenciasPDF} from './registroEvidenciasPdf.js';
 import {
@@ -92,7 +92,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       const imeiCompanero = imeiRegistrado === imeiSecundario ? imeiPrincipal : imeiSecundario;
       setContactosClienteReg({celulares, correos});
       setFormData({
-        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: initialData.nombreCliente || cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', celularRef: initialData.celularRef || cliente.celularRef || initialData.celularCliente || cliente.celular || '', correo: initialData.correoCliente || correos[0] || '', direccion: direccionCliente.direccion, departamento: departamentoCliente, imei1: imeiPrincipal, imei: imeiRegistrado, imei2: imeiCompanero, marca: normalizarMarcaRegistro(initialData.marcaEquipo), modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', color: initialData.colorEquipo || eq.color || '', memoria: initialData.memoriaEquipo || eq.memoria || '', ram: initialData.ramEquipo || eq.ram || '', estado: initialData.estado || 'NO BLOQUEADO', estadoSolicitud: initialData.estado === 'BLOQUEADO' ? '' : (initialData.estadoSolicitud || 'PENDIENTE'), operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', tieneCaja: normalizarTieneCaja(initialData.tieneCaja) || 'NO', precio: initialData.precio || '0', fecha: toLocalDatetimeValue(initialData.fecha)
+        tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: initialData.nombreCliente || cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', celularRef: initialData.celularRef || cliente.celularRef || initialData.celularCliente || cliente.celular || '', correo: initialData.correoCliente || correos[0] || '', direccion: direccionCliente.direccion, departamento: departamentoCliente, imei1: imeiPrincipal, imei: imeiRegistrado, imei2: imeiCompanero, sn: initialData.sn || eq.sn || '', marca: normalizarMarcaRegistro(initialData.marcaEquipo), modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', color: initialData.colorEquipo || eq.color || '', memoria: initialData.memoriaEquipo || eq.memoria || '', ram: initialData.ramEquipo || eq.ram || '', estado: initialData.estado || 'NO BLOQUEADO', estadoSolicitud: initialData.estado === 'BLOQUEADO' ? '' : (initialData.estadoSolicitud || 'PENDIENTE'), operador: initialData.operador || 'BITEL', tipo: initialData.tipo || 'TIENDA', tieneCaja: normalizarTieneCaja(initialData.tieneCaja) || 'NO', precio: initialData.precio || '0', fecha: toLocalDatetimeValue(initialData.fecha)
       });
       if (initialData.boletaExtranjeraId) {
         setComprobanteApple({
@@ -152,18 +152,21 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         imei1:           datos.imei1           || prev.imei1,
         imei:            datos.imei1           || prev.imei,
         imei2:           datos.imei2           || prev.imei2,
+        sn:              datos.sn              || prev.sn,
         marca:           normalizarMarcaRegistro(datos.marca) || prev.marca,
         modelo:          datos.modelo          || prev.modelo,
         nombreComercial: datos.nombreComercial || prev.nombreComercial,
+        ram:             datos.ram             || prev.ram,
+        memoria:         datos.memoria         || prev.memoria,
+        color:           datos.color           || prev.color,
       };
       return next;
     });
-    const campos = [datos.imei1, datos.marca, datos.nombreComercial].filter(Boolean).join(' · ');
+    const campos = [datos.imei1, datos.marca, datos.nombreComercial, datos.ram, datos.memoria].filter(Boolean).join(' · ');
     showToast(campos ? `✓ ${campos}` : 'Sin datos — rellena manualmente', campos ? 'success' : 'error');
   };
 
   const onEscaneoProcesando = () => {
-    setMostrarEscaner(false);
     setEscaneoProcesando(true);
   };
 
@@ -456,6 +459,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         idEquipo: imei1Real,
         idDuenio: formData.dni,
         imei2: imei2Real,
+        sn: formData.sn,
         marca: formData.marca,
         modelo: formData.modelo,
         nombreComercial: formData.nombreComercial,
@@ -757,9 +761,9 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
               {showManualEqForm && <button type="button" onClick={() => setMostrarEscaner(true)} className="saas-secondary"><ScanBarcode size={14}/> Escanear</button>}
             </div>
             {mostrarEscaner && (
-              <EscanerIA
+              <EscanerCaja
                 onResult={onEscaneo}
-                onClose={() => setMostrarEscaner(false)}
+                onClose={() => { setMostrarEscaner(false); setEscaneoProcesando(false); }}
                 onProcessingStart={onEscaneoProcesando}
                 onError={onEscaneoError}
               />
@@ -840,6 +844,18 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                       <p className="mt-2 text-xs text-blue-700">El IMEI seleccionado será el único que se bloqueará como registrado.</p>
                     </fieldset>
                     <div className="sm:col-span-2"><label className="block text-xs text-gray-500 mb-1">Nombre del equipo *</label><input name="nombreComercial" value={formData.nombreComercial} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: GALAXY A56" /></div>
+                    <div><label className="block text-xs text-gray-500 mb-1">Numero de serie</label><input name="sn" value={formData.sn} onChange={handleChange} className="w-full border rounded p-2 text-sm font-mono" placeholder="S/N" maxLength={80} /></div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Marca</label>
+                      <select name="marca" value={formData.marca} onChange={handleChange} className="w-full border rounded bg-white p-2 text-sm">
+                        <option value="">Selecciona una marca</option>
+                        {REGISTRO_MARCAS.map(marca => <option key={marca} value={marca}>{marca}</option>)}
+                      </select>
+                    </div>
+                    <div><label className="block text-xs text-gray-500 mb-1">Modelo</label><input name="modelo" value={formData.modelo} onChange={handleChange} className="w-full border rounded p-2 text-sm" /></div>
+                    <div><label className="block text-xs text-gray-500 mb-1">Color</label><input name="color" value={formData.color} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: NEGRO" /></div>
+                    <div><label className="block text-xs text-gray-500 mb-1">Memoria</label><input name="memoria" value={formData.memoria} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: 256 GB" maxLength={12} /></div>
+                    <div><label className="block text-xs text-gray-500 mb-1">RAM</label><input name="ram" value={formData.ram} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: 8 GB" maxLength={12} /></div>
                   </>
                 )}
                 {!esRegistroSimple && (<>

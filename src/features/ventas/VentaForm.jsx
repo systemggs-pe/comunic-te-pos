@@ -3,7 +3,7 @@ import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2,
 import { actualizarVenta, consultarReniecDni, crearVenta, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
-import { EscanerIA } from '../registros/EscanerIA.jsx';
+import { EscanerCaja } from '../registros/EscanerCaja.jsx';
 import { generarTicketVentaPDF } from './ventaPdf.js';
 
 const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
@@ -112,7 +112,6 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   };
 
   const onEscaneoProcesando = () => {
-    setMostrarEscaner(false);
     setEscaneoProcesando(true);
   };
 
@@ -497,9 +496,9 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
               <button type="button" onClick={() => setMostrarEscaner(true)} className="saas-secondary"><ScanBarcode size={14}/> Escanear</button>
             </div>
             {mostrarEscaner && (
-              <EscanerIA
+              <EscanerCaja
                 onResult={onEscaneo}
-                onClose={() => setMostrarEscaner(false)}
+                onClose={() => { setMostrarEscaner(false); setEscaneoProcesando(false); }}
                 onProcessingStart={onEscaneoProcesando}
                 onError={onEscaneoError}
               />

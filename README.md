@@ -46,7 +46,8 @@ Existing specialized documents:
 | Server validation | Zod |
 | Admin SDK | firebase-admin |
 | PDF generation | jsPDF, JsBarcode, local PDF417 script |
-| External APIs | RENIEC provider, Gemini OCR |
+| External APIs | RENIEC/Codart provider for explicit DNI queries |
+| Local OCR | Tesseract.js and ZXing in the browser; scanner images are not uploaded |
 | Hosting | Netlify for app/functions, Firebase Hosting configuration also present |
 
 ## Quick Start
@@ -106,7 +107,6 @@ The active backend is `netlify/functions`.
 | Function | Responsibility |
 |---|---|
 | `reniec.mjs` | DNI lookup through external RENIEC provider. |
-| `analizarCajaGemini.mjs` | OCR for phone box images through Gemini. |
 | `registros.mjs` | Create, update, delete and unlock equipment registrations. |
 | `ventas.mjs` | Create, update and delete equipment sales. |
 | `clientes.mjs` | Update and delete customer records. |

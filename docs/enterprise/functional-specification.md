@@ -50,7 +50,7 @@ Steps:
 2. If customer exists locally, contact data can prefill.
 3. If document is DNI and length is 8, RENIEC lookup can fill name/address/email if provider returns values.
 4. Operator enters or selects equipment.
-5. Operator can open scanner to capture phone box data through Gemini OCR.
+5. Operator can open the local scanner, review extracted box data and apply it to the form.
 6. Operator validates IMEI through Luhn feedback.
 7. Operator enters carrier, status, type, price and date.
 8. Operator confirms.
@@ -145,15 +145,16 @@ Enterprise recommendation:
 Purpose:
 
 - Capture phone box images using browser camera.
-- Send compressed JPEG base64 to `/api/analizarCajaGemini`.
-- Parse Gemini JSON response.
+- Read supported barcodes locally with the browser detector and ZXing fallback.
+- Run Tesseract.js locally in a Web Worker with same-origin OCR assets.
 - Normalize IMEI, serial, brand, model, memory, RAM and color.
+- Require operator review before applying extracted values.
 
 Current constraints:
 
 - Requires camera permissions and secure context.
-- Uses a floating scanner panel.
-- Server-side function currently assumes JPEG payload.
+- Requires WebAssembly and Web Worker support for text OCR.
+- Does not send the scanner image to a server or external OCR provider.
 
 ## Legal and Cookie Workflow
 

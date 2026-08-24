@@ -20,7 +20,7 @@ Required:
 - npm.
 - Firebase project access.
 - Netlify site access for production functions.
-- API credentials for RENIEC and Gemini if testing those features.
+- API credentials for RENIEC/Codart if testing those features.
 
 Recommended:
 
@@ -146,7 +146,6 @@ API redirects:
 
 ```text
 /api/reniec -> /.netlify/functions/reniec
-/api/analizarCajaGemini -> /.netlify/functions/analizarCajaGemini
 /api/clientes -> /.netlify/functions/clientes
 /api/legalConsent -> /.netlify/functions/legalConsent
 /api/registros -> /.netlify/functions/registros
@@ -184,8 +183,6 @@ Configure in Netlify:
 - `ALLOWED_EMAILS`
 - `ALLOWED_ORIGINS`
 - `RENIEC_TOKEN`
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL`
 - `VITE_BACKEND_BASE_URL`
 
 For frontend and functions hosted in the same Netlify site, `VITE_BACKEND_BASE_URL` can stay empty.
@@ -247,7 +244,7 @@ Before production:
 - Verify legal entity, tax data, domicile, processor agreements and retention schedules are confirmed for production.
 - Verify allowed origins.
 - Verify Google Auth authorized domain.
-- Verify RENIEC and Gemini with test accounts.
+- Verify RENIEC/Codart with an authorized test account.
 - Verify PDF generation on desktop and mobile.
-- Verify camera scanner after Permissions-Policy changes.
+- Verify the local camera/gallery scanner and `/ocr` assets on a published deploy.
 - Verify backup/export workflow.

@@ -30,8 +30,6 @@ Production secrets should be configured in Netlify environment variables.
 | `ALLOWED_EMAILS` | Recommended | functions | Comma-separated authorized emails. |
 | `ALLOWED_ORIGINS` | Recommended | functions | Comma-separated allowed CORS origins. |
 | `RENIEC_TOKEN` | Required for RENIEC | functions | Bearer token for RENIEC provider. |
-| `GEMINI_API_KEY` | Required for OCR | functions | Google Gemini API key. |
-| `GEMINI_MODEL` | Optional | functions | Gemini model name. Defaults to `gemini-2.0-flash`. |
 
 ## Safe Example
 
@@ -42,8 +40,6 @@ FIREBASE_API_KEY=your-firebase-web-api-key
 ALLOWED_EMAILS=operator1@example.com,operator2@example.com
 ALLOWED_ORIGINS=https://your-production-domain.example
 RENIEC_TOKEN=your-reniec-token
-GEMINI_API_KEY=your-gemini-api-key
-GEMINI_MODEL=gemini-2.0-flash
 FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"..."}
 ```
 
@@ -140,20 +136,11 @@ External endpoint:
 https://api-codart.cgrt.org/api/v1/consultas/reniec/dni/{dni}
 ```
 
-### Gemini
+### Local OCR
 
-Variables:
-
-```env
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.0-flash
-```
-
-Used by:
-
-```text
-netlify/functions/analizarCajaGemini.mjs
-```
+The box scanner requires no API key. The build copies the Tesseract worker, English
+language data and compatible WASM cores from installed npm packages into `/ocr`.
+Run `npm run prepare:ocr-assets` when serving Vite outside the provided npm scripts.
 
 ## Build Configuration
 
@@ -207,4 +194,3 @@ Recommended additions:
 - `Strict-Transport-Security`
 - `Cross-Origin-Opener-Policy`
 - Cache headers for immutable assets.
-

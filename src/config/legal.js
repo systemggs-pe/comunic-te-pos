@@ -31,13 +31,12 @@ export const LEGAL_COMPANY = {
     'Firebase/Google Cloud para autenticacion, base de datos, hosting alterno y administracion segura',
     'Netlify para hosting principal, funciones server-side y logs tecnicos',
     'Proveedor RENIEC/Codart para consulta de DNI cuando el operador usa esa funcion',
-    'Google Gemini para OCR de imagenes de caja cuando el operador usa el escaner IA',
   ],
   retentionPolicy: 'Los datos operativos se conservan mientras exista relacion comercial, necesidad contable, soporte, auditoria, seguridad, defensa de reclamaciones u obligacion legal. Las evidencias de consentimiento se conservan con version, fecha y metadatos tecnicos asociados.',
 };
 
-export const LEGAL_DOCUMENT_VERSION = '2026.05.26';
-export const LEGAL_EFFECTIVE_DATE = '2026-05-26';
+export const LEGAL_DOCUMENT_VERSION = '2026.08.24';
+export const LEGAL_EFFECTIVE_DATE = '2026-08-24';
 
 export const REQUIRED_LEGAL_DOCUMENTS = [
   'terms-and-conditions',
@@ -71,6 +70,7 @@ export const LEGAL_DOCUMENTS = [
       ['Marco legal aplicable', `Esta politica se basa en ${LEGAL_COMPANY.privacyLaw}, ${LEGAL_COMPANY.privacyRegulation} y criterios de la ${LEGAL_COMPANY.dataProtectionAuthority}. ${LEGAL_COMPANY.gdprScope}.`],
       ['Datos que tratamos', 'Podemos tratar identificadores de cuenta, correo electronico, DNI, RUC, CE o pasaporte, nombres, telefonos, direcciones, IMEI, numero de serie, datos de equipo, datos de venta, medio de pago, tickets, boletas, registros de autenticacion, direccion IP, user-agent, preferencias de cookies, marcas de tiempo, evidencias de consentimiento e imagenes/documentos que el operador cargue para OCR o soporte operativo.'],
       ['Finalidades y bases legales', 'Tratamos datos para prestar el servicio, autenticar usuarios, gestionar clientes, registrar equipos, generar comprobantes operativos, consultar DNI cuando se solicita, prevenir fraude, mantener seguridad, cumplir obligaciones legales, atender soporte, conservar evidencia y defender derechos. Las bases aplicables incluyen consentimiento, ejecucion de relacion contractual o precontractual, cumplimiento de obligaciones legales, seguridad del servicio y ejercicio o defensa de derechos. Cuando GDPR aplique, tambien podremos usar intereses legitimos ponderados, obligacion legal, ejecucion contractual o consentimiento segun corresponda.'],
+      ['OCR de cajas', 'El escaner de cajas procesa la imagen localmente dentro del navegador mediante recursos incluidos en la aplicacion. La imagen usada para extraer datos no se envia a un proveedor externo de inteligencia artificial ni a una Function del servidor. El operador debe revisar los resultados antes de aplicarlos.'],
       ['Encargados y subencargados', `Usamos proveedores tecnicos estrictamente necesarios para operar el servicio: ${processors}. Estos proveedores pueden actuar como encargados o subencargados segun el servicio utilizado y sus terminos de tratamiento de datos.`],
       ['Transferencias y ubicacion', `Los datos pueden alojarse o procesarse fuera de ${LEGAL_COMPANY.country} por proveedores cloud y APIs externas. Cuando exista transferencia internacional, aplicaremos medidas contractuales, tecnicas y organizativas razonables, minimizacion de datos, control de acceso y evaluacion del proveedor.`],
       ['Derechos ARCO y GDPR', `En Peru, los titulares pueden ejercer derechos ARCO: acceso, rectificacion, cancelacion y oposicion. Cuando GDPR aplique, tambien podran solicitar supresion, limitacion, portabilidad, oposicion, retiro de consentimiento y revision de decisiones automatizadas si existieran. Las solicitudes se atienden escribiendo a ${privacy} con identificacion razonable, pais, cuenta o documento asociado y descripcion concreta de la solicitud.`],

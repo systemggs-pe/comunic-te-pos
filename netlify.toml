@@ -20,11 +20,6 @@
   status = 200
 
 [[redirects]]
-  from = "/api/analizarCajaGemini"
-  to = "/.netlify/functions/analizarCajaGemini"
-  status = 200
-
-[[redirects]]
   from = "/api/clientes"
   to = "/.netlify/functions/clientes"
   status = 200

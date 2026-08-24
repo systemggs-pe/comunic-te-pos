@@ -50,7 +50,7 @@ test('getRateLimitWindow calculates bucket and reset', () => {
 test('createRateLimitKey includes endpoint, uid, ip and bucket', () => {
   const base = createRateLimitKey({name: 'reniec', uid: 'uid-1', ipAddress: '10.0.0.1', bucket: 1});
   const otherIp = createRateLimitKey({name: 'reniec', uid: 'uid-1', ipAddress: '10.0.0.2', bucket: 1});
-  const otherEndpoint = createRateLimitKey({name: 'gemini', uid: 'uid-1', ipAddress: '10.0.0.1', bucket: 1});
+  const otherEndpoint = createRateLimitKey({name: 'sensitive-test', uid: 'uid-1', ipAddress: '10.0.0.1', bucket: 1});
 
   assert.equal(base.length, 64);
   assert.notEqual(base, otherIp);
@@ -109,7 +109,7 @@ test('enforcePersistentRateLimit persists and blocks over limit', async () => {
 test('enforcePersistentRateLimit separates buckets by ip and time window', async () => {
   const db = createFakeDb();
   const user = {uid: 'uid-1'};
-  const rateLimit = {name: 'gemini', max: 1, windowMs: 1000};
+  const rateLimit = {name: 'sensitive-test', max: 1, windowMs: 1000};
 
   await enforcePersistentRateLimit(user, {ipAddress: '10.0.0.1'}, rateLimit, {db, nowMs: 1_700_000_000_100});
   await enforcePersistentRateLimit(user, {ipAddress: '10.0.0.2'}, rateLimit, {db, nowMs: 1_700_000_000_100});

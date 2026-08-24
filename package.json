@@ -4,17 +4,21 @@
   "version": "6.2.5",
   "type": "module",
   "scripts": {
+    "prepare:ocr-assets": "node scripts/copy-ocr-assets.mjs",
     "dev:api": "node scripts/local-api.mjs",
-    "dev": "node scripts/dev-local.mjs",
-    "dev:netlify": "npx netlify dev",
-    "dev:vite": "vite",
-    "build": "vite build",
+    "dev": "npm run prepare:ocr-assets && node scripts/dev-local.mjs",
+    "dev:netlify": "npm run prepare:ocr-assets && npx netlify dev",
+    "dev:vite": "npm run prepare:ocr-assets && vite",
+    "build": "npm run prepare:ocr-assets && vite build",
     "lint": "eslint .",
     "backfill:search-index": "node scripts/backfill-search-index.mjs",
-    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/_sharedLimits.test.mjs netlify/tests/_retention.test.mjs netlify/tests/registroFormModel.test.mjs netlify/tests/registroPdf.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs netlify/tests/searchIndex.test.mjs",
+    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/_sharedLimits.test.mjs netlify/tests/_retention.test.mjs netlify/tests/boxOcr.test.mjs netlify/tests/registroFormModel.test.mjs netlify/tests/registroPdf.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs netlify/tests/searchIndex.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
+    "@zxing/browser": "^0.2.0",
+    "@zxing/library": "^0.22.0",
     "animejs": "^4.5.0",
     "firebase": "^12.17.1",
     "firebase-admin": "^13.10.0",
@@ -23,6 +27,7 @@
     "lucide-react": "^0.577.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

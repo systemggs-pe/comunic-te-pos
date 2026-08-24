@@ -62,7 +62,7 @@ export function toLocalDatetimeValue(isoString) {
 export function createInitialRegistroForm() {
   return {
     tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', departamento: '',
-    imei1: '', imei: '', imei2: '', marca: '', modelo: '', nombreComercial: '', color: '', memoria: '', ram: '',
+    imei1: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', color: '', memoria: '', ram: '',
     estado: 'NO BLOQUEADO', estadoSolicitud: 'PENDIENTE', operador: 'BITEL', tipo: 'TIENDA', tieneCaja: 'NO', precio: '0',
     fecha: toLocalDatetimeValue(new Date().toISOString()),
   };
