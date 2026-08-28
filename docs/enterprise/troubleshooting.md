@@ -72,21 +72,23 @@ Fix:
 - Check Netlify Function logs.
 - Validate DNI format.
 
-## Local OCR Fails
+## Gemini Box Scan Fails
 
 Symptoms:
 
-- Scanner cannot load local OCR resources.
+- Scanner reports missing Gemini configuration or an unavailable backend.
 - Scanner returns no valid IMEI or little text.
-- Processing takes too long on the device.
+- Provider access, quota or timeout errors.
 
 Fix:
 
-- Run `npm run prepare:ocr-assets` before serving or building the app.
-- Confirm `/ocr/worker.min.js`, `/ocr/lang/eng.traineddata.gz` and a compatible LSTM core return HTTP 200.
-- Keep the full label visible; the scanner automatically selects and enlarges the most likely label region.
+- Run `npm run dev` for the frontend and local API together.
+- In production, deploy the frontend, `analizarCajaGemini` Function and its `/api` redirect.
+- Check server-only `GEMINI_API_KEY`, `GEMINI_MODEL`, provider permissions and quota. Never expose the key through a `VITE_` variable.
+- Keep only the full label visible; the photo is sent to Gemini after confirmation.
 - Retry with the label focused and without reflections when individual digits remain unclear.
 - Use the gallery option if the live camera image is unstable.
+- Do not clear existing learning data: the local verifier is paused and is not involved in this scan.
 
 ## Camera Scanner Does Not Open
 

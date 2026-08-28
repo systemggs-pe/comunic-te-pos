@@ -1,12 +1,16 @@
-import {sanitizeCorrectionExample} from '../../packages/local-field-verifier/src/index.js';
+import verifierModel from '../../packages/local-field-verifier/models/model.generated.js';
+import {sanitizeCorrectionExample, trainCorrectionModel} from '../../packages/local-field-verifier/src/index.js';
 import {luhn} from '../utils/imei.js';
 
 const DATABASE_NAME = 'comunicate-local-learning';
 const DATABASE_VERSION = 1;
 const STORE_NAME = 'boxCorrections';
 const MAX_EXAMPLES = 1000;
+const AUTOMATIC_MODEL_MIN_COUNT = 2;
 const SAFE_IMEI_SOURCES = new Set(['', 'barcode', 'ocr', 'ocr-labelled']);
 export const BOX_LEARNING_FIELDS = ['marca', 'modelo', 'nombreComercial', 'ram', 'memoria', 'color'];
+
+let automaticModelPromise = null;
 
 function selectFields(value = {}) {
   return Object.fromEntries(BOX_LEARNING_FIELDS.map(field => [field, value?.[field] || '']));
@@ -98,6 +102,21 @@ export function buildBoxCorrectionExample(scanResult, correctedData) {
   });
 }
 
+function hasLearnedPatterns(model) {
+  const replacements = Object.values(model?.replacements || {})
+    .reduce((total, field) => total + Object.keys(field || {}).length, 0);
+  return replacements > 0 || (model?.transfers?.length || 0) > 0;
+}
+
+export function trainAutomaticBoxModel(examples = []) {
+  const model = trainCorrectionModel(examples, {
+    allowedFields: BOX_LEARNING_FIELDS,
+    minCount: AUTOMATIC_MODEL_MIN_COUNT,
+    version: `local.${examples.length}`,
+  });
+  return hasLearnedPatterns(model) ? model : null;
+}
+
 function openDatabase() {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null);
   return new Promise((resolve, reject) => {
@@ -151,6 +170,7 @@ export async function saveBoxCorrection(example) {
     const transaction = database.transaction(STORE_NAME, 'readwrite');
     await requestResult(transaction.objectStore(STORE_NAME).add(sanitized));
     await trimOldExamples(database);
+    automaticModelPromise = null;
     return true;
   } finally {
     database.close();
@@ -173,12 +193,26 @@ export async function listBoxCorrections() {
   }
 }
 
+async function buildAutomaticBoxVerifierModels() {
+  const examples = await listBoxCorrections();
+  const localModel = trainAutomaticBoxModel(examples);
+  return localModel ? [localModel, verifierModel] : [verifierModel];
+}
+
+export function getAutomaticBoxVerifierModels() {
+  if (!automaticModelPromise) {
+    automaticModelPromise = buildAutomaticBoxVerifierModels().catch(() => [verifierModel]);
+  }
+  return automaticModelPromise;
+}
+
 export async function clearBoxCorrections() {
   const database = await openDatabase();
   if (!database) return false;
   try {
     const transaction = database.transaction(STORE_NAME, 'readwrite');
     await requestResult(transaction.objectStore(STORE_NAME).clear());
+    automaticModelPromise = null;
     return true;
   } finally {
     database.close();

@@ -149,7 +149,7 @@ Current legal configuration defines:
 - Operational address: Galerias de Gamarra Int. 1B, Tacna, Peru.
 - Privacy framework: Ley N. 29733 and Decreto Supremo N. 016-2024-JUS.
 - Data rights: ARCO, with GDPR rights when applicable.
-- Provider list: Firebase/Google Cloud, Netlify and RENIEC/Codart where each function is used. Box OCR runs locally in the browser.
+- Provider list: Firebase/Google Cloud, Netlify, RENIEC/Codart and Google Gemini where each function is used. Box photos are sent to Gemini only after the operator requests analysis.
 
 Before broad production publication:
 
@@ -158,7 +158,7 @@ Before broad production publication:
 - Confirm privacy law obligations for Peru and any user/customer jurisdictions.
 - Define retention schedules.
 - Confirm processor/subprocessor contracts.
-- Document RENIEC and Codart data processing and the local-only OCR behavior.
+- Document RENIEC/Codart processing and the Gemini box-photo transfer, including IMEI/serial, provider terms and the temporary pause of local learning.
 - Confirm customer data rights process.
 - Review consumer/tax/receipt rules for the foreign receipt workflow.
 

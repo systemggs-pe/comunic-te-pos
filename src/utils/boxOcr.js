@@ -247,7 +247,7 @@ function splitCommercialColor(value) {
   };
 }
 
-export function parseBoxOcr({text = '', barcodes = [], ocrConfidence = 0} = {}) {
+export function parseBoxOcr({text = '', barcodes = [], ocrConfidence = 0, verifierModels} = {}) {
   const normalizedText = normalizeOcrText(text);
   const lines = normalizedText.split('\n').filter(Boolean);
   const imeiCandidates = collectImeiCandidates(normalizedText, barcodes);
@@ -266,7 +266,7 @@ export function parseBoxOcr({text = '', barcodes = [], ocrConfidence = 0} = {}) 
     ...extractCapacities(lines, normalizedText),
     color: explicitColor || commercial.color,
   };
-  const verified = verifyBoxData(rawData, {colorCandidates: [commercial.color]});
+  const verified = verifyBoxData(rawData, {colorCandidates: [commercial.color], models: verifierModels});
   const data = verified.data;
   const verificationChanges = new Map(verified.changes.map(change => [change.field, change]));
   const resultFor = (field, value, source, fieldScore) => {

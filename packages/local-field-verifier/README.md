@@ -59,3 +59,5 @@ La evaluación informa coincidencia exacta total y por campo. No publique una ve
 ## Integración en otro proyecto
 
 Copie la carpeta completa o publíquela en un registro npm privado. La API funciona en Node.js, navegadores, Electron y aplicaciones construidas con React, Vue u otros frameworks.
+
+En COMUNIC@TE, las correcciones sanitizadas se guardan en IndexedDB y se entrenan automáticamente antes del siguiente escaneo. Se exigen al menos dos correcciones coincidentes y el modelo incluido en el build permanece como respaldo. La exportación JSON es opcional y sirve para respaldo o para publicar un modelo compartido entre dispositivos.

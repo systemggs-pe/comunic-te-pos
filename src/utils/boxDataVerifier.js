@@ -51,25 +51,34 @@ function preferredColor(name, currentColor, candidates) {
 export function verifyBoxData(extracted = {}, {
   colorCandidates = [],
   model = verifierModel,
+  models,
   modelThreshold = 0.92,
 } = {}) {
   const normalized = normalizarEscaneo(extracted);
-  const learned = verifyFields({
-    extracted: normalized,
-    model,
-    threshold: modelThreshold,
-    protectedFields: MODEL_PROTECTED_FIELDS,
-    validators: {
-      marca: value => !value || isKnownBrand(value),
-      ram: value => !value || RAM_VALUES.has(value),
-      memoria: value => !value || STORAGE_VALUES.has(value),
-    },
-  });
-  const data = normalizarEscaneo(learned.data);
+  const requestedModels = Array.isArray(models) ? models.filter(Boolean) : [];
+  const verifierModels = requestedModels.length ? requestedModels : [model];
+  let data = normalized;
   const changes = [];
   const seen = new Set();
   const warnings = [];
-  learned.changes.forEach(change => mergeChange(changes, seen, change));
+  const modelVersions = [];
+
+  for (const currentModel of verifierModels) {
+    const learned = verifyFields({
+      extracted: data,
+      model: currentModel,
+      threshold: modelThreshold,
+      protectedFields: MODEL_PROTECTED_FIELDS,
+      validators: {
+        marca: value => !value || isKnownBrand(value),
+        ram: value => !value || RAM_VALUES.has(value),
+        memoria: value => !value || STORAGE_VALUES.has(value),
+      },
+    });
+    data = normalizarEscaneo(learned.data);
+    learned.changes.forEach(change => mergeChange(changes, seen, change));
+    if (learned.modelVersion !== '0.0.0') modelVersions.push(learned.modelVersion);
+  }
 
   const applyRule = (field, value, reason, confidence = 0.99) => {
     const after = String(value || '').trim().toUpperCase();
@@ -126,7 +135,7 @@ export function verifyBoxData(extracted = {}, {
     data: normalizarEscaneo(data),
     changes,
     warnings,
-    modelVersion: learned.modelVersion,
+    modelVersion: [...new Set(modelVersions)].join('+') || '0.0.0',
   };
 }
 

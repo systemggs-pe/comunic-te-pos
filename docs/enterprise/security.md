@@ -184,14 +184,15 @@ Risks:
 - PII is sent to an external provider.
 - Timeout and circuit breaker are not currently implemented.
 
-### Local Box OCR
+### Gemini Box Scanner
 
-- Camera/gallery images remain in browser memory and are not posted to a Function.
-- Tesseract worker, language data and WASM cores are served from the same application origin.
-- Extracted IMEIs are accepted only after Luhn validation and operator review.
-- OCR corrections are stored only in local IndexedDB after removing photos, IMEI, serial, customer data and full OCR text.
-- The operator can export sanitized examples for offline training or erase the local learning dataset from the scanner.
-- Image files selected from the gallery are limited by MIME and size before processing.
+- Only an explicit "Analizar con Gemini" action uploads the photo after a disclosure.
+- The authenticated Function forwards the inline image to Google Gemini. The API key stays server-side, in a header rather than the request URL.
+- Gallery files are capped at 12 MiB; the browser compresses them to JPEG up to 1.5 MiB. The server revalidates size, base64 and file signature.
+- Rate limiting and a bounded request/response timeout protect the provider call. Logs and errors do not contain the photo or raw provider response.
+- Invalid/duplicate IMEIs are cleared without inventing or repairing digits. Luhn is a format/checksum check, not proof of authenticity; operator review remains mandatory.
+- The application does not archive these photos or use Firebase Storage. Google processing is governed by the configured provider service and its terms.
+- Local OCR and learning are paused. Existing sanitized IndexedDB corrections and the portable library remain intact and unused by the scanner.
 
 ## Security Headers
 

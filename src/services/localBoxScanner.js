@@ -402,7 +402,7 @@ function populatedFields(result) {
   return Object.values(result.data || {}).filter(Boolean).length;
 }
 
-export async function scanBoxImage(sourceCanvas, {onProgress} = {}) {
+export async function scanBoxImage(sourceCanvas, {onProgress, verifierModels} = {}) {
   if (!sourceCanvas?.width || !sourceCanvas?.height) throw new Error('IMAGEN_LOCAL_INVALIDA');
   progressReporter = onProgress || null;
   report('preprocess', 0.03, 'Mejorando la etiqueta');
@@ -416,14 +416,14 @@ export async function scanBoxImage(sourceCanvas, {onProgress} = {}) {
     const first = await recognize(worker, grayscale);
     let text = first.data?.text || '';
     let ocrConfidence = Number(first.data?.confidence || 0);
-    let result = parseBoxOcr({text, barcodes, ocrConfidence});
+    let result = parseBoxOcr({text, barcodes, ocrConfidence, verifierModels});
 
     if (!result.data.imei1 || !result.data.imei2 || populatedFields(result) < 6) {
       report('ocr', 0.62, 'Intentando una segunda mejora de contraste');
       const second = await recognize(worker, binary);
       text = `${text}\n${second.data?.text || ''}`;
       ocrConfidence = Math.max(ocrConfidence, Number(second.data?.confidence || 0));
-      result = parseBoxOcr({text, barcodes, ocrConfidence});
+      result = parseBoxOcr({text, barcodes, ocrConfidence, verifierModels});
     }
 
     if (populatedFields(result) < 7) {
@@ -432,7 +432,7 @@ export async function scanBoxImage(sourceCanvas, {onProgress} = {}) {
       const third = await recognize(worker, fullPage.grayscale);
       text += '\n' + (third.data?.text || '');
       ocrConfidence = Math.max(ocrConfidence, Number(third.data?.confidence || 0));
-      result = parseBoxOcr({text, barcodes, ocrConfidence});
+      result = parseBoxOcr({text, barcodes, ocrConfidence, verifierModels});
     }
 
     report('validate', 0.96, 'Validando IMEI y campos');

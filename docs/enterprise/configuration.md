@@ -136,14 +136,37 @@ External endpoint:
 https://api-codart.cgrt.org/api/v1/consultas/reniec/dni/{dni}
 ```
 
-### Local OCR
+### Gemini Box Scanner (active)
 
-The box scanner requires no API key. The build copies the Tesseract worker, English
+Set `GEMINI_API_KEY` in the server environment (`.env` locally, Netlify Functions
+environment in production). Never prefix it with `VITE_`. `GEMINI_MODEL` defaults to
+`gemini-2.5-flash`; `GEMINI_TIMEOUT_MS` defaults to 25000 and is capped at 25000 ms.
+The browser uses `/api/analizarCajaGemini` and still needs an authorized Firebase session.
+Deploy both the frontend and the Function/redirect when publishing this change.
+No Firebase Storage configuration or database backfill is required.
+
+The image is compressed to JPEG (maximum 1.5 MiB) before the operator-requested upload.
+The backend uses inline image data and JSON structured output; see the official
+[Gemini image API](https://ai.google.dev/gemini-api/docs/generate-content/image-understanding)
+and [structured output reference](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig).
+
+### Local OCR and Trainable Verifier (temporarily paused)
+
+`EscanerCaja.jsx` currently calls only `geminiBoxScanner.js`. It does not load the
+local OCR/verifier or read, train, save, export or erase corrections. Existing IndexedDB
+data and `packages/local-field-verifier` remain intact. The following describes the
+preserved local implementation for future reactivation or standalone reuse.
+
+The local scanner requires no API key. The build still copies the Tesseract worker, English
 language data and compatible WASM cores from installed npm packages into `/ocr`.
 Run `npm run prepare:ocr-assets` when serving Vite outside the provided npm scripts.
 
-The reusable verifier is located at `packages/local-field-verifier`. Export sanitized
-corrections from the scanner and train/evaluate a version with:
+The reusable verifier is located at `packages/local-field-verifier`. The browser stores
+sanitized corrections in IndexedDB and automatically trains a device-local model before
+the next scan. Two matching corrections are required before a pattern becomes active.
+
+Export is optional and remains available for backup or for publishing a shared model
+across devices. Train/evaluate that shared version with:
 
 ```powershell
 npm run train:box-verifier -- --input correcciones-ocr.json --min-count 2 --version 1.0.0

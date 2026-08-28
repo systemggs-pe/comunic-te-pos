@@ -7,7 +7,7 @@ function looksLikeHtml(text) {
   return /^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text);
 }
 
-export async function llamarFuncionSegura(nombre, payload) {
+export async function llamarFuncionSegura(nombre, payload, {signal} = {}) {
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error('AUTH_REQUIRED');
 
@@ -18,6 +18,7 @@ export async function llamarFuncionSegura(nombre, payload) {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
+    ...(signal ? {signal} : {}),
   });
 
   const text = await resp.text();
@@ -186,6 +187,15 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'CUERPO_MUY_GRANDE') return 'La solicitud supera el limite permitido';
   if (error?.message === 'MIME_NO_PERMITIDO') return 'El tipo de archivo o solicitud no esta permitido';
   if (error?.message === 'UPSTREAM_TIMEOUT') return 'El servicio externo tardo demasiado; intenta nuevamente';
+  if (error?.message === 'GEMINI_NOT_CONFIGURED') return 'Falta configurar GEMINI_API_KEY en el servidor';
+  if (error?.message === 'GEMINI_KEY_INVALID') return 'La clave de Gemini no es valida o vencio. Actualiza GEMINI_API_KEY en el servidor';
+  if (error?.message === 'GEMINI_MODEL_INVALID' || error?.message === 'GEMINI_MODEL_UNAVAILABLE') return 'Revisa GEMINI_MODEL en el servidor; el modelo no esta disponible';
+  if (error?.message === 'GEMINI_ACCESS_DENIED') return 'Gemini rechazo el acceso. Revisa la clave y sus permisos en el servidor';
+  if (error?.message === 'GEMINI_RATE_LIMIT') return 'Gemini alcanzo su limite de uso. Espera o revisa la cuota del proyecto';
+  if (error?.message === 'GEMINI_UPSTREAM_ERROR') return 'No se pudo conectar con Gemini. Intenta nuevamente en unos momentos';
+  if (error?.message === 'GEMINI_INVALID_RESPONSE') return 'Gemini no devolvio datos validos. Repite la foto con la etiqueta enfocada';
+  if (error?.message === 'GEMINI_NO_DATA') return 'No se encontraron datos legibles. Acerca la etiqueta y evita reflejos';
+  if (error?.message === 'GEMINI_IMAGE_REJECTED') return 'Gemini no pudo procesar esa imagen. Usa una foto solo de la etiqueta';
   if (error?.message === 'BOLETA_EQUIPO_YA_EXISTE') {
     const imei = error?.payload?.details?.imei || error?.payload?.imei;
     return imei ? `El equipo ${imei} ya tiene una boleta extranjera` : 'Ese equipo ya tiene una boleta extranjera';

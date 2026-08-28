@@ -47,7 +47,7 @@ Existing specialized documents:
 | Admin SDK | firebase-admin |
 | PDF generation | jsPDF, JsBarcode, local PDF417 script |
 | External APIs | RENIEC/Codart provider for explicit DNI queries |
-| Local OCR | Tesseract.js, ZXing and a reusable local field verifier; scanner images and device identifiers are excluded from learning data |
+| Box scanner | Gemini through an authenticated server endpoint; manual review and IMEI validation. Local OCR and the reusable trainable verifier are temporarily paused, not deleted. |
 | Hosting | Netlify for app/functions, Firebase Hosting configuration also present |
 
 ## Quick Start

@@ -140,27 +140,23 @@ Enterprise recommendation:
 
 - Move receipt emission to a server function for stronger validation, auditability and counter control.
 
-## OCR Scanner
+## Box Scanner (Gemini)
 
 Purpose:
 
-- Capture phone box images using browser camera.
-- Detect and enlarge the most likely label region before recognition.
-- Read supported barcodes locally with the browser detector and ZXing fallback.
-- Scan overlapping barcode bands to recover multiple IMEI and serial labels.
-- Run Tesseract.js locally in a Web Worker with same-origin OCR assets.
-- Normalize IMEI, serial, brand, model, memory, RAM and color.
-- Reject invalid IMEI candidates with Luhn validation and prefer the shared device TAC for an unlabeled secondary IMEI.
-- Reconcile commercial names, specific colors, canonical brands and capacities with local catalogs and a versioned trainable verifier.
-- Store only sanitized non-sensitive correction pairs in browser IndexedDB for optional export and offline training.
+- Capture phone box images with the camera or select a gallery image.
+- Disclose the transfer to Gemini before the operator chooses to analyze the image.
+- Compress the photo and call the authenticated `/api/analizarCajaGemini` endpoint.
+- Extract IMEI, serial, brand, technical model, commercial name, memory, RAM and complete color through structured Gemini output.
+- Reject invalid or duplicate IMEIs without changing digits to satisfy Luhn.
 - Require operator review before applying extracted values.
 
 Current constraints:
 
 - Requires camera permissions and secure context.
-- Requires WebAssembly and Web Worker support for text OCR.
-- Does not send the scanner image to a server or external OCR provider.
-- Does not include photos, IMEI, serial number, customer data or full OCR text in learning examples.
+- Requires connectivity, an authorized session and server-side Gemini configuration/quota.
+- Sends the selected photo, including IMEI/serial, through the server to Google Gemini; no Firebase Storage is used.
+- Local OCR, automatic learning and correction storage are temporarily disabled. The source, portable model and existing local learning data are preserved for later reactivation.
 
 ## Legal and Cookie Workflow
 

@@ -74,7 +74,7 @@ COMUNIC@TE reduces operational friction in environments where staff must repeate
 | Validation | Zod | Server-side schema validation. |
 | Admin SDK | firebase-admin | Server-side Firestore writes. |
 | PDF | jsPDF, JsBarcode, local PDF417 script | Tickets and receipt generation. |
-| Local OCR | Tesseract.js and ZXing | Phone box extraction inside the browser. |
+| Gemini box scanner | Authenticated server-side Gemini API | Phone box extraction with operator review; local OCR/training temporarily paused. |
 | External DNI | RENIEC provider via Codart API | DNI lookup. |
 
 ## Main User Flow
@@ -111,7 +111,8 @@ flowchart LR
   API --> FirebaseAdmin[Firebase Admin SDK]
   FirebaseAdmin --> Firestore[(Firestore)]
   API --> Reniec[RENIEC Provider]
-  Browser --> LocalOCR[Local OCR and barcode reader]
+  Browser --> BoxFunction[Authenticated box scan Function]
+  BoxFunction --> Gemini[Google Gemini]
   Browser --> PDF[Client-side PDF generation]
 ```
 

@@ -141,8 +141,21 @@ Validation:
 {name: 'reniec', max: 60, windowMs: 60 * 1000}
 ```
 
-Phone-box OCR is not an API endpoint. `EscanerCaja.jsx` processes the image locally with
-`localBoxScanner.js`, validates IMEIs and asks the operator to review fields before applying them.
+## POST /api/analizarCajaGemini
+
+Requires an authorized Firebase bearer token. Request: `{imageBase64, mimeType}`;
+`imageBase64` is raw base64 (not a data URL). Supported MIME types: JPEG, PNG and WebP,
+validated against their file signatures; maximum decoded image: 1.5 MiB.
+
+Returns `{source: 'gemini', data, fields, warnings}`. `data` has string fields `imei1`,
+`imei2`, `sn`, `marca`, `modelo`, `nombreComercial`, `ram`, `memoria` and `color`.
+Invalid/duplicate IMEIs are cleared, never repaired. All values require operator review.
+The response is `no-store`; the application does not archive scanner photos.
+
+Limits: 2.1 MiB JSON request, 15 requests per user/IP window of 60 seconds, distributed
+rate limiting, maximum 25-second upstream timeout. Provider errors are sanitized.
+Missing key/model access: 503; quota: 429; unreadable/blocked image: 422;
+malformed provider response: 502; timeout: 504. No local learning fallback occurs.
 
 ## POST /api/registros
 

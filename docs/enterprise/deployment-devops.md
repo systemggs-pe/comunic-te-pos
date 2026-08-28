@@ -264,5 +264,5 @@ Before production:
 - Verify Google Auth authorized domain.
 - Verify RENIEC/Codart with an authorized test account.
 - Verify PDF generation on desktop and mobile.
-- Verify the local camera/gallery scanner and `/ocr` assets on a published deploy.
+- Verify camera/gallery scanning, `/api/analizarCajaGemini`, server-only Gemini configuration and authorized access on a published deploy. Local OCR/training remains paused.
 - Verify backup/export workflow.

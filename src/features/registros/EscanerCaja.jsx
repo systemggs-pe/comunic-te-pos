@@ -1,7 +1,7 @@
 import React from 'react';
-import {AlertTriangle, Check, Download, ImagePlus, RotateCcw, ScanBarcode, ShieldCheck, Trash2, X} from 'lucide-react';
-import {scanBoxImage} from '../../services/localBoxScanner.js';
-import {buildBoxCorrectionExample, clearBoxCorrections, exportBoxCorrections, saveBoxCorrection} from '../../services/boxLearningStore.js';
+import {AlertTriangle, Check, ImagePlus, RotateCcw, ScanBarcode, ShieldCheck, X} from 'lucide-react';
+import {scanBoxWithGemini} from '../../services/geminiBoxScanner.js';
+import {obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
 import {luhn} from '../../utils/imei.js';
 import {normalizarEscaneo} from '../../utils/scanner.js';
 
@@ -24,22 +24,16 @@ function emptyScan() {
 
 function confidenceLabel(field, edited) {
   if (edited) return {text: 'Editado', classes: 'border-blue-200 bg-blue-50 text-blue-700'};
-  if (field?.source === 'domain-rule' || field?.source?.startsWith('model-')) {
-    return {text: 'Corregido', classes: 'border-violet-200 bg-violet-50 text-violet-700'};
-  }
-  if (field?.confidence === 'high') return {text: 'Alta', classes: 'border-emerald-200 bg-emerald-50 text-emerald-700'};
-  if (field?.confidence === 'medium') return {text: 'Media', classes: 'border-amber-200 bg-amber-50 text-amber-700'};
-  if (field?.confidence === 'low') return {text: 'Baja', classes: 'border-red-200 bg-red-50 text-red-700'};
+  if (field?.confidence === 'review') return {text: 'Revisar', classes: 'border-amber-200 bg-amber-50 text-amber-700'};
   return {text: 'Manual', classes: 'border-slate-200 bg-slate-50 text-slate-600'};
 }
 
 function errorMessage(error) {
-  if (error?.message === 'OCR_LOCAL_TIMEOUT') return 'El OCR local tardo demasiado. Repite la foto con la etiqueta mas cerca.';
   if (error?.message === 'IMAGEN_LOCAL_INVALIDA') return 'La imagen no se pudo leer. Selecciona otra foto.';
-  if (/worker|traineddata|tesseract|fetch/i.test(error?.message || '')) {
-    return 'No se pudieron cargar los recursos OCR de la aplicacion. Recarga la pagina e intenta nuevamente.';
+  if (/fetch|network/i.test(error?.message || '')) {
+    return 'No se pudo conectar con el servidor. Revisa tu conexion e intenta nuevamente.';
   }
-  return 'No se pudieron extraer datos. Repite la foto con buena luz y la etiqueta enfocada.';
+  return obtenerMensajeErrorFuncion(error, 'No se pudieron extraer datos. Repite la foto con buena luz y la etiqueta enfocada.');
 }
 
 function drawSourceToCanvas(source, canvas) {
@@ -51,6 +45,9 @@ function drawSourceToCanvas(source, canvas) {
   canvas.width = Math.max(1, Math.round(sourceWidth * scale));
   canvas.height = Math.max(1, Math.round(sourceHeight * scale));
   const context = canvas.getContext('2d');
+  if (!context) throw new Error('IMAGEN_LOCAL_INVALIDA');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
   context.drawImage(source, 0, 0, canvas.width, canvas.height);
@@ -80,12 +77,12 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
   const streamRef = React.useRef(null);
   const cameraRequestRef = React.useRef(0);
   const mountedRef = React.useRef(true);
+  const scanRequestRef = React.useRef(null);
   const [fase, setFase] = React.useState('camara');
   const [error, setError] = React.useState('');
-  const [progress, setProgress] = React.useState({progress: 0, detail: ''});
+  const [progress, setProgress] = React.useState({detail: ''});
   const [scanResult, setScanResult] = React.useState(null);
   const [draft, setDraft] = React.useState(emptyScan);
-  const [learningNotice, setLearningNotice] = React.useState('');
 
   const stopCamera = React.useCallback(() => {
     cameraRequestRef.current += 1;
@@ -124,6 +121,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
     abrirCamara().catch(() => setError('Sin acceso a camara. Puedes elegir una foto de la galeria.'));
     return () => {
       mountedRef.current = false;
+      scanRequestRef.current?.abort();
       stopCamera();
     };
   }, [abrirCamara, stopCamera]);
@@ -161,7 +159,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
   const reintentar = async () => {
     setScanResult(null);
     setDraft(emptyScan());
-    setProgress({progress: 0, detail: ''});
+    setProgress({detail: ''});
     setError('');
     setFase('camara');
     try {
@@ -172,16 +170,21 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
   };
 
   const analizar = async () => {
+    if (scanRequestRef.current) return;
     if (!canvasRef.current?.width) {
       setError('Primero toma o selecciona una foto de la caja.');
       return;
     }
     setFase('procesando');
     setError('');
-    setProgress({progress: 0.02, detail: 'Preparando imagen'});
+    setProgress({detail: 'Preparando imagen'});
+    const controller = new AbortController();
+    scanRequestRef.current = controller;
     onProcessingStart?.();
     try {
-      const result = await scanBoxImage(canvasRef.current, {
+      // Pausa temporal: no cargar modelos ni leer/escribir correcciones locales.
+      const result = await scanBoxWithGemini(canvasRef.current, {
+        signal: controller.signal,
         onProgress: next => {
           if (mountedRef.current) setProgress(next);
         },
@@ -196,16 +199,18 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
       setError(message);
       setFase('preview');
       onError?.(message);
+    } finally {
+      if (scanRequestRef.current === controller) scanRequestRef.current = null;
     }
   };
 
   const aplicar = () => {
     const normalized = normalizarEscaneo(draft);
-    if (normalized.imei1 && !luhn(normalized.imei1)) {
+    if (draft.imei1 && (!luhn(draft.imei1.trim()) || /^(\d)\1{14}$/.test(draft.imei1.trim()))) {
       setError('El IMEI 1 no pasa la validacion. Corrigelo antes de continuar.');
       return;
     }
-    if (normalized.imei2 && !luhn(normalized.imei2)) {
+    if (draft.imei2 && (!luhn(draft.imei2.trim()) || /^(\d)\1{14}$/.test(draft.imei2.trim()))) {
       setError('El IMEI 2 no pasa la validacion. Corrigelo antes de continuar.');
       return;
     }
@@ -213,32 +218,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
       setError('El IMEI 1 y el IMEI 2 deben ser diferentes.');
       return;
     }
-    try {
-      const example = buildBoxCorrectionExample(scanResult, normalized);
-      if (example) void saveBoxCorrection(example).catch(() => {});
-    } catch {
-      // El aprendizaje local nunca debe bloquear el registro o la venta.
-    }
     onResult(normalized);
-  };
-
-  const exportarAprendizaje = async () => {
-    try {
-      const count = await exportBoxCorrections();
-      setLearningNotice(count ? `Se exportaron ${count} correcciones sanitizadas.` : 'Todavia no hay correcciones para exportar.');
-    } catch {
-      setLearningNotice('No se pudieron exportar las correcciones locales.');
-    }
-  };
-
-  const borrarAprendizaje = async () => {
-    if (!window.confirm('¿Borrar todas las correcciones OCR guardadas en este navegador?')) return;
-    try {
-      await clearBoxCorrections();
-      setLearningNotice('Las correcciones locales fueron eliminadas.');
-    } catch {
-      setLearningNotice('No se pudieron borrar las correcciones locales.');
-    }
   };
 
   const cerrar = () => {
@@ -253,12 +233,12 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-bold">
             <ScanBarcode size={17} />
-            Escaner local de caja
+            Escaner de caja con Gemini
           </p>
           <p className="mt-0.5 text-xs font-medium text-slate-300">
             {fase === 'camara' && 'Encuadra la etiqueta con los IMEI y datos del equipo'}
             {fase === 'preview' && 'Revisa que la etiqueta este enfocada y sin reflejos'}
-            {fase === 'procesando' && (progress.detail || 'Procesando dentro de tu dispositivo')}
+            {fase === 'procesando' && (progress.detail || 'Consultando Gemini')}
             {fase === 'revision' && 'Confirma o corrige los datos antes de aplicarlos'}
           </p>
         </div>
@@ -294,14 +274,11 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
               <div className="flex items-center gap-3">
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/35 border-t-white" />
                 <div>
-                  <p className="text-sm font-bold">OCR local</p>
+                  <p className="text-sm font-bold">Gemini AI</p>
                   <p className="text-xs text-slate-300">{progress.detail || 'Procesando etiqueta'}</p>
                 </div>
               </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-blue-500 transition-[width] duration-300" style={{width: `${Math.round(progress.progress * 100)}%`}} />
-              </div>
-              <p className="mt-2 text-right text-xs font-semibold text-slate-300">{Math.round(progress.progress * 100)}%</p>
+              <p className="mt-3 text-xs text-slate-300" role="status">La consulta puede tardar unos segundos.</p>
             </div>
           </div>
         )}
@@ -312,8 +289,8 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
               <div className="mb-4 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-emerald-800">
                 <ShieldCheck size={18} className="mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-sm font-bold">La foto se proceso en este dispositivo</p>
-                  <p className="text-xs">La imagen no se envio fuera de la aplicacion.</p>
+                  <p className="text-sm font-bold">Datos extraidos con Gemini</p>
+                  <p className="text-xs">Revisa cada campo contra la etiqueta. La validacion del IMEI no garantiza su autenticidad.</p>
                 </div>
               </div>
 
@@ -328,19 +305,10 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
               )}
 
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-blue-900">
-                <p className="text-xs font-bold">Aprendizaje privado en este dispositivo</p>
+                <p className="text-xs font-bold">Aprendizaje local pausado</p>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-blue-700">
-                  Solo se guardan correcciones de marca, modelo, nombre, RAM, memoria y color. Nunca se guardan la foto, el IMEI, la serie ni datos del cliente.
+                  Las correcciones de este escaneo no entrenan el modelo local. Lo aprendido anteriormente se conserva sin utilizarse.
                 </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={exportarAprendizaje} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100">
-                    <Download size={12} /> Exportar aprendizaje
-                  </button>
-                  <button type="button" onClick={borrarAprendizaje} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100">
-                    <Trash2 size={12} /> Borrar aprendizaje
-                  </button>
-                </div>
-                {learningNotice && <p className="mt-2 text-[11px] font-semibold text-blue-800" aria-live="polite">{learningNotice}</p>}
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -348,7 +316,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
                   const edited = draft[field.key] !== scanResult?.data?.[field.key];
                   const fieldResult = scanResult?.fields?.[field.key];
                   const confidence = confidenceLabel(fieldResult, edited);
-                  const invalidImei = field.key.startsWith('imei') && draft[field.key] && !luhn(draft[field.key]);
+                  const invalidImei = field.key.startsWith('imei') && draft[field.key] && (!luhn(draft[field.key].trim()) || /^(\d)\1{14}$/.test(draft[field.key].trim()));
                   return (
                     <label key={field.key} className={field.key === 'nombreComercial' ? 'sm:col-span-2' : ''}>
                       <span className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
@@ -359,7 +327,10 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
                       </span>
                       <input
                         value={draft[field.key] || ''}
-                        onChange={event => setDraft(previous => ({...previous, [field.key]: event.target.value}))}
+                        onChange={event => {
+                          setError('');
+                          setDraft(previous => ({...previous, [field.key]: event.target.value}));
+                        }}
                         inputMode={field.key.startsWith('imei') || ['ram', 'memoria'].includes(field.key) ? 'numeric' : undefined}
                         maxLength={field.key.startsWith('imei') ? 15 : ['ram', 'memoria'].includes(field.key) ? 4 : 80}
                         className={`w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 ${field.mono ? 'font-mono' : ''} ${invalidImei ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
@@ -395,12 +366,18 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
           )}
 
           {fase === 'preview' && (
+            <p className="text-center text-xs leading-relaxed text-slate-300">
+              Al analizar, enviaras esta foto (incluidos IMEI y serie) a Google Gemini mediante nuestro servidor. Encuadra solo la etiqueta de la caja.
+            </p>
+          )}
+
+          {fase === 'preview' && (
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={reintentar} className="saas-secondary !border-white/20 !bg-white/10 !text-white hover:!bg-white/15">
                 <RotateCcw size={15} /> Repetir
               </button>
               <button type="button" onClick={analizar} className="saas-primary">
-                <ScanBarcode size={16} /> Extraer localmente
+                <ScanBarcode size={16} /> Analizar con Gemini
               </button>
             </div>
           )}
@@ -419,7 +396,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
           {fase === 'procesando' && (
             <button type="button" disabled className="saas-primary w-full cursor-wait opacity-70">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" />
-              Procesando sin enviar la imagen
+              Analizando con Gemini
             </button>
           )}
 
