@@ -3,6 +3,7 @@ import {getAdminDb} from './_firebaseAdmin.mjs';
 import {withContactHistory} from './_clientesShared.mjs';
 import {queueAuditEvent} from './_observability.mjs';
 import {parseClienteUpdatePayload, parseDniPayload} from './_validators.mjs';
+import {buscarClienteParaRegistro} from './_registroCliente.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
@@ -613,6 +614,7 @@ async function deleteCliente(db, payload, context) {
 async function dispatchClientes(body, user, context) {
   const db = getAdminDb();
   const action = String(body?.action || '');
+  if (action === 'forRegistration') return buscarClienteParaRegistro(db, body);
   if (action === 'queryOperational') return queryOperationalClientes(db, body);
   if (action === 'queryHistory') return queryHistory(db, body);
   if (action === 'update') return updateCliente(db, body, context);

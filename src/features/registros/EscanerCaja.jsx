@@ -1,32 +1,10 @@
 import React from 'react';
-import {AlertTriangle, Check, ImagePlus, RotateCcw, ScanBarcode, ShieldCheck, X} from 'lucide-react';
+import {AlertTriangle, ImagePlus, RotateCcw, ScanBarcode, X} from 'lucide-react';
 import {scanBoxWithGemini} from '../../services/geminiBoxScanner.js';
 import {obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
-import {luhn} from '../../utils/imei.js';
-import {normalizarEscaneo} from '../../utils/scanner.js';
+import {safeBoxAutofill} from '../../utils/boxAutofill.js';
 
 const MAX_LOCAL_IMAGE_BYTES = 12 * 1024 * 1024;
-const FIELD_CONFIG = [
-  {key: 'imei1', label: 'IMEI 1', mono: true},
-  {key: 'imei2', label: 'IMEI 2', mono: true},
-  {key: 'sn', label: 'Numero de serie', mono: true},
-  {key: 'marca', label: 'Marca'},
-  {key: 'modelo', label: 'Modelo'},
-  {key: 'nombreComercial', label: 'Nombre comercial'},
-  {key: 'ram', label: 'RAM (GB)'},
-  {key: 'memoria', label: 'Memoria (GB)'},
-  {key: 'color', label: 'Color'},
-];
-
-function emptyScan() {
-  return normalizarEscaneo({});
-}
-
-function confidenceLabel(field, edited) {
-  if (edited) return {text: 'Editado', classes: 'border-blue-200 bg-blue-50 text-blue-700'};
-  if (field?.confidence === 'review') return {text: 'Revisar', classes: 'border-amber-200 bg-amber-50 text-amber-700'};
-  return {text: 'Manual', classes: 'border-slate-200 bg-slate-50 text-slate-600'};
-}
 
 function errorMessage(error) {
   if (error?.message === 'IMAGEN_LOCAL_INVALIDA') return 'La imagen no se pudo leer. Selecciona otra foto.';
@@ -70,7 +48,9 @@ async function loadFileImage(file) {
   }
 }
 
-export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
+export function EscanerCaja({onResult, onClose, onProcessingStart, onProcessingEnd, onError}) {
+  const dialogRef = React.useRef(null);
+  const returnFocusRef = React.useRef(null);
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
   const fileRef = React.useRef(null);
@@ -79,10 +59,9 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
   const mountedRef = React.useRef(true);
   const scanRequestRef = React.useRef(null);
   const [fase, setFase] = React.useState('camara');
+  const [enSegundoPlano, setEnSegundoPlano] = React.useState(false);
   const [error, setError] = React.useState('');
   const [progress, setProgress] = React.useState({detail: ''});
-  const [scanResult, setScanResult] = React.useState(null);
-  const [draft, setDraft] = React.useState(emptyScan);
 
   const stopCamera = React.useCallback(() => {
     cameraRequestRef.current += 1;
@@ -118,13 +97,45 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
 
   React.useEffect(() => {
     mountedRef.current = true;
-    abrirCamara().catch(() => setError('Sin acceso a camara. Puedes elegir una foto de la galeria.'));
+    abrirCamara().catch(() => {
+      if (mountedRef.current) setError('Sin acceso a camara. Puedes elegir una foto de la galeria.');
+    });
     return () => {
       mountedRef.current = false;
       scanRequestRef.current?.abort();
       stopCamera();
     };
   }, [abrirCamara, stopCamera]);
+
+  React.useEffect(() => {
+    if (enSegundoPlano) return;
+    const previousFocus = document.activeElement;
+    returnFocusRef.current = previousFocus;
+    const panel = dialogRef.current;
+    const focusable = () => Array.from(panel?.querySelectorAll('button:not(:disabled), input:not([type="file"]):not(:disabled)') || [])
+      .filter(element => element.getClientRects().length > 0);
+    focusable()[0]?.focus();
+    const handleKeyDown = event => {
+      if (event.key === 'Tab') {
+        const elements = focusable();
+        const first = elements[0];
+        const last = elements.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    panel?.addEventListener('keydown', handleKeyDown);
+    return () => {
+      panel?.removeEventListener('keydown', handleKeyDown);
+      if (returnFocusRef.current?.isConnected && !returnFocusRef.current.disabled) returnFocusRef.current.focus();
+      else panel?.previousElementSibling?.querySelector('button')?.focus();
+    };
+  }, [enSegundoPlano]);
 
   const capturar = () => {
     try {
@@ -143,12 +154,17 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
     if (!file) return;
     try {
       const image = await loadFileImage(file);
-      drawSourceToCanvas(image, canvasRef.current);
-      image.close?.();
+      try {
+        if (!mountedRef.current) return;
+        drawSourceToCanvas(image, canvasRef.current);
+      } finally {
+        image.close?.();
+      }
       stopCamera();
       setError('');
       setFase('preview');
     } catch (fileError) {
+      if (!mountedRef.current) return;
       const message = fileError?.message === 'ARCHIVO_IMAGEN_MUY_GRANDE'
         ? 'La imagen supera 12 MB. Elige una foto mas liviana.'
         : 'Solo se permiten imagenes JPG, PNG o WebP.';
@@ -157,8 +173,6 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
   };
 
   const reintentar = async () => {
-    setScanResult(null);
-    setDraft(emptyScan());
     setProgress({detail: ''});
     setError('');
     setFase('camara');
@@ -176,6 +190,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
       return;
     }
     setFase('procesando');
+    setEnSegundoPlano(true);
     setError('');
     setProgress({detail: 'Preparando imagen'});
     const controller = new AbortController();
@@ -186,49 +201,65 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
       const result = await scanBoxWithGemini(canvasRef.current, {
         signal: controller.signal,
         onProgress: next => {
-          if (mountedRef.current) setProgress(next);
+          if (mountedRef.current && !controller.signal.aborted) setProgress(next);
         },
       });
-      if (!mountedRef.current) return;
-      setScanResult(result);
-      setDraft(result.data);
-      setFase('revision');
+      if (!mountedRef.current || controller.signal.aborted) return;
+      onResult(safeBoxAutofill(result.data), {warnings: result.warnings});
     } catch (scanError) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || controller.signal.aborted) return;
       const message = errorMessage(scanError);
       setError(message);
       setFase('preview');
       onError?.(message);
     } finally {
       if (scanRequestRef.current === controller) scanRequestRef.current = null;
+      if (mountedRef.current && !controller.signal.aborted) onProcessingEnd?.();
     }
-  };
-
-  const aplicar = () => {
-    const normalized = normalizarEscaneo(draft);
-    if (draft.imei1 && (!luhn(draft.imei1.trim()) || /^(\d)\1{14}$/.test(draft.imei1.trim()))) {
-      setError('El IMEI 1 no pasa la validacion. Corrigelo antes de continuar.');
-      return;
-    }
-    if (draft.imei2 && (!luhn(draft.imei2.trim()) || /^(\d)\1{14}$/.test(draft.imei2.trim()))) {
-      setError('El IMEI 2 no pasa la validacion. Corrigelo antes de continuar.');
-      return;
-    }
-    if (normalized.imei1 && normalized.imei1 === normalized.imei2) {
-      setError('El IMEI 1 y el IMEI 2 deben ser diferentes.');
-      return;
-    }
-    onResult(normalized);
   };
 
   const cerrar = () => {
-    if (fase === 'procesando') return;
+    scanRequestRef.current?.abort();
     stopCamera();
     onClose?.();
   };
 
   return (
-    <div className="fixed inset-0 z-[260] bg-slate-950" role="dialog" aria-modal="true" aria-label="Escanear caja del equipo">
+    <>
+    {enSegundoPlano && (
+      <section className="mx-4 my-3 flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Estado del escaneo">
+        <div className="flex min-w-0 items-start gap-2" role="status" aria-live="polite" aria-atomic="true">
+          {fase === 'procesando'
+            ? <span aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700 motion-reduce:animate-none" />
+            : <AlertTriangle size={18} className="shrink-0 text-amber-700" />}
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              {fase === 'procesando' ? 'Extrayendo datos en segundo plano' : 'No se pudo completar el escaneo'}
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              {fase === 'procesando' ? `${progress.detail || 'Consultando Gemini'}. Los datos se rellenaran automaticamente.` : error}
+            </p>
+            {fase === 'procesando' && <p className="mt-1 text-xs text-slate-500">Salir de este formulario o cerrar la pagina cancela la extraccion.</p>}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {fase !== 'procesando' && (
+            <button type="button" onClick={() => setEnSegundoPlano(false)} className="saas-primary min-h-11">
+              Volver a la foto
+            </button>
+          )}
+          <button type="button" onClick={cerrar} className="saas-secondary min-h-11">
+            {fase === 'procesando' ? 'Cancelar extraccion' : 'Descartar escaneo'}
+          </button>
+        </div>
+      </section>
+    )}
+    <div ref={dialogRef} className={enSegundoPlano ? 'hidden' : 'fixed inset-0 z-[260] bg-slate-950'} role={enSegundoPlano ? undefined : 'dialog'} aria-modal={enSegundoPlano ? undefined : true} aria-hidden={enSegundoPlano || undefined} aria-label="Escanear caja del equipo" onKeyDown={event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cerrar();
+      }
+    }}>
       <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-4 py-3 text-white">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-bold">
@@ -239,13 +270,11 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
             {fase === 'camara' && 'Encuadra la etiqueta con los IMEI y datos del equipo'}
             {fase === 'preview' && 'Revisa que la etiqueta este enfocada y sin reflejos'}
             {fase === 'procesando' && (progress.detail || 'Consultando Gemini')}
-            {fase === 'revision' && 'Confirma o corrige los datos antes de aplicarlos'}
           </p>
         </div>
         <button
           type="button"
           onClick={cerrar}
-          disabled={fase === 'procesando'}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-wait disabled:opacity-40"
           aria-label="Cerrar escaner"
         >
@@ -268,82 +297,6 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
           className={fase === 'preview' || fase === 'procesando' ? 'max-h-full max-w-full object-contain' : 'hidden'}
         />
 
-        {fase === 'procesando' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 px-6">
-            <div className="w-full max-w-sm rounded-xl border border-white/10 bg-slate-950/95 p-5 text-white shadow-2xl">
-              <div className="flex items-center gap-3">
-                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/35 border-t-white" />
-                <div>
-                  <p className="text-sm font-bold">Gemini AI</p>
-                  <p className="text-xs text-slate-300">{progress.detail || 'Procesando etiqueta'}</p>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-slate-300" role="status">La consulta puede tardar unos segundos.</p>
-            </div>
-          </div>
-        )}
-
-        {fase === 'revision' && (
-          <div className="my-auto w-full max-w-3xl px-4 py-5">
-            <div className="rounded-xl bg-slate-50 p-4 shadow-2xl sm:p-5">
-              <div className="mb-4 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-emerald-800">
-                <ShieldCheck size={18} className="mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-bold">Datos extraidos con Gemini</p>
-                  <p className="text-xs">Revisa cada campo contra la etiqueta. La validacion del IMEI no garantiza su autenticidad.</p>
-                </div>
-              </div>
-
-              {scanResult?.warnings?.length > 0 && (
-                <div className="mb-4 space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-800">
-                  {scanResult.warnings.map((warning, index) => (
-                    <p key={`${warning}-${index}`} className="flex items-start gap-2 text-xs font-semibold">
-                      <AlertTriangle size={14} className="mt-0.5 shrink-0" /> {warning}
-                    </p>
-                  ))}
-                </div>
-              )}
-
-              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-blue-900">
-                <p className="text-xs font-bold">Aprendizaje local pausado</p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-blue-700">
-                  Las correcciones de este escaneo no entrenan el modelo local. Lo aprendido anteriormente se conserva sin utilizarse.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {FIELD_CONFIG.map(field => {
-                  const edited = draft[field.key] !== scanResult?.data?.[field.key];
-                  const fieldResult = scanResult?.fields?.[field.key];
-                  const confidence = confidenceLabel(fieldResult, edited);
-                  const invalidImei = field.key.startsWith('imei') && draft[field.key] && (!luhn(draft[field.key].trim()) || /^(\d)\1{14}$/.test(draft[field.key].trim()));
-                  return (
-                    <label key={field.key} className={field.key === 'nombreComercial' ? 'sm:col-span-2' : ''}>
-                      <span className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
-                        {field.label}
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${confidence.classes}`}>
-                          {confidence.text}
-                        </span>
-                      </span>
-                      <input
-                        value={draft[field.key] || ''}
-                        onChange={event => {
-                          setError('');
-                          setDraft(previous => ({...previous, [field.key]: event.target.value}));
-                        }}
-                        inputMode={field.key.startsWith('imei') || ['ram', 'memoria'].includes(field.key) ? 'numeric' : undefined}
-                        maxLength={field.key.startsWith('imei') ? 15 : ['ram', 'memoria'].includes(field.key) ? 4 : 80}
-                        className={`w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 ${field.mono ? 'font-mono' : ''} ${invalidImei ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
-                      />
-                      {invalidImei && <span className="mt-1 block text-xs font-semibold text-red-600">IMEI invalido</span>}
-                      {!edited && fieldResult?.reason && <span className="mt-1 block text-[11px] font-medium text-violet-700">{fieldResult.reason}</span>}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-slate-950/95 px-4 py-3">
@@ -368,6 +321,7 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
           {fase === 'preview' && (
             <p className="text-center text-xs leading-relaxed text-slate-300">
               Al analizar, enviaras esta foto (incluidos IMEI y serie) a Google Gemini mediante nuestro servidor. Encuadra solo la etiqueta de la caja.
+              {' '}Los datos se rellenaran directamente. Aprendizaje local pausado.
             </p>
           )}
 
@@ -377,32 +331,15 @@ export function EscanerCaja({onResult, onClose, onProcessingStart, onError}) {
                 <RotateCcw size={15} /> Repetir
               </button>
               <button type="button" onClick={analizar} className="saas-primary">
-                <ScanBarcode size={16} /> Analizar con Gemini
+                <ScanBarcode size={16} /> Analizar en segundo plano
               </button>
             </div>
-          )}
-
-          {fase === 'revision' && (
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={reintentar} className="saas-secondary !border-white/20 !bg-white/10 !text-white hover:!bg-white/15">
-                <RotateCcw size={15} /> Otra foto
-              </button>
-              <button type="button" onClick={aplicar} className="saas-primary">
-                <Check size={16} /> Usar estos datos
-              </button>
-            </div>
-          )}
-
-          {fase === 'procesando' && (
-            <button type="button" disabled className="saas-primary w-full cursor-wait opacity-70">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" />
-              Analizando con Gemini
-            </button>
           )}
 
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={seleccionarArchivo} className="hidden" />
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -1,5 +1,8 @@
 # Data Model
 
+Revision actualizada del codigo (2026-08-28), incluyendo `imeiLocks`, `_rateLimits`,
+problemas/changelog, busquedas y accesos activos: [Estructura y conexiones de la DB](estructura-db.md).
+
 ## Database Technology
 
 The project uses Firestore. There are no Prisma models, SQL tables or migrations in the current implementation.
@@ -380,7 +383,8 @@ Implemented:
 
 - Zod validates server-mediated writes.
 - Firestore rules block direct client writes for `clientes`, `equipos`, `registros` and `ventas`.
-- Firestore rules validate direct client writes for logo and foreign receipts.
+- Firestore rules validate direct client writes for logo, problems and changelog.
+- Foreign receipts are read through `comprobanteApple`; direct client access is blocked.
 - Server transactions update related customer/equipment records.
 
 Important gaps:

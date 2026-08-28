@@ -5,6 +5,7 @@ import { luhn } from '../../utils/imei.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
 import { EscanerCaja } from '../registros/EscanerCaja.jsx';
 import { generarTicketVentaPDF } from './ventaPdf.js';
+import {mergeBoxAutofill} from '../../utils/boxAutofill.js';
 
 const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const MONEY_RE = /^\d+(\.\d{1,2})?$/;
@@ -91,28 +92,25 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
     }
   };
 
-  const onEscaneo = (datos) => {
+  const scanBaseline = React.useRef(null);
+  const [scanNotice, setScanNotice] = useState('');
+
+  const onEscaneo = (datos, {warnings = []} = {}) => {
     setMostrarEscaner(false);
     setEscaneoProcesando(false);
     onDirty?.();
-    setFormData(prev => ({
-      ...prev,
-      imei1:           datos.imei1           || prev.imei1,
-      imei2:           datos.imei2           || prev.imei2,
-      sn:              datos.sn              || prev.sn,
-      marca:           datos.marca           || prev.marca,
-      modelo:          datos.modelo          || prev.modelo,
-      nombreComercial: datos.nombreComercial || prev.nombreComercial,
-      ram:             datos.ram             || prev.ram,
-      memoria:         datos.memoria         || prev.memoria,
-      color:           datos.color           || prev.color,
-    }));
-    const campos = [datos.imei1, datos.marca, datos.nombreComercial, datos.ram, datos.memoria, datos.color].filter(Boolean).join(' · ');
-    showToast(campos ? `✓ ${campos}` : 'Sin datos — rellena manualmente', campos ? 'success' : 'error');
+    const baseline = scanBaseline.current;
+    setFormData(prev => !baseline || prev.dni !== baseline.dni || prev.tipoDocumento !== baseline.tipoDocumento
+      ? prev : mergeBoxAutofill(prev, datos, baseline));
+    setScanNotice(warnings.length ? 'Se rellenaron los datos legibles. Algunos datos no se pudieron validar; completa los campos faltantes antes de guardar.' : '');
+    showToast('Escaneo finalizado. Los datos se aplican sin sobrescribir tus cambios durante la extracción.', 'success');
   };
 
   const onEscaneoProcesando = () => {
+    scanBaseline.current = {...formData};
+    setScanNotice('');
     setEscaneoProcesando(true);
+    onDirty?.();
   };
 
   const onEscaneoError = mensaje => {
@@ -168,6 +166,11 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
   const handleChange = (e) => {
     const { name, value } = e.target;
     let val = value;
+    if (name === 'dni' || name === 'tipoDocumento') {
+      setMostrarEscaner(false);
+      setEscaneoProcesando(false);
+      setScanNotice('');
+    }
     if (name === 'tipoDocumento') {
       onDirty?.();
       setDniStatusV(null);
@@ -272,11 +275,19 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (mostrarEscaner) {
+      showToast('Espera a que termine el escaneo o cancélalo antes de guardar la venta.', 'error');
+      return;
+    }
     if (!validarVentaCompleta()) return;
     setConfirmarGuardado(true);
   };
 
   const guardarVenta = async () => {
+    if (mostrarEscaner) {
+      showToast('Espera a que termine el escaneo o cancélalo antes de guardar la venta.', 'error');
+      return;
+    }
     const itemsVenta = obtenerItemsVenta();
     if (!itemsVenta) return;
     setConfirmarGuardado(false);
@@ -409,6 +420,17 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
       </div>
 
       {/* Indicador de pasos */}
+      {scanNotice && <p role="status" className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{scanNotice}</p>}
+      {mostrarEscaner && (
+        <EscanerCaja
+          key={initialData?.id || 'new'}
+          onResult={onEscaneo}
+          onClose={() => { setMostrarEscaner(false); setEscaneoProcesando(false); }}
+          onProcessingStart={onEscaneoProcesando}
+          onProcessingEnd={() => setEscaneoProcesando(false)}
+          onError={onEscaneoError}
+        />
+      )}
       <div className="saas-stepper">
         {[1,2].map(n => (
           <React.Fragment key={n}>
@@ -493,23 +515,9 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b pb-2">
               <h4 className="saas-form-section-title border-b-0 pb-0">Equipo y Precio</h4>
-              <button type="button" onClick={() => setMostrarEscaner(true)} className="saas-secondary"><ScanBarcode size={14}/> Escanear</button>
+              <button type="button" onClick={() => setMostrarEscaner(true)} disabled={mostrarEscaner} className="saas-secondary disabled:opacity-50"><ScanBarcode size={14}/> {mostrarEscaner ? 'Escaneo activo' : 'Escanear'}</button>
             </div>
-            {mostrarEscaner && (
-              <EscanerCaja
-                onResult={onEscaneo}
-                onClose={() => { setMostrarEscaner(false); setEscaneoProcesando(false); }}
-                onProcessingStart={onEscaneoProcesando}
-                onError={onEscaneoError}
-              />
-            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {escaneoProcesando && (
-                <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700" />
-                  Extrayendo datos de la caja del equipo...
-                </div>
-              )}
               <div>
                 <label className="block text-xs text-gray-500 mb-1">IMEI 1 *</label>
                 <input required name="imei1" value={formData.imei1} onChange={handleChange}

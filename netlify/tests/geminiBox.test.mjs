@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {__test, handler} from '../functions/analizarCajaGemini.mjs';
 import {prepareGeminiBoxImage, scanBoxWithGemini} from '../../src/services/geminiBoxScanner.js';
+import {mergeBoxAutofill, safeBoxAutofill} from '../../src/utils/boxAutofill.js';
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 1, 2, 3]).toString('base64');
 const IMAGE = {imageBase64: JPEG, mimeType: 'image/jpeg'};
@@ -37,7 +38,7 @@ function fakeCanvas(encoded = `data:image/jpeg;base64,${JPEG}`) {
   return {
     width: 0, height: 0,
     getContext: () => ({fillRect() {}, drawImage() {}}),
-    toDataURL: () => encoded,
+    toBlob: callback => callback(new Blob([Buffer.from(encoded.split(',')[1], 'base64')], {type: encoded.slice(5, encoded.indexOf(';'))})),
   };
 }
 
@@ -197,26 +198,27 @@ test('Gemini endpoint requires Firebase authentication, POST and disables cachin
   });
 });
 
-test('browser compresses a copy as JPEG under the server limit without changing the source', () => {
+test('browser compresses a copy asynchronously as JPEG without changing the source', async () => {
   const source = {width: 4800, height: 3200};
   const copy = fakeCanvas();
-  assert.deepEqual(prepareGeminiBoxImage(source, () => copy), IMAGE);
+  assert.deepEqual(await prepareGeminiBoxImage(source, () => copy), IMAGE);
   assert.equal(copy.width, 2400);
   assert.equal(copy.height, 1600);
   assert.deepEqual(source, {width: 4800, height: 3200});
-  assert.throws(() => prepareGeminiBoxImage({width: 0, height: 0}), /IMAGEN_LOCAL_INVALIDA/);
+  await assert.rejects(() => prepareGeminiBoxImage({width: 0, height: 0}), /IMAGEN_LOCAL_INVALIDA/);
 });
 
-test('browser lowers quality and dimensions for large images and rejects oversized output', () => {
+test('browser lowers quality and dimensions for large images and rejects oversized output', async () => {
   const source = {width: 2400, height: 1200};
   const large = 'data:image/jpeg;base64,' + 'A'.repeat(__test.MAX_IMAGE_BYTES * 4 / 3 + 4);
   const copy = fakeCanvas(large);
   let calls = 0;
-  copy.toDataURL = () => ++calls <= 3 ? large : `data:image/jpeg;base64,${JPEG}`;
-  assert.deepEqual(prepareGeminiBoxImage(source, () => copy), IMAGE);
+  copy.toBlob = callback => fakeCanvas(++calls <= 3 ? large : `data:image/jpeg;base64,${JPEG}`).toBlob(callback);
+  assert.deepEqual(await prepareGeminiBoxImage(source, () => copy), IMAGE);
   assert.equal(copy.width, 1800);
-  assert.throws(() => prepareGeminiBoxImage(source, () => fakeCanvas(large)), /IMAGEN_MUY_GRANDE/);
-  assert.throws(() => prepareGeminiBoxImage(source, () => fakeCanvas('data:image/png;base64,abc=')), /IMAGEN_LOCAL_INVALIDA/);
+  await assert.rejects(() => prepareGeminiBoxImage(source, () => fakeCanvas(large)), /IMAGEN_MUY_GRANDE/);
+  await assert.rejects(() => prepareGeminiBoxImage(source, () => fakeCanvas('data:image/png;base64,abc=')), /IMAGEN_LOCAL_INVALIDA/);
+  await assert.rejects(() => prepareGeminiBoxImage(source, () => ({...fakeCanvas(), toBlob: callback => callback(null)})), /IMAGEN_LOCAL_INVALIDA/);
 });
 
 test('browser requests only image extraction and returns review data without saving training', async () => {
@@ -245,11 +247,62 @@ test('browser has a deadline and aborts pending requests on unmount', async () =
   await assert.rejects(() => scanBoxWithGemini({width: 1, height: 1}, options), /UPSTREAM_TIMEOUT/);
   assert.equal(requestSignal.aborted, true);
   const controller = new AbortController();
-  const pending = scanBoxWithGemini({width: 1, height: 1}, {...options, signal: controller.signal});
+  let requestStarted;
+  const started = new Promise(resolve => { requestStarted = resolve; });
+  const pending = scanBoxWithGemini({width: 1, height: 1}, {...options, signal: controller.signal, request: (...args) => {
+    const result = options.request(...args);
+    requestStarted();
+    return result;
+  }});
+  await started;
   controller.abort();
   await assert.rejects(pending, error => error.name === 'AbortError');
   assert.equal(requestSignal.aborted, true);
   await assert.rejects(() => scanBoxWithGemini({width: 1, height: 1}, {...options, signal: controller.signal}), error => error.name === 'AbortError');
+});
+
+test('cancelling during asynchronous image preparation never sends a request', async () => {
+  const controller = new AbortController();
+  let finishEncoding;
+  const canvas = {...fakeCanvas(), toBlob: callback => { finishEncoding = callback; }};
+  const pending = scanBoxWithGemini({width: 100, height: 100}, {
+    createCanvas: () => canvas,
+    signal: controller.signal,
+    request: () => assert.fail('cancelled image reached the backend'),
+  });
+  controller.abort();
+  await assert.rejects(pending, error => error.name === 'AbortError');
+  finishEncoding(new Blob([Buffer.from(JPEG, 'base64')], {type: 'image/jpeg'}));
+  await new Promise(resolve => setImmediate(resolve));
+});
+
+test('the deadline also covers image preparation', async () => {
+  await assert.rejects(() => scanBoxWithGemini({width: 100, height: 100}, {
+    createCanvas: () => ({...fakeCanvas(), toBlob() {}}),
+    timeoutMs: 10,
+    request: () => assert.fail('unfinished image reached the backend'),
+  }), /UPSTREAM_TIMEOUT/);
+});
+
+test('cancelled requests ignore late results and a fresh scan can finish', async () => {
+  const controller = new AbortController();
+  let finishRequest;
+  let requestStarted;
+  const started = new Promise(resolve => { requestStarted = resolve; });
+  const pending = scanBoxWithGemini({width: 10, height: 10}, {
+    createCanvas: fakeCanvas,
+    signal: controller.signal,
+    request: () => {
+      requestStarted();
+      return new Promise(resolve => { finishRequest = resolve; });
+    },
+  });
+  await started;
+  controller.abort();
+  await assert.rejects(pending, error => error.name === 'AbortError');
+  const result = __test.normalizeBoxData(BOX);
+  finishRequest(result);
+  assert.deepEqual(await scanBoxWithGemini({width: 10, height: 10}, {createCanvas: fakeCanvas, request: async () => result}), result);
 });
 
 test('active scanner bypasses local OCR and all learning read/write controls', () => {
@@ -258,7 +311,46 @@ test('active scanner bypasses local OCR and all learning read/write controls', (
   assert.match(component, /Aprendizaje local pausado/);
   assert.match(component, /enviaras esta foto/);
   assert.doesNotMatch(component, /localBoxScanner|boxLearningStore|saveBoxCorrection|getAutomaticBoxVerifierModels|clearBoxCorrections/);
+  assert.doesNotMatch(component, /setScanResult|setDraft|Usar estos datos|fase === 'revision'/);
+  assert.match(component, /onResult\(safeBoxAutofill\(result.data\)/);
   for (const path of ['../../scripts/local-api.mjs', '../../netlify.toml']) {
     assert.match(readFileSync(new URL(path, import.meta.url), 'utf8'), /\/api\/analizarCajaGemini/);
   }
+});
+
+test('scanner autofill validates exact IMEIs without repairing or guessing digits', () => {
+  assert.equal(safeBoxAutofill(BOX).imei1, BOX.imei1);
+  for (const imei1 of ['000000000000000', BOX.imei1 + '1', BOX.imei1.slice(0, 14), '869084082793147']) {
+    assert.equal(safeBoxAutofill({...BOX, imei1}).imei1, '');
+  }
+  assert.equal(safeBoxAutofill({...BOX, imei2: BOX.imei1}).imei2, '');
+});
+
+test('scanner fills fields directly but preserves manual edits made while waiting', () => {
+  const baseline = {...EMPTY, precio: '500', dni: '12345678'};
+  const current = {...baseline, color: 'AZUL PERSONALIZADO'};
+  const filled = mergeBoxAutofill(current, BOX, baseline);
+  assert.equal(filled.nombreComercial, 'REDMI A7 PRO');
+  assert.equal(filled.imei1, BOX.imei1);
+  assert.equal(filled.imei2, BOX.imei2);
+  assert.equal(filled.color, current.color);
+  assert.equal(filled.precio, '500');
+  assert.equal(filled.dni, '12345678');
+  assert.deepEqual(current, {...baseline, color: 'AZUL PERSONALIZADO'}, 'no mutate form data');
+});
+
+test('scanner never mixes data if the operator changed device identifiers during extraction', () => {
+  const baseline = {...EMPTY};
+  const current = {...baseline, imei1: '490154203237518'};
+  assert.deepEqual(mergeBoxAutofill(current, BOX, baseline), current);
+  assert.deepEqual(mergeBoxAutofill({...baseline, sn: 'OTRA-CAJA'}, BOX, baseline), {...baseline, sn: 'OTRA-CAJA'});
+});
+
+test('scanning a different box clears unreadable fields instead of retaining the old device identifiers', () => {
+  const baseline = {...BOX};
+  const next = mergeBoxAutofill(baseline, {imei1: '490154203237518', nombreComercial: 'OTRO EQUIPO'}, baseline);
+  assert.equal(next.imei1, '490154203237518');
+  assert.equal(next.imei2, '');
+  assert.equal(next.sn, '');
+  assert.equal(next.color, '');
 });

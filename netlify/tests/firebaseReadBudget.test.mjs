@@ -3,6 +3,8 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {__test} from '../functions/clientes.mjs';
 import {__test as registrosTest} from '../functions/registros.mjs';
+import {buscarClienteParaRegistro} from '../functions/_registroCliente.mjs';
+import {mergeClienteEquipos} from '../../src/utils/clienteEquipos.js';
 import {
   buildClienteSearchTerms,
   buildEquipoSearchTerms,
@@ -71,14 +73,16 @@ class FakeQuery {
     const order = this.operations.find(operation => operation.type === 'orderBy');
     if (order) {
       docs = docs.sort((a, b) => {
-        const left = a.data()?.[order.field] || '';
-        const right = b.data()?.[order.field] || '';
+        const left = String(order.field) === '__name__' ? a.id : a.data()?.[order.field] || '';
+        const right = String(order.field) === '__name__' ? b.id : b.data()?.[order.field] || '';
         return order.direction === 'desc' ? String(right).localeCompare(String(left)) : String(left).localeCompare(String(right));
       });
     }
 
     const startAfter = this.operations.find(operation => operation.type === 'startAfter');
-    if (startAfter?.doc?.id) {
+    if (typeof startAfter?.doc === 'string') {
+      docs = docs.filter(doc => doc.id.localeCompare(startAfter.doc) > 0);
+    } else if (startAfter?.doc?.id) {
       const index = docs.findIndex(doc => doc.id === startAfter.doc.id);
       if (index >= 0) docs = docs.slice(index + 1);
     }
@@ -368,4 +372,99 @@ test('APPLE receipt lookup stays server-mediated and bounded', async () => {
   assert.match(netlifyConfig, /api\/comprobanteApple/);
   assert.match(netlifyConfig, /from = "\/boleta"[\s\S]*comunicate-boletas-extranjeras\.netlify\.app\/boleta/);
   assert.match(rules, /match \/artifacts\/\{appId\}\/users\/\{scope\}\/boletasExtranjeras\/\{boletaId\} \{\s*allow read, write: if false;/);
+});
+
+test('registro por DNI encuentra equipos antiguos sin depender de las referencias locales ni de searchTerms', async () => {
+  const seed = seedOperationalData(500);
+  const db = createFakeDb(seed);
+  const result = await buscarClienteParaRegistro(db, {dni: '40000500'});
+  assert.equal(result.cliente.nombre, 'Cliente Historico 500');
+  assert.equal(result.equipos.length, 1);
+  assert.equal(result.equipos[0].idDuenio, '40000500');
+  assert.equal(result.equipos[0].fromSale, true);
+  assert.ok(result.activeImeis.includes(result.equipos[0].idEquipo));
+  assert.equal(result.nextCursor, null);
+  assert.ok(db.store.calls.every(call => call.limit !== null), 'ninguna lectura sin limite');
+  for (const call of db.store.calls.filter(call => ['equipos', 'ventas', 'registros'].includes(call.collection) && call.limit === 21)) {
+    assert.ok(call.operations.some(op => op.type === 'where' && op.value === '40000500' && op.op === '=='));
+  }
+});
+
+test('registro por DNI reconstruye equipos de ventas y registros sin exponer equipos de otros clientes', async () => {
+  const db = createFakeDb({
+    ventas: {v1: {dniCliente: '12345678', nombreCliente: 'CLIENTE ANTIGUO', imeiEquipo: '490154203237518', imei2Equipo: '356938035643809', nombreComercial: 'GALAXY A56', marcaEquipo: 'SAMSUNG', color: 'NEGRO', ram: '8', memoria: '256'}},
+    registros: {
+      r1: {dniCliente: '12345678', imeiEquipo: '490154203237518', imei2Equipo: '356938035643809', imeiRegistrado: '356938035643809', estadoSolicitud: 'PENDIENTE'},
+      other: {dniCliente: '87654321', imeiEquipo: '111111111111119', nombreComercialEquipo: 'OTRO CLIENTE'},
+    },
+    equipos: {'222222222222226': {idEquipo: '222222222222226', idDuenio: '87654321', modelo: 'NO MOSTRAR'}},
+  });
+  const result = await buscarClienteParaRegistro(db, {dni: '12345678'});
+  assert.equal(result.cliente.nombre, 'CLIENTE ANTIGUO');
+  assert.equal(result.equipos.length, 1);
+  assert.equal(result.equipos[0].nombreComercial, 'GALAXY A56');
+  assert.equal(result.equipos[0].memoria, '256');
+  assert.deepEqual(result.activeImeis, ['356938035643809'], 'bloquear solo el segundo IMEI, incluso si PENDIENTE');
+  assert.equal(result.registrationStatusComplete, true);
+});
+
+test('registro por DNI pagina las tres fuentes sin omitir equipos ni repetir documentos', async () => {
+  const seed = {equipos: {}, ventas: {}, registros: {}};
+  for (let i = 0; i < 45; i += 1) {
+    const imei = String(990000000000000 + i);
+    seed.equipos[imei] = {idEquipo: imei, idDuenio: '12345678', nombreComercial: 'MODELO ' + i};
+    seed.ventas['v' + String(i).padStart(3, '0')] = {dniCliente: '12345678', imeiEquipo: imei};
+  }
+  const db = createFakeDb(seed);
+  let cursor = null;
+  let devices = [];
+  let pages = 0;
+  do {
+    const result = await buscarClienteParaRegistro(db, {dni: '12345678', cursor});
+    devices = mergeClienteEquipos(devices, result.equipos);
+    cursor = result.nextCursor;
+    assert.ok(++pages <= 3, 'cursor debe avanzar');
+  } while (cursor);
+  assert.equal(devices.length, 45);
+  assert.equal(pages, 3);
+});
+
+test('registro por DNI respeta locks y registros antiguos de otro titular para el mismo IMEI', async () => {
+  const db = createFakeDb({
+    equipos: {a: {idDuenio: '12345678', idEquipo: '490154203237518', imei2: '356938035643809'}},
+    imeiLocks: {'490154203237518': {registroId: 'registro-actual'}},
+    registros: {legacy: {dniCliente: '87654321', imeiEquipo: '356938035643809', estado: 'BLOQUEADO'}},
+  });
+  const result = await buscarClienteParaRegistro(db, {dni: '12345678'});
+  assert.deepEqual(new Set(result.activeImeis), new Set(['490154203237518', '356938035643809']));
+});
+
+test('registro por DNI rechaza documentos y cursores invalidos antes de leer Firebase', async () => {
+  const db = createFakeDb();
+  for (const payload of [{dni: '123'}, {dni: '12345678', cursor: {dni: '87654321'}}, {dni: '12345678', cursor: {dni: '12345678', equipos: '../other'}}]) {
+    await assert.rejects(buscarClienteParaRegistro(db, payload), error => error.status === 400);
+  }
+  assert.equal(db.store.calls.length, 0);
+  const result = await buscarClienteParaRegistro(db, {dni: '12345678'});
+  assert.deepEqual(result.equipos, []);
+  assert.equal(result.cliente, null);
+});
+
+test('registro por DNI nunca afirma disponibilidad si el historial IMEI excede el limite seguro', async () => {
+  const registros = Object.fromEntries(Array.from({length: 121}, (_, i) => ['r' + i, {dniCliente: '87654321', imeiEquipo: '490154203237518'}]));
+  const db = createFakeDb({registros, equipos: {a: {idDuenio: '12345678', idEquipo: '490154203237518'}}});
+  const result = await buscarClienteParaRegistro(db, {dni: '12345678'});
+  assert.equal(result.registrationStatusComplete, false);
+});
+
+test('agrupar equipos conserva los dos IMEI sin fusionar equipos solo por modelo o serie', () => {
+  const devices = mergeClienteEquipos(
+    [{idEquipo: '490154203237518', imei2: '356938035643809', modelo: 'A56', sn: 'MISMA-SERIE'}],
+    [{idEquipo: '356938035643809', nombreComercial: 'GALAXY A56', fromRegistration: true}],
+    [{idEquipo: '111111111111119', modelo: 'A56', sn: 'MISMA-SERIE'}],
+  );
+  assert.equal(devices.length, 2);
+  assert.equal(devices[0].idEquipo, '490154203237518');
+  assert.equal(devices[0].imei2, '356938035643809');
+  assert.equal(devices[0].nombreComercial, 'GALAXY A56');
 });

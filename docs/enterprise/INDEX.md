@@ -18,6 +18,7 @@ This directory contains the enterprise-grade technical, functional and operation
 | [Frontend](frontend.md) | Frontend developers, QA | React components, state, navigation, UI system and responsive behavior. |
 | [API Reference](api-reference.md) | Backend/frontend developers | Netlify Functions contract, auth, payloads, responses and errors. |
 | [Data Model](data-model.md) | Engineers, data owners | Firestore collections, relationships, indexes and business semantics. |
+| [Estructura y conexiones de la DB](estructura-db.md) | Operaciones, desarrollo | Mapa actualizado en espanol: campos, relaciones, accesos, servicios y almacenamiento local. |
 | [Security](security.md) | Security engineers, auditors | Authentication, authorization, validation, CORS, rate limits and hardening. |
 
 ## Operations Documents
@@ -56,4 +57,3 @@ The current project does not implement:
 - shadcn/ui components.
 
 Where future-state designs mention these topics, they are labeled as recommendations or migration paths, not current functionality.
-

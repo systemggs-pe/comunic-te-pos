@@ -65,7 +65,7 @@ Core outcomes:
 1. Operator enters document data and customer contact details.
 2. Existing customer data or RENIEC data can prefill fields.
 3. Operator enters IMEI, serial, brand, model, commercial name and device status.
-4. The box scanner sends the selected photo to Gemini after an explicit action, validates IMEIs and lets the operator review/correct the fields. Local learning is paused.
+4. The box scanner sends the selected photo to Gemini after an explicit action, validates IMEIs and fills the form directly in the background. There is no extracted-data preview; edits made during extraction are preserved. Saving remains manual. Local learning is paused.
 5. Client validation guides the operator.
 6. Netlify Function validates and writes customer, equipment and registration data.
 

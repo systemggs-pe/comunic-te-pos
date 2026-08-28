@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, Share2, Settings, ImagePlus } from 'lucide-react';
-import { actualizarRegistro, consultarComprobanteApplePorImei, consultarReniecDni, crearRegistro, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
+import { actualizarRegistro, consultarComprobanteApplePorImei, crearRegistro, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
 import {PERU_DEPARTAMENTOS, separarDireccionDepartamento, unirDireccionDepartamento} from '../../utils/peruDepartamentos.js';
 import { ImageCropModal } from '../../components/ui/ImageCropModal.jsx';
 import { EscanerCaja } from './EscanerCaja.jsx';
+import {ClienteEquiposSelector} from './ClienteEquiposSelector.jsx';
+import {useRegistroCliente} from './useRegistroCliente.js';
+import {BOX_FORM_FIELDS, mergeBoxAutofill} from '../../utils/boxAutofill.js';
 import {comprimirRegistroEvidenciaDataUrl, emptyRegistroEvidencias, formatBytes, leerRegistroEvidenciaFile, REGISTRO_EVIDENCIA_FIELDS} from './registroEvidencias.js';
 import {generarRegistroEvidenciasPDF} from './registroEvidenciasPdf.js';
 import {
@@ -33,8 +36,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   const esRegistroSimple = !isEditing;
   const [loading, setLoading] = useState(false);
   const [showManualEqForm, setShowManualEqForm] = useState(true);
-  const [equiposCliente, setEquiposCliente] = useState([]);
-  const [imeiSeleccionado, setImeiSeleccionado] = useState(null); // equipo previo pendiente de elegir IMEI
+
 
   // Fuente de verdad: IMEIs que ya tienen registro activo
   const imeisRegistrados = useMemo(() => {
@@ -52,7 +54,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     // Al editar, ignorar únicamente el IMEI exacto del registro actual.
     const imeiActual = isEditing ? (initialData?.imeiRegistrado || initialData?.imeiEquipo) : '';
     if (imeiActual === imei) return false;
-    return imeisRegistrados.has(imei);
+    return imeisRegistrados.has(imei) || clienteLookup.activeImeis.includes(imei);
   };
 
   const [formData, setFormData] = useState(createInitialRegistroForm);
@@ -113,61 +115,51 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
   const [mostrarEscaner, setMostrarEscaner] = useState(false);
   const [escaneoProcesando, setEscaneoProcesando] = useState(false);
-  const [buscandoReniec, setBuscandoReniec] = useState(false);
   const [dniStatusReg, setDniStatusReg] = useState(null);
+  const [scanNotice, setScanNotice] = useState('');
+  const scanBaseline = React.useRef(null);
+  const clienteLookup = useRegistroCliente({
+    dni: formData.dni, tipoDocumento: formData.tipoDocumento, enabled: !isEditing,
+    onCliente: (cliente, source) => {
+      if (cliente.dni !== formData.dni) return;
+      const celulares = opcionesCelulares(cliente);
+      const correos = opcionesContacto(cliente, 'correo', 'correos');
+      const direccion = separarDireccionDepartamento(cliente.direccion || '');
+      setContactosClienteReg({celulares, correos});
+      setDniStatusReg({type: source, text: source === 'db' ? 'Cliente COMUNIC@TE' : 'Nombre encontrado en RENIEC'});
+      setFormData(prev => prev.dni !== cliente.dni ? prev : ({
+        ...prev, nombre: prev.nombre || cliente.nombre || '',
+        celular: prev.celular || celulares[0] || '', celularRef: prev.celularRef || celulares[0] || '',
+        correo: prev.correo || correos[0] || '', direccion: prev.direccion || direccion.direccion,
+        departamento: prev.departamento || direccion.departamento,
+      }));
+    },
+  });
+  const equiposCliente = clienteLookup.equipos;
+  const buscandoReniec = clienteLookup.loading;
 
-  const buscarReniec = async (dni) => {
-    setBuscandoReniec(true);
-    setDniStatusReg({type: 'loading', text: 'Buscando...'});
-    try {
-      const json = await consultarReniecDni(dni);
-      if (json.success && json.result) {
-        const r = json.result;
-        setFormData(prev => ({
-          ...prev,
-          nombre: r.full_name || prev.nombre,
-        }));
-        setDniStatusReg({type: 'reniec', text: 'Nombre encontrado en RENIEC'});
-      } else {
-        setDniStatusReg(null);
-        showToast('DNI no encontrado en RENIEC', 'error');
-      }
-    } catch (e) {
-      console.error('RENIEC error:', e);
-      setDniStatusReg(null);
-      showToast(obtenerMensajeErrorFuncion(e, 'Error al consultar RENIEC'), 'error');
-    } finally {
-      setBuscandoReniec(false);
-    }
-  };
-
-  const onEscaneo = (datos) => {
+  const onEscaneo = (datos, {warnings = []} = {}) => {
     setMostrarEscaner(false);
     setEscaneoProcesando(false);
     setComprobanteApple(emptyComprobanteApple());
     onDirty?.();
+    const baseline = scanBaseline.current;
     setFormData(prev => {
-      const next = {
-        ...prev,
-        imei1:           datos.imei1           || prev.imei1,
-        imei:            datos.imei1           || prev.imei,
-        imei2:           datos.imei2           || prev.imei2,
-        sn:              datos.sn              || prev.sn,
-        marca:           normalizarMarcaRegistro(datos.marca) || prev.marca,
-        modelo:          datos.modelo          || prev.modelo,
-        nombreComercial: datos.nombreComercial || prev.nombreComercial,
-        ram:             datos.ram             || prev.ram,
-        memoria:         datos.memoria         || prev.memoria,
-        color:           datos.color           || prev.color,
-      };
+      if (!baseline || prev.dni !== baseline.dni || prev.tipoDocumento !== baseline.tipoDocumento) return prev;
+      const next = mergeBoxAutofill(prev, datos, baseline);
+      next.marca = normalizarMarcaRegistro(next.marca);
+      if (prev.imei === baseline.imei && next.imei1 !== prev.imei1) next.imei = next.imei1;
       return next;
     });
-    const campos = [datos.imei1, datos.marca, datos.nombreComercial, datos.ram, datos.memoria].filter(Boolean).join(' · ');
-    showToast(campos ? `✓ ${campos}` : 'Sin datos — rellena manualmente', campos ? 'success' : 'error');
+    setScanNotice(warnings.length ? 'Se rellenaron los datos legibles. Algunos datos no se pudieron validar; completa los campos faltantes antes de guardar.' : '');
+    showToast('Escaneo finalizado. Los datos se aplican sin sobrescribir tus cambios durante la extracción.', 'success');
   };
 
   const onEscaneoProcesando = () => {
+    scanBaseline.current = {...formData};
+    setScanNotice('');
     setEscaneoProcesando(true);
+    onDirty?.();
   };
 
   const onEscaneoError = mensaje => {
@@ -175,97 +167,42 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     showToast(mensaje || 'No se pudo extraer datos de la caja', 'error');
   };
 
+  // Autocompletar únicamente a partir de equipos vinculados al documento actual.
   useEffect(() => {
-    if (formData.dni.length >= 6 && !initialData) {
-      const clienteExistente = clientes.find(c => c.dni === formData.dni);
-      if (clienteExistente) {
-        const celulares = opcionesCelulares(clienteExistente);
-        const correos = opcionesContacto(clienteExistente, 'correo', 'correos');
-        const direccionCliente = separarDireccionDepartamento(clienteExistente.direccion || '');
-        setContactosClienteReg({celulares, correos});
-        setDniStatusReg({type: 'db', text: 'Cliente COMUNIC@TE'});
-        setFormData(prev => ({
-          ...prev,
-          nombre: clienteExistente.nombre || '',
-          celular: prev.celular || celulares[0] || '',
-          celularRef: prev.celularRef || celulares[0] || '',
-          correo: prev.correo || correos[0] || '',
-          direccion: direccionCliente.direccion,
-          departamento: direccionCliente.departamento || prev.departamento,
-        }));
-      } else {
-        setContactosClienteReg({celulares: [], correos: []});
-        if (formData.tipoDocumento === 'DNI' && formData.dni.length === 8) buscarReniec(formData.dni);
-        else setDniStatusReg(null);
-      }
-      const eqsRaw = equipos.filter(e => e.idDuenio === formData.dni);
-      // Agrupar duplicados (mismo sn o imei2 cruzado) igual que en ClientesList
-      const vistos = new Set();
-      const eqsAgrupados = [];
-      for (const eq of eqsRaw) {
-        if (vistos.has(eq.idEquipo)) continue;
-        const gemelo = eqsRaw.find(e =>
-          e.idEquipo !== eq.idEquipo && !vistos.has(e.idEquipo) &&
-          ((eq.imei2 && e.idEquipo === eq.imei2) || (e.imei2 && eq.idEquipo === e.imei2) || (eq.sn && e.sn && eq.sn === e.sn))
-        );
-        if (gemelo) {
-          const principal = eq.imei2 ? eq : gemelo.imei2 ? gemelo : (eq.idEquipo < gemelo.idEquipo ? eq : gemelo);
-          const secundario = principal === eq ? gemelo : eq;
-          eqsAgrupados.push({ ...principal, imei2: principal.imei2 || secundario.idEquipo, sn: principal.sn || secundario.sn, imei1Registrado: principal.imei1Registrado || principal.isRegistrado || false, imei2Registrado: secundario.imei2Registrado || secundario.imei1Registrado || secundario.isRegistrado || false, isRegistrado: principal.isRegistrado || secundario.isRegistrado, isVendido: principal.isVendido || secundario.isVendido });
-          vistos.add(principal.idEquipo); vistos.add(secundario.idEquipo);
-        } else {
-          eqsAgrupados.push(eq); vistos.add(eq.idEquipo);
-        }
-      }
-      setEquiposCliente(eqsAgrupados);
-      if (eqsAgrupados.length > 0 && !formData.imei) setShowManualEqForm(false);
-      else setShowManualEqForm(true);
-    } else if (!initialData && formData.dni.length < 6) {
-      setEquiposCliente([]);
-      setShowManualEqForm(true);
-      setDniStatusReg(null);
-      setContactosClienteReg({celulares: [], correos: []});
+    if (formData.imei1.length === 15 && !initialData) {
+      const eq = equiposCliente.find(e => e.idEquipo === formData.imei1 || e.imei2 === formData.imei1);
+      if (eq) setFormData(prev => ({
+        ...prev, imei1: eq.idEquipo, imei: prev.imei || formData.imei1,
+        imei2: prev.imei2 || eq.imei2 || '',
+        marca: prev.marca || normalizarMarcaRegistro(eq.marca),
+        modelo: prev.modelo || eq.modelo || '',
+        nombreComercial: prev.nombreComercial || eq.nombreComercial || '',
+        sn: prev.sn || eq.sn || '', color: prev.color || eq.color || '',
+        ram: prev.ram || eq.ram || '', memoria: prev.memoria || eq.memoria || '',
+      }));
     }
-  }, [formData.dni, formData.tipoDocumento, clientes, equipos, initialData]);
+  }, [formData.imei1, equiposCliente, initialData]);
 
-  // Cuando escriben el IMEI manualmente, autocompletar solo campos vacíos
-  useEffect(() => {
-    if (formData.imei1.length >= 14 && !initialData) {
-      const eq = equipos.find(e => e.idEquipo === formData.imei1 || e.imei2 === formData.imei1);
-      if (eq) {
-        setFormData(prev => ({
-          ...prev,
-          imei1:           eq.idEquipo || prev.imei1,
-          imei:            prev.imei || formData.imei1,
-          imei2:           prev.imei2 || (formData.imei1 === eq.idEquipo ? (eq.imei2 || '') : eq.idEquipo),
-          marca:           prev.marca           || normalizarMarcaRegistro(eq.marca),
-          modelo:          prev.modelo          || eq.modelo          || '',
-          nombreComercial: prev.nombreComercial || eq.nombreComercial || '',
-        }));
-      }
-    }
-  }, [formData.imei1, equipos, initialData]);
-
-  const handleEqClick = (eq) => {
-    if (eq.imei2) {
-      setImeiSeleccionado(eq); // mostrar selector de IMEI
-    } else {
-      handleConfirmEqSelection(eq, eq.idEquipo);
-    }
-  };
   const handleConfirmEqSelection = (eq, selectedImei) => {
+    if (imeiYaRegistrado(selectedImei) || clienteLookup.loading || clienteLookup.error || !clienteLookup.registrationStatusComplete) return;
+    setMostrarEscaner(false);
+    setEscaneoProcesando(false);
+    setScanNotice('');
     setComprobanteApple(emptyComprobanteApple());
+    onDirty?.();
     setFormData(prev => ({
-      ...prev,
-      imei1: eq.idEquipo || selectedImei,
-      imei: selectedImei,
-      imei2: eq.imei2 || (selectedImei !== eq.idEquipo ? selectedImei : ''),
+      ...prev, imei1: eq.idEquipo, imei: selectedImei, imei2: eq.imei2 || '',
       marca: normalizarMarcaRegistro(eq.marca), modelo: eq.modelo || '',
-      nombreComercial: eq.nombreComercial || '',
+      nombreComercial: eq.nombreComercial || eq.modelo || '', sn: eq.sn || '',
+      ram: eq.ram || '', memoria: eq.memoria || '', color: eq.color || '',
     }));
-    setImeiSeleccionado(null);
     setShowManualEqForm(true);
   };
+
+  const selectorEquipos = !isEditing && validarDocumento(formData.tipoDocumento, formData.dni) && (
+    <ClienteEquiposSelector lookup={clienteLookup} selectedImei={formData.imei}
+      isRegistered={imeiYaRegistrado} onSelect={handleConfirmEqSelection} />
+  );
 
   const CAMPOS_SOLO_NUMEROS = ['dni', 'celular', 'celularRef', 'imei1', 'imei', 'imei2'];
   const CAMPOS_MAYUSCULAS   = ['nombre', 'marca', 'modelo', 'nombreComercial', 'color', 'operador', 'estado', 'estadoSolicitud', 'tipo', 'departamento'];
@@ -274,16 +211,25 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   const handleChange = (e) => {
     const { name, value } = e.target;
     let val = value;
-    if (name === 'tipoDocumento') {
+    if (name === 'tipoDocumento' || name === 'dni') {
       onDirty?.();
       setDniStatusReg(null);
       setContactosClienteReg({celulares: [], correos: []});
-      setFormData(prev => ({ ...prev, tipoDocumento: val, dni: limpiarDocumento(prev.dni, val) }));
+      setMostrarEscaner(false);
+      setEscaneoProcesando(false);
+      setScanNotice('');
+      setComprobanteApple(emptyComprobanteApple());
+      setShowManualEqForm(true);
+      setFormData(prev => {
+        const tipoDocumento = name === 'tipoDocumento' ? value : prev.tipoDocumento;
+        const dni = limpiarDocumento(name === 'dni' ? value : prev.dni, tipoDocumento);
+        if (isEditing) return {...prev, tipoDocumento, dni};
+        const device = Object.fromEntries(BOX_FORM_FIELDS.map(key => [key, '']));
+        return {...prev, ...device, imei: '', tipoDocumento, dni, nombre: '', celular: '', celularRef: '', correo: '', direccion: '', departamento: ''};
+      });
       return;
     }
-    if (name === 'dni') val = limpiarDocumento(val, formData.tipoDocumento);
-    else if (CAMPOS_SOLO_NUMEROS.includes(name)) val = val.replace(/\D/g, '');
-    if (name === 'dni') val = val.slice(0, 8);
+    if (CAMPOS_SOLO_NUMEROS.includes(name)) val = val.replace(/\D/g, '');
     if (name === 'imei1' || name === 'imei' || name === 'imei2') val = val.slice(0, 15);
     if (name === 'celular' || name === 'celularRef') val = val.slice(0, 9);
     if (CAMPOS_MAYUSCULAS.includes(name)) val = val.toUpperCase();
@@ -329,6 +275,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (mostrarEscaner) {
+      showToast('Espera a que termine el escaneo o cancélalo antes de guardar el registro.', 'error');
+      return;
+    }
 
     if (!validarFormularioCompleto()) return;
     // Validar IMEI con algoritmo de Luhn
@@ -401,18 +351,16 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const guardarRegistro = async () => {
+    if (mostrarEscaner) {
+      showToast('Espera a que termine el escaneo o cancélalo antes de guardar el registro.', 'error');
+      return;
+    }
     setConfirmarGuardado(false);
     setLoading(true);
     try {
       // Conservar la posición IMEI 1 / IMEI 2 del equipo, aunque se registre el segundo IMEI.
-      const eqExistente = equipos.find(e => (
-        e.idEquipo === formData.imei1
-        || e.imei2 === formData.imei1
-        || e.idEquipo === formData.imei2
-        || e.imei2 === formData.imei2
-        || e.idEquipo === formData.imei
-        || e.imei2 === formData.imei
-      )) || {};
+      const formImeis = new Set([formData.imei1, formData.imei2, formData.imei].filter(Boolean));
+      const eqExistente = [...equiposCliente, ...equipos].find(e => formImeis.has(e.idEquipo) || formImeis.has(e.imei2)) || {};
       const imei1Real = eqExistente.idEquipo || formData.imei1 || formData.imei;
       const imei2Real = eqExistente.idEquipo
         ? (eqExistente.imei2 || (formData.imei !== eqExistente.idEquipo ? formData.imei : '') || formData.imei2)
@@ -635,6 +583,17 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       </div>
 
       {/* Indicador de pasos */}
+      {scanNotice && <p role="status" className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{scanNotice}</p>}
+      {mostrarEscaner && (
+        <EscanerCaja
+          key={initialData?.id || 'new'}
+          onResult={onEscaneo}
+          onClose={() => { setMostrarEscaner(false); setEscaneoProcesando(false); }}
+          onProcessingStart={onEscaneoProcesando}
+          onProcessingEnd={() => setEscaneoProcesando(false)}
+          onError={onEscaneoError}
+        />
+      )}
       <div className="saas-stepper">
         {[1, 2, 3, 4].map(n => (
           <React.Fragment key={n}>
@@ -744,6 +703,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 )}
               </div>
             </div>
+            {selectorEquipos}
+            {clienteLookup.contactError && <p role="status" className="text-xs text-amber-800">{clienteLookup.contactError}</p>}
             <div className="flex justify-between pt-4 border-t">
               <button type="button" onClick={onCancel} className="saas-secondary">Cancelar</button>
               <button type="button" onClick={() => validarPaso1() && setPaso(2)} className="saas-primary">Siguiente</button>
@@ -758,69 +719,13 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b pb-2">
               <h4 className="saas-form-section-title border-b-0 pb-0">Datos del Equipo</h4>
-              {showManualEqForm && <button type="button" onClick={() => setMostrarEscaner(true)} className="saas-secondary"><ScanBarcode size={14}/> Escanear</button>}
+              {showManualEqForm && <button type="button" onClick={() => setMostrarEscaner(true)} disabled={mostrarEscaner} className="saas-secondary disabled:opacity-50"><ScanBarcode size={14}/> {mostrarEscaner ? 'Escaneo activo' : 'Escanear'}</button>}
             </div>
-            {mostrarEscaner && (
-              <EscanerCaja
-                onResult={onEscaneo}
-                onClose={() => { setMostrarEscaner(false); setEscaneoProcesando(false); }}
-                onProcessingStart={onEscaneoProcesando}
-                onError={onEscaneoError}
-              />
-            )}
 
-            {/* Equipos previos */}
-            {!showManualEqForm && equiposCliente.length > 0 && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                <h5 className="font-semibold text-blue-800 mb-3 text-sm">Equipos previos:</h5>
-                {imeiSeleccionado ? (
-                  <div className="p-3 bg-white rounded border border-blue-200">
-                    <p className="text-sm font-medium mb-1">{imeiSeleccionado.marca} {imeiSeleccionado.nombreComercial || imeiSeleccionado.modelo}</p>
-                    <p className="text-xs text-gray-500 mb-3">Elige el IMEI a registrar:</p>
-                    <div className="flex gap-2 flex-wrap">
-                      <button type="button" onClick={() => !imeiYaRegistrado(imeiSeleccionado.idEquipo) && handleConfirmEqSelection(imeiSeleccionado, imeiSeleccionado.idEquipo)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded border text-xs font-mono ${imeiYaRegistrado(imeiSeleccionado.idEquipo) ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'}`}>
-                        IMEI 1: {imeiSeleccionado.idEquipo}
-                        {imeisRegistrados.has(imeiSeleccionado.idEquipo) && <span className="bg-blue-200 text-blue-800 px-1 rounded">reg</span>}
-                      </button>
-                      {imeiSeleccionado.imei2 && (
-                        <button type="button" onClick={() => !imeiYaRegistrado(imeiSeleccionado.imei2) && handleConfirmEqSelection(imeiSeleccionado, imeiSeleccionado.imei2)}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded border text-xs font-mono ${imeiYaRegistrado(imeiSeleccionado.imei2) ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'}`}>
-                          IMEI 2: {imeiSeleccionado.imei2}
-                          {imeisRegistrados.has(imeiSeleccionado.imei2) && <span className="bg-blue-200 text-blue-800 px-1 rounded">reg</span>}
-                        </button>
-                      )}
-                    </div>
-                    <button type="button" onClick={() => setImeiSeleccionado(null)} className="mt-3 text-xs text-gray-400 hover:text-gray-600"><X size={12} className="inline mr-1"/>Cancelar</button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {equiposCliente.map(eq => (
-                      <button type="button" key={eq.idEquipo} onClick={() => handleEqClick(eq)} className="p-3 text-left bg-white rounded shadow-sm border border-blue-200 hover:border-blue-400 transition-colors">
-                        <div className="font-semibold text-gray-800 text-sm">{eq.marca} {eq.nombreComercial || eq.modelo}</div>
-                        {eq.nombreComercial && <div className="text-xs text-gray-400 mb-1">{eq.modelo}</div>}
-                        <div className="space-y-0.5 mt-1">
-                          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono">IMEI 1: {eq.idEquipo}{imeisRegistrados.has(eq.idEquipo) && <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">reg</span>}</div>
-                          {eq.imei2 && <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono">IMEI 2: {eq.imei2}{imeisRegistrados.has(eq.imei2) && <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">reg</span>}</div>}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-3 pt-3 border-t border-blue-200 text-right">
-                  <button type="button" onClick={() => {setShowManualEqForm(true); setComprobanteApple(emptyComprobanteApple()); setFormData(prev => ({...prev, imei1:'', imei:'', imei2:'', marca:'', modelo:'', nombreComercial:''}))}} className="text-sm text-blue-700 hover:underline">+ Agregar equipo nuevo</button>
-                </div>
-              </div>
-            )}
+            {selectorEquipos}
 
             {showManualEqForm && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {escaneoProcesando && (
-                  <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700" />
-                    Extrayendo datos de la caja del equipo...
-                  </div>
-                )}
                 {esRegistroSimple && (
                   <>
                     <div>
@@ -836,8 +741,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                       <div className="mt-2 grid gap-2 sm:grid-cols-2">
                         {[['imei1', formData.imei1, 'IMEI 1'], ['imei2', formData.imei2, 'IMEI 2']].map(([key, value, label]) => (
                           <label key={key} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 font-mono text-xs ${formData.imei === value && value ? 'border-blue-500 bg-white text-blue-700' : 'border-slate-200 bg-white text-slate-600'} ${!value || !luhn(value) ? 'cursor-not-allowed opacity-50' : 'hover:border-blue-300'}`}>
-                            <input type="radio" name="imeiRegistrado" value={value} checked={Boolean(value) && formData.imei === value} onChange={() => { onDirty?.(); setFormData(prev => ({...prev, imei: value})); }} disabled={!value || !luhn(value)} className="accent-blue-600" />
-                            <span><span className="font-sans font-bold">{label}</span><br />{value || 'Ingresa el IMEI'}</span>
+                            <input type="radio" name="imeiRegistrado" value={value} checked={Boolean(value) && formData.imei === value} onChange={() => { onDirty?.(); setFormData(prev => ({...prev, imei: value})); }} disabled={!value || !luhn(value) || imeiYaRegistrado(value)} className="accent-blue-600" />
+                            <span><span className="font-sans font-bold">{label}</span><br />{value || 'Ingresa el IMEI'}{imeiYaRegistrado(value) && <span className="block font-sans text-amber-800">Ya tiene registro activo</span>}</span>
                           </label>
                         ))}
                       </div>

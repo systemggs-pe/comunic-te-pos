@@ -238,8 +238,12 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   return error?.message || fallback;
 }
 
-export function consultarReniecDni(dni) {
-  return llamarFuncionSegura('reniec', {dni: String(dni)});
+export function consultarClienteParaRegistro(payload, options = {}) {
+  return llamarFuncionSegura('clientes', {...payload, action: 'forRegistration'}, options);
+}
+
+export function consultarReniecDni(dni, options = {}) {
+  return llamarFuncionSegura('reniec', {dni: String(dni)}, options);
 }
 
 export function consultarDniFotos(dni, tipo = 'azul') {
