@@ -80,9 +80,8 @@ export function validateCustomerStep(form, direccionFinalCliente) {
   return null;
 }
 
-export function validateEquipmentStep(form, {esRegistroSimple, imeiYaRegistrado} = {}) {
+export function validateEquipmentStep(form, {imeiYaRegistrado} = {}) {
   if (!luhn(clean(form.imei1))) return 'El IMEI 1 no es valido; verifica los digitos';
-  if (esRegistroSimple && !clean(form.imei2)) return 'El IMEI 2 es obligatorio';
   if (clean(form.imei2) && !luhn(clean(form.imei2))) return 'El IMEI 2 no es valido; verifica los digitos';
   if (clean(form.imei1) && clean(form.imei1) === clean(form.imei2)) return 'El IMEI 1 y el IMEI 2 deben ser diferentes';
   if (![clean(form.imei1), clean(form.imei2)].includes(clean(form.imei))) return 'Selecciona el IMEI que se va a registrar';

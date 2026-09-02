@@ -505,9 +505,6 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     if (!luhn(clean(formData.imei1))) {
       showToast('El IMEI 1 no es valido; verifica los digitos', 'error'); return false;
     }
-    if (esRegistroSimple && !clean(formData.imei2)) {
-      showToast('El IMEI 2 es obligatorio', 'error'); return false;
-    }
     if (clean(formData.imei2) && !luhn(clean(formData.imei2))) {
       showToast('El IMEI 2 no es valido; verifica los digitos', 'error'); return false;
     }
@@ -733,8 +730,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                       <input name="imei1" value={formData.imei1} onChange={handleChange} className={`w-full border rounded p-2 text-sm font-mono ${formData.imei1.length === 15 ? (luhn(formData.imei1) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} placeholder="15 digitos" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">IMEI 2 *</label>
-                      <input name="imei2" value={formData.imei2} onChange={handleChange} className={`w-full border rounded p-2 text-sm font-mono ${formData.imei2.length === 15 ? (luhn(formData.imei2) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} placeholder="15 digitos" />
+                      <label className="block text-xs text-gray-500 mb-1">IMEI 2 <span className="font-normal text-[var(--ui-text-tertiary)]">(opcional)</span></label>
+                      <input name="imei2" value={formData.imei2} onChange={handleChange} className={`w-full border rounded p-2 text-sm font-mono ${formData.imei2.length === 15 ? (luhn(formData.imei2) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} placeholder="15 dígitos si corresponde" />
                     </div>
                     <fieldset className="sm:col-span-2 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
                       <legend className="px-1 text-xs font-extrabold text-slate-600">IMEI que se va a registrar *</legend>
