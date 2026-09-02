@@ -437,7 +437,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
             <div className={`flex items-center gap-2 ${paso === n ? 'text-green-600' : paso > n ? 'text-green-600' : 'text-gray-400'}`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors
                 ${paso === n ? 'border-green-600 bg-green-50 text-green-600' : paso > n ? 'border-green-500 bg-green-50 text-green-600' : 'border-gray-300 text-gray-400'}`}>
-                {paso > n ? '✓' : n}
+                {paso > n ? <CheckCircle2 size={15} aria-label="Completado" /> : n}
               </div>
               <span className="text-xs font-medium hidden sm:block">{n === 1 ? 'Cliente' : 'Equipo y Precio'}</span>
             </div>
@@ -525,7 +525,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
                   placeholder={placeholderEscaneo('imei1', '15 digitos')} />
                 {formData.imei1.length === 15 && (
                   <p className={`text-xs mt-1 font-medium ${luhn(formData.imei1) ? 'text-green-600' : 'text-red-600'}`}>
-                    {luhn(formData.imei1) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
+                    <span className="inline-flex items-center gap-1">{luhn(formData.imei1) ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}{luhn(formData.imei1) ? 'IMEI válido' : 'IMEI inválido — verifica los dígitos'}</span>
                   </p>
                 )}
               </div>
@@ -536,7 +536,7 @@ export function VentaForm({ clientes, equipos, logoVentas, initialData, onCancel
                   placeholder={placeholderEscaneo('imei2')} />
                 {formData.imei2.length === 15 && (
                   <p className={`text-xs mt-1 font-medium ${luhn(formData.imei2) ? 'text-green-600' : 'text-red-600'}`}>
-                    {luhn(formData.imei2) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
+                    <span className="inline-flex items-center gap-1">{luhn(formData.imei2) ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}{luhn(formData.imei2) ? 'IMEI válido' : 'IMEI inválido — verifica los dígitos'}</span>
                   </p>
                 )}
               </div>

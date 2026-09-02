@@ -1,6 +1,9 @@
 import React, {useState} from 'react';
-import {CheckCircle2, ImagePlus, RefreshCw, Search} from 'lucide-react';
+import {CheckCircle2, ImagePlus, RefreshCw} from 'lucide-react';
 import {consultarDniFotos, obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
+import {Button} from '../../components/ui/Button.jsx';
+import {PageHeader, SearchField} from '../../components/ui/PageHeader.jsx';
+import {StateView} from '../../components/ui/StateView.jsx';
 
 const DNI_RE = /^\d{8}$/;
 const imageLabels = ['Anverso', 'Reverso'];
@@ -100,14 +103,8 @@ export function DniFotosPage({showToast}) {
   };
 
   return (
-    <div className="saas-list-shell">
-      <div className="saas-page-header">
-        <div>
-          <p className="saas-page-kicker">Documento</p>
-          <h3 className="saas-page-title">Foto DNI</h3>
-          <p className="saas-page-desc">Consulta anverso y reverso por numero de DNI. Cada consulta consume creditos del proveedor y no se guarda en el historial.</p>
-        </div>
-      </div>
+    <div className="ui-page-surface">
+      <PageHeader eyebrow="Documento" title="Foto DNI" description="Consulta anverso y reverso por número de DNI. Cada consulta consume créditos del proveedor y no se guarda en el historial." icon={ImagePlus} />
 
       <div className="border-b border-slate-200 p-4">
         <div className="mb-4 grid gap-2 md:grid-cols-2">
@@ -117,7 +114,7 @@ export function DniFotosPage({showToast}) {
               type="button"
               onClick={() => handleTypeChange(item.value)}
               data-active={tipo === item.value}
-              className="flex min-h-14 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:bg-slate-50 data-[active=true]:border-blue-300 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700"
+              className="ui-choice-row"
             >
               <span>
                 <span className="flex items-center gap-2 text-sm font-bold">
@@ -132,35 +129,19 @@ export function DniFotosPage({showToast}) {
         </div>
 
         <form onSubmit={consultar} className="flex flex-col gap-3 sm:flex-row">
-          <div className="saas-searchbox sm:w-80">
-            <Search size={16} />
-            <input
+          <SearchField
+              label="DNI"
               value={dni}
               onChange={handleDniChange}
-              className="saas-search-input font-mono"
+              inputClassName="font-mono"
               inputMode="numeric"
               maxLength={8}
-              placeholder="DNI de 8 digitos"
+              placeholder="DNI de 8 dígitos"
+              className="sm:w-80"
             />
-          </div>
-          <button type="submit" disabled={!canSearch} className="saas-primary disabled:cursor-not-allowed disabled:opacity-60">
-            {loading ? (
-              <>
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-                Consultando...
-              </>
-            ) : (
-              <>
-                <ImagePlus size={16} />
-                Consultar {selectedType.label}
-              </>
-            )}
-          </button>
+          <Button type="submit" variant="primary" disabled={!canSearch} loading={loading} loadingLabel="Consultando…"><ImagePlus size={16} /> Consultar {selectedType.label}</Button>
           {result && (
-            <button type="button" onClick={consultar} disabled={loading} className="saas-secondary disabled:opacity-50" title="Realiza una nueva consulta con costo">
-              <RefreshCw size={14} />
-              Actualizar
-            </button>
+            <Button onClick={consultar} disabled={loading} title="Realiza una nueva consulta con costo"><RefreshCw size={14} /> Actualizar</Button>
           )}
         </form>
       </div>
@@ -173,11 +154,7 @@ export function DniFotosPage({showToast}) {
         )}
 
         {!error && !loading && !result && (
-          <div className="saas-empty">
-            <ImagePlus size={34} />
-            <p className="text-sm font-semibold">Ingresa un DNI para consultar la foto.</p>
-            <p className="text-xs font-medium text-slate-400">{selectedType.label}</p>
-          </div>
+          <StateView icon={ImagePlus} title="Ingresa un DNI para consultar la foto" description={selectedType.label} />
         )}
 
         {loading && (

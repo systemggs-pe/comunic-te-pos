@@ -1,16 +1,18 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
-import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, AlertTriangle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, Share2, Settings, ImagePlus } from 'lucide-react';
+import { X, Home, ShoppingCart, ClipboardList, Search, CheckCircle2, AlertCircle, AlertTriangle, Users, UploadCloud, LogOut, Settings, ImagePlus, ChevronRight } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { onSnapshot, setDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { EMAILS_PERMITIDOS } from '../config/auth.js';
 import { PRODUCT_BRAND, SOFTWARE_BRAND } from '../config/branding.js';
 import { auth, db, appId } from '../lib/firebase.js';
 import { LoginScreen } from '../features/auth/LoginScreen.jsx';
-import { TopNavItem } from '../components/navigation/TopNavItem.jsx';
-import { MobileNavIcon } from '../components/navigation/MobileNavIcon.jsx';
+import { FloatingNavigation } from '../components/navigation/FloatingNavigation.jsx';
 import { AppFooter } from '../components/branding/AppFooter.jsx';
 import { IntroSplash } from '../components/branding/IntroSplash.jsx';
 import { ConfirmModal } from '../components/ui/ConfirmModal.jsx';
+import { IconButton } from '../components/ui/Button.jsx';
+import { StatusBadge } from '../components/ui/StatusBadge.jsx';
+import { ThemeToggle } from '../components/ui/ThemeToggle.jsx';
 import { CookieConsentBanner } from '../features/legal/CookieConsentBanner.jsx';
 import { LegalDocumentPage } from '../features/legal/LegalDocumentPage.jsx';
 import { isLegalPath, slugFromPath } from '../features/legal/legalRouting.js';
@@ -36,6 +38,37 @@ const INTRO_SEEN_PREFIX = 'ggs_intro_seen_at_';
 const INTRO_REPEAT_AFTER_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 40;
 const REFERENCE_DATA_LIMIT = 200;
+
+const VIEW_LABELS = {
+  dashboard: 'Inicio',
+  registros_list: 'Registros',
+  registros_new: 'Nuevo registro',
+  registros_edit: 'Editar registro',
+  ventas_list: 'Ventas',
+  ventas_new: 'Nueva venta',
+  ventas_edit: 'Editar venta',
+  clientes_list: 'Clientes',
+  foto_dni: 'Foto DNI',
+  problemas_app: 'Problemas de la aplicación',
+  configuracion: 'Configuración',
+};
+
+function SearchResultIcon({type}) {
+  if (type === 'registro') return <ClipboardList size={17} />;
+  if (type === 'venta') return <ShoppingCart size={17} />;
+  return <Users size={17} />;
+}
+
+function MoreMenuItem({Icon, title, description, active = false, tone = 'neutral', showChevron = true, value, onClick}) {
+  return (
+    <button type="button" className="app-more-item" data-active={active} data-tone={tone} onClick={onClick} aria-current={active ? 'page' : undefined}>
+      <span className="app-more-item__icon" aria-hidden="true">{React.createElement(Icon, {size: 18, strokeWidth: 1.85})}</span>
+      <span className="app-more-item__copy"><span>{title}</span><small>{description}</small></span>
+      {value && <span className="app-more-item__value">{value}</span>}
+      {!value && showChevron && <ChevronRight size={16} className="app-more-item__chevron" aria-hidden="true" />}
+    </button>
+  );
+}
 
 function sortByDateDesc(items) {
   return [...items].sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0));
@@ -582,7 +615,7 @@ function App() {
     a.download = `backup_comunicate_${hoy}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Respaldo descargado ✓', 'success');
+    showToast('Respaldo descargado', 'success');
   };
 
   const descargarRespaldoCompleto = async () => {
@@ -624,7 +657,7 @@ function App() {
         cl.nombre?.toLowerCase().includes(q) ||
         r.modeloEquipo?.toLowerCase().includes(q) ||
         r.nRegistro?.toLowerCase().includes(q))
-      ) res.push({ tipo: 'registro', icono: '📋', titulo: `${cl.nombre || r.nombreCliente || r.dniCliente}`, subtitulo: `${r.nRegistro} · IMEI ${r.imeiRegistrado || r.imeiEquipo}`, data: r });
+      ) res.push({ tipo: 'registro', titulo: `${cl.nombre || r.nombreCliente || r.dniCliente}`, subtitulo: `${r.nRegistro} · IMEI ${r.imeiRegistrado || r.imeiEquipo}`, data: r });
     });
     // Buscar en ventas
     ventas.forEach(v => {
@@ -638,12 +671,12 @@ function App() {
         cl.nombre?.toLowerCase().includes(q) ||
         v.modeloEquipo?.toLowerCase().includes(q) ||
         v.nVenta?.toLowerCase().includes(q))
-      ) res.push({ tipo: 'venta', icono: '🛒', titulo: `${cl.nombre || v.nombreCliente || v.dniCliente}`, subtitulo: `${v.nVenta} · ${v.marcaEquipo || ''} ${v.modeloEquipo || ''}`, data: v });
+      ) res.push({ tipo: 'venta', titulo: `${cl.nombre || v.nombreCliente || v.dniCliente}`, subtitulo: `${v.nVenta} · ${v.marcaEquipo || ''} ${v.modeloEquipo || ''}`, data: v });
     });
     // Buscar en clientes
     clientes.forEach(c => {
       if (normalizeSearchTerm(c.dni).includes(q) || normalizeSearchTerm(c.nombre).includes(q) || normalizeSearchTerm(c.celular).includes(q) || normalizeSearchTerm(c.correo).includes(q)) {
-        res.push({ tipo: 'cliente', icono: '👤', titulo: c.nombre, subtitulo: `Doc: ${c.dni} · ${c.celular || ''}`, data: c });
+        res.push({ tipo: 'cliente', titulo: c.nombre, subtitulo: `Doc: ${c.dni} · ${c.celular || ''}`, data: c });
       }
     });
     return res.slice(0, 10); // máximo 10 resultados
@@ -660,6 +693,53 @@ function App() {
   }, [busquedaGlobal, buscarRegistrosEnHistorial, buscarVentasEnHistorial, mostrarBusqueda, registros.length, totales.registros, totales.ventas, ventas.length]);
 
   const buscandoBusquedaGlobal = buscandoHistorial.registros || buscandoHistorial.ventas;
+  const currentSectionLabel = VIEW_LABELS[currentView] || SOFTWARE_BRAND;
+  const primaryNavigationItems = [
+    {id: 'dashboard', label: 'Inicio', Icon: Home, active: currentView === 'dashboard', onSelect: () => navegarA('dashboard')},
+    {id: 'registros', label: 'Registros', Icon: ClipboardList, active: currentView.startsWith('registros'), onSelect: () => navegarA('registros_list')},
+    {id: 'ventas', label: 'Ventas', Icon: ShoppingCart, active: currentView.startsWith('ventas'), onSelect: () => navegarA('ventas_list')},
+    {id: 'clientes', label: 'Clientes', Icon: Users, active: currentView === 'clientes_list', onSelect: () => navegarA('clientes_list')},
+  ];
+  const moreNavigationActive = ['foto_dni', 'problemas_app', 'configuracion'].includes(currentView);
+
+  const abrirResultadoBusqueda = (resultado) => {
+    setBusquedaGlobal('');
+    setMostrarBusqueda(false);
+    if (resultado.tipo === 'registro') navegarA('registros_list');
+    else if (resultado.tipo === 'venta') navegarA('ventas_list');
+    else navegarA('clientes_list');
+  };
+
+  const searchResultsPanel = mostrarBusqueda && busquedaGlobal.trim().length >= 2 ? (
+    <div className="app-search-results" role="region" aria-label="Resultados de búsqueda">
+      {resultadosBusqueda.length > 0 ? (
+        <>
+          {resultadosBusqueda.map((resultado, index) => (
+            <button
+              key={`${resultado.tipo}-${resultado.data?.id || index}`}
+              type="button"
+              onMouseDown={() => abrirResultadoBusqueda(resultado)}
+              className="app-search-result"
+            >
+              <span className="app-search-result__icon" aria-hidden="true"><SearchResultIcon type={resultado.tipo} /></span>
+              <span className="min-w-0">
+                <span className="block truncate text-[0.8125rem] font-semibold text-[var(--ui-text)]">{resultado.titulo}</span>
+                <span className="mt-0.5 block truncate text-xs text-[var(--ui-text-tertiary)]">{resultado.subtitulo}</span>
+              </span>
+              <StatusBadge tone={resultado.tipo === 'venta' ? 'success' : resultado.tipo === 'registro' ? 'accent' : 'neutral'}>{resultado.tipo}</StatusBadge>
+            </button>
+          ))}
+          <p className="px-3 py-2 text-center text-[0.6875rem] text-[var(--ui-text-tertiary)]" aria-live="polite">
+            {resultadosBusqueda.length} {resultadosBusqueda.length === 1 ? 'resultado' : 'resultados'}
+          </p>
+        </>
+      ) : (
+        <p className="px-4 py-5 text-center text-sm text-[var(--ui-text-tertiary)]" aria-live="polite">
+          {buscandoBusquedaGlobal ? 'Buscando en el historial…' : `Sin resultados para “${busquedaGlobal}”`}
+        </p>
+      )}
+    </div>
+  ) : null;
 
   if (legalSlug) {
     return (
@@ -671,7 +751,12 @@ function App() {
   }
 
   if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">Cargando sistema...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--ui-canvas)] text-[var(--ui-text-tertiary)]" role="status">
+        <span className="ui-button__spinner mr-3" aria-hidden="true" />
+        Cargando sistema…
+      </div>
+    );
   }
 
   if (!user) {
@@ -680,8 +765,8 @@ function App() {
         <LoginScreen showToast={showToast} EMAILS_PERMITIDOS={EMAILS_PERMITIDOS} auth={auth} />
         <CookieConsentBanner />
         {toast.show && (
-          <div className={`fixed bottom-4 right-4 px-4 py-3 rounded shadow-lg flex items-center text-white ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'} transition-opacity z-[9999]`}>
-            <span className="mr-2 flex items-center">
+          <div className={`ui-toast ui-toast--${toast.type === 'success' ? 'success' : 'error'}`} role={toast.type === 'success' ? 'status' : 'alert'}>
+            <span className="flex items-center" aria-hidden="true">
               {toast.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
             </span>
             {toast.message}
@@ -692,7 +777,7 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[oklch(0.976_0.006_250)] font-sans text-slate-900">
+    <div className="app-shell">
       {showIntro && <IntroSplash />}
       <ConfirmModal
         open={Boolean(pendingView)}
@@ -704,138 +789,48 @@ function App() {
         onConfirm={confirmarSalidaSinGuardar}
         onCancel={() => setPendingView(null)}
       />
+      <a className="ui-skip-link" href="#app-main">Saltar al contenido</a>
 
-      {/* ── TOPBAR ── */}
-      <header className="z-50 flex shrink-0 flex-wrap items-center justify-between border-b border-slate-200 bg-[oklch(0.988_0.004_250)] px-4 py-2 text-slate-900 shadow-sm md:px-6">
-
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <span className="select-none text-base font-extrabold tracking-wide text-slate-950">{PRODUCT_BRAND}</span>
-          <span className="hidden rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 sm:inline-flex">{SOFTWARE_BRAND}</span>
-        </div>
-
-        {/* Nav desktop */}
-        <nav className="order-last hidden w-full flex-wrap items-center gap-1.5 border-t border-slate-200 pt-2 md:flex">
-          <TopNavItem Icon={Home}          label="Inicio"            active={currentView === 'dashboard'}          onClick={() => navegarA('dashboard')} />
-          <TopNavItem Icon={ClipboardList} label="Registros"         active={currentView.startsWith('registros')} onClick={() => navegarA('registros_list')} />
-          <TopNavItem Icon={ShoppingCart}  label="Ventas"            active={currentView.startsWith('ventas')}    onClick={() => navegarA('ventas_list')} tone="emerald" />
-          <TopNavItem Icon={Users}         label="Clientes"          active={currentView === 'clientes_list'}     onClick={() => navegarA('clientes_list')} />
-          <TopNavItem Icon={ImagePlus}     label="Foto DNI"          active={currentView === 'foto_dni'}          onClick={() => navegarA('foto_dni')} />
-          <TopNavItem iconOnly Icon={AlertTriangle} label="Problemas" active={currentView === 'problemas_app'} onClick={() => navegarA('problemas_app')} tone="amber" className="ml-auto" />
-          <TopNavItem iconOnly Icon={Settings} label="Configuracion" active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} />
-        </nav>
-
-        {/* Derecha desktop: buscador + email + logout */}
-        <div className="hidden items-center gap-2 md:flex">
-          {/* Buscador global */}
-          <div className="relative">
-            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
-              <Search size={14} className="text-slate-400" />
+      <section className="app-workspace">
+        <header className="app-command-bar">
+          <div className="app-command-bar__identity">
+            <span className="app-command-bar__mark" aria-hidden="true">CM</span>
+            <div className="app-command-bar__title">
+              <p>{currentSectionLabel}</p>
+              <p>{PRODUCT_BRAND} · {SOFTWARE_BRAND}</p>
+            </div>
+          </div>
+          <div className="app-command-bar__tools">
+            <div className="app-global-search app-command-bar__desktop-only">
+              <Search className="app-global-search__leading" size={16} aria-hidden="true" />
               <input
                 value={busquedaGlobal}
-                onChange={e => { setBusquedaGlobal(e.target.value); setMostrarBusqueda(true); }}
+                onChange={event => { setBusquedaGlobal(event.target.value); setMostrarBusqueda(true); }}
                 onFocus={() => setMostrarBusqueda(true)}
-                onBlur={() => setTimeout(() => setMostrarBusqueda(false), 200)}
-                placeholder="Buscar..."
+                onBlur={() => window.setTimeout(() => setMostrarBusqueda(false), 200)}
+                placeholder="Buscar en todo el sistema"
                 aria-label="Buscar clientes, registros y ventas"
-                className="w-40 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 lg:w-56"
+                className="app-global-search__input"
               />
-              {busquedaGlobal && <button type="button" onClick={() => setBusquedaGlobal('')} aria-label="Limpiar búsqueda" className="text-slate-400 hover:text-slate-700"><X size={12}/></button>}
+              {busquedaGlobal && <button type="button" className="app-global-search__clear" onClick={() => setBusquedaGlobal('')} aria-label="Limpiar búsqueda"><X size={14} /></button>}
+              {searchResultsPanel}
             </div>
-            {/* Dropdown resultados */}
-            {mostrarBusqueda && resultadosBusqueda.length > 0 && (
-              <div className="absolute right-0 top-10 z-[999] w-80 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
-                {resultadosBusqueda.map((r, i) => (
-                  <button key={i} onMouseDown={() => {
-                    setBusquedaGlobal(''); setMostrarBusqueda(false);
-                    if (r.tipo === 'registro') navegarA('registros_list');
-                    else if (r.tipo === 'venta') navegarA('ventas_list');
-                    else navegarA('clientes_list');
-                  }} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-slate-50">
-                    <span className="text-lg mt-0.5">{r.icono}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800">{r.titulo}</p>
-                      <p className="truncate text-xs text-slate-400">{r.subtitulo}</p>
-                    </div>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1
-                      ${r.tipo === 'registro' ? 'bg-blue-100 text-blue-700' : r.tipo === 'venta' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}`}>
-                      {r.tipo}
-                    </span>
-                  </button>
-                ))}
-                <p className="py-2 text-center text-xs text-slate-400">{resultadosBusqueda.length} resultado(s)</p>
-              </div>
-            )}
-            {mostrarBusqueda && busquedaGlobal.length >= 2 && resultadosBusqueda.length === 0 && (
-              <div className="absolute right-0 top-10 z-[999] w-64 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-xl">
-                <p className="text-center text-sm text-slate-400">{buscandoBusquedaGlobal ? 'Buscando historial...' : `Sin resultados para "${busquedaGlobal}"`}</p>
-              </div>
-            )}
+            <IconButton className="md:hidden" label="Buscar" onClick={() => setMostrarBusqueda(value => !value)}><Search size={18} /></IconButton>
           </div>
-          <span className="hidden max-w-[180px] truncate text-xs font-medium text-slate-500 xl:block">{user.email}</span>
-          <button onClick={descargarRespaldoCompleto} title="Descargar respaldo"
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50">
-            <UploadCloud size={16} /> Respaldo
-          </button>
-          <button onClick={() => signOut(auth)} title="Cerrar sesión"
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50">
-            <LogOut size={16} /> Salir
-          </button>
-        </div>
+        </header>
 
-        {/* Nav móvil */}
-        <div className="flex md:hidden items-center gap-1">
-          <MobileNavIcon Icon={Search}       active={mostrarBusqueda}                          onClick={() => setMostrarBusqueda(v => !v)}         title="Buscar" />
-          <button onClick={() => signOut(auth)} title="Cerrar sesión"
-            className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50">
-            <LogOut size={20} />
-          </button>
-        </div>
-
-      </header>
-
-      <nav className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-200 bg-white px-2 py-1.5 md:hidden">
-        <MobileNavIcon showLabel Icon={Home}          active={currentView === 'dashboard'}             onClick={() => navegarA('dashboard')}               title="Inicio" />
-        <MobileNavIcon showLabel Icon={ClipboardList} active={currentView.startsWith('registros')}    onClick={() => navegarA('registros_list')}           title="Registros" />
-        <MobileNavIcon showLabel Icon={ShoppingCart}  active={currentView.startsWith('ventas')}       onClick={() => navegarA('ventas_list')}              title="Ventas" tone="emerald" />
-        <MobileNavIcon showLabel Icon={Users}         active={currentView === 'clientes_list'}        onClick={() => navegarA('clientes_list')}            title="Clientes" />
-        <MobileNavIcon showLabel Icon={ImagePlus}     active={currentView === 'foto_dni'}             onClick={() => navegarA('foto_dni')}                 title="Foto DNI" />
-      </nav>
-
-      {/* Buscador móvil desplegable */}
-      {mostrarBusqueda && (
-        <div className="relative z-40 border-b border-slate-200 bg-white px-4 py-2 md:hidden">
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <Search size={14} className="text-slate-400" />
-            <input autoFocus value={busquedaGlobal} onChange={e => setBusquedaGlobal(e.target.value)}
-              placeholder="Buscar cliente, IMEI, N° registro..."
-              aria-label="Buscar clientes, registros y ventas"
-              className="flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" />
-            {busquedaGlobal && <button type="button" onClick={() => setBusquedaGlobal('')} aria-label="Limpiar búsqueda"><X size={14} className="text-slate-400"/></button>}
-          </div>
-          {resultadosBusqueda.length > 0 && (
-            <div className="absolute left-0 right-0 top-full z-50 border-t border-slate-100 bg-white shadow-xl">
-              {resultadosBusqueda.map((r, i) => (
-                <button key={i} onMouseDown={() => {
-                  setBusquedaGlobal(''); setMostrarBusqueda(false);
-                  if (r.tipo === 'registro') navegarA('registros_list');
-                  else if (r.tipo === 'venta') navegarA('ventas_list');
-                  else navegarA('clientes_list');
-                }} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-slate-50">
-                  <span className="text-base mt-0.5">{r.icono}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-800">{r.titulo}</p>
-                    <p className="truncate text-xs text-slate-400">{r.subtitulo}</p>
-                  </div>
-                </button>
-              ))}
+        {mostrarBusqueda && (
+          <div className="relative z-40 border-b border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2 md:hidden">
+            <div className="app-global-search w-full">
+              <Search className="app-global-search__leading" size={16} aria-hidden="true" />
+              <input autoFocus value={busquedaGlobal} onChange={event => setBusquedaGlobal(event.target.value)} placeholder="Cliente, IMEI o número…" aria-label="Buscar clientes, registros y ventas" className="app-global-search__input" />
+              {busquedaGlobal && <button type="button" className="app-global-search__clear" onClick={() => setBusquedaGlobal('')} aria-label="Limpiar búsqueda"><X size={14} /></button>}
+              {searchResultsPanel}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* ── CONTENIDO ── */}
-      <main className="relative flex-1 overflow-auto p-4 md:p-5">
+        <main id="app-main" className="app-main" tabIndex="-1">
         <Suspense fallback={<div className="py-12 text-center text-sm text-slate-400">Cargando modulo...</div>}>
           {currentView === 'dashboard' && <Dashboard stats={totales} setCurrentView={navegarA} user={user} />}
 
@@ -864,15 +859,38 @@ function App() {
         </Suspense>
 
         {toast.show && (
-          <div className={`fixed bottom-4 right-4 z-50 flex items-center rounded-lg px-4 py-3 text-sm text-white shadow-lg ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
-            <span className="mr-2 flex items-center">
+          <div className={`ui-toast ui-toast--${toast.type === 'success' ? 'success' : 'error'}`} role={toast.type === 'success' ? 'status' : 'alert'}>
+            <span className="flex items-center" aria-hidden="true">
               {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
             </span>
             {toast.message}
           </div>
         )}
-      </main>
-      <AppFooter />
+        </main>
+        <AppFooter />
+        <FloatingNavigation items={primaryNavigationItems} moreActive={moreNavigationActive}>
+          <>
+              <div className="app-more-account">
+                <span className="app-more-account__avatar" aria-hidden="true">{user.email?.slice(0, 2).toUpperCase()}</span>
+                <span className="min-w-0"><strong>Sesión activa</strong><small>{user.email}</small></span>
+              </div>
+
+              <div className="app-more-group">
+                <p className="app-more-group__label">Módulos</p>
+                <MoreMenuItem Icon={ImagePlus} title="Foto DNI" description="Consultar imágenes documentarias" active={currentView === 'foto_dni'} onClick={() => navegarA('foto_dni')} />
+                <MoreMenuItem Icon={AlertTriangle} title="Problemas" description="Incidencias y cambios resueltos" active={currentView === 'problemas_app'} tone="warning" onClick={() => navegarA('problemas_app')} />
+                <MoreMenuItem Icon={Settings} title="Configuración" description="Logo y preferencias del sistema" active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} />
+              </div>
+
+              <div className="app-more-group">
+                <p className="app-more-group__label">Sistema</p>
+                <MoreMenuItem Icon={UploadCloud} title="Descargar respaldo" description="Exportar los datos operativos" value="JSON" onClick={descargarRespaldoCompleto} />
+                <ThemeToggle presentation="menu" />
+                <MoreMenuItem Icon={LogOut} title="Cerrar sesión" description="Salir de esta cuenta" tone="danger" showChevron={false} onClick={() => signOut(auth)} />
+              </div>
+          </>
+        </FloatingNavigation>
+      </section>
       <CookieConsentBanner />
     </div>
   );

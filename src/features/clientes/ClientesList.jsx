@@ -1,8 +1,12 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {CalendarClock, ClipboardList, Edit, Eye, Search, ShoppingCart, Smartphone, Trash2, Users, X} from 'lucide-react';
+import {CalendarClock, ClipboardList, Edit, Eye, ShoppingCart, Smartphone, Trash2, Users, X} from 'lucide-react';
 import {actualizarCliente, consultarClientesOperativos, eliminarCliente, obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento} from '../../utils/documentos.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
+import {Button, IconButton} from '../../components/ui/Button.jsx';
+import {PageHeader, SearchField} from '../../components/ui/PageHeader.jsx';
+import {SkeletonRows, StateView} from '../../components/ui/StateView.jsx';
+import {StatusBadge} from '../../components/ui/StatusBadge.jsx';
 
 const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const clean = value => String(value || '').trim();
@@ -260,7 +264,7 @@ export function ClientesList({showToast}) {
   }, [selectedClient]);
 
   return (
-    <div className="saas-list-shell">
+    <div className="ui-page-surface">
       <ConfirmModal
         open={confirmarEliminar}
         title="Eliminar cliente"
@@ -272,73 +276,49 @@ export function ClientesList({showToast}) {
         onConfirm={borrarCliente}
         onCancel={() => setConfirmarEliminar(false)}
       />
-      <div className="saas-list-toolbar">
-        <div>
-          <p className="saas-page-kicker">Clientes</p>
-          <h2 className="saas-page-title">Directorio operativo</h2>
-          <p className="saas-page-desc">
-            {cargando
-              ? 'Cargando clientes...'
-              : searchTerm
-                ? `${totalResultados} resultado${totalResultados !== 1 ? 's' : ''}`
-                : `${clientesVisibles.length} de ${totalResultados} cliente${totalResultados !== 1 ? 's' : ''} con ventas o registros`}
-          </p>
-        </div>
-        <div className="saas-toolbar-actions">
+      <PageHeader
+        eyebrow="Directorio operativo"
+        title="Clientes"
+        description="Personas vinculadas a ventas y registros, con su historial consolidado."
+        meta={cargando ? 'Cargando…' : `${clientesVisibles.length} de ${totalResultados}`}
+        icon={Users}
+        actions={(
+          <>
           <select
             value={searchField}
             onChange={e => setSearchField(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="ui-select"
+            aria-label="Campo de búsqueda"
           >
-            <option value="todo">Busqueda avanzada</option>
+            <option value="todo">Búsqueda avanzada</option>
             <option value="dni">Documento</option>
             <option value="imei">IMEI</option>
             <option value="modelo">Modelo</option>
             <option value="nombreComercial">Nombre comercial</option>
-            <option value="sn">Numero de serie</option>
+            <option value="sn">Número de serie</option>
             <option value="nombre">Cliente</option>
           </select>
-          <div className="saas-searchbox">
-            <input
-              type="text"
-              placeholder="Buscar cliente, equipo o serie"
-              className="saas-search-input"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-            <Search size={18} />
-          </div>
-        </div>
-      </div>
+          <SearchField label="Buscar clientes" placeholder="Cliente, equipo o serie" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          </>
+        )}
+      />
 
       {cargando ? (
-        <div className="saas-empty py-20">
-          <Users size={48} strokeWidth={1.4} />
-          <p className="text-base font-semibold">Cargando directorio operativo...</p>
-          <p className="text-sm">Calculando clientes, historial e ingresos completos.</p>
-        </div>
+        <SkeletonRows rows={6} columns={5} label="Cargando directorio operativo" />
       ) : errorCarga ? (
-        <div className="saas-empty py-20">
-          <Users size={48} strokeWidth={1.4} />
-          <p className="text-base font-semibold">No se pudo cargar clientes</p>
-          <p className="text-sm">{errorCarga}</p>
-        </div>
+        <StateView tone="error" title="No se pudo cargar clientes" description={errorCarga} />
       ) : clientesVisibles.length === 0 ? (
-        <div className="saas-empty py-20">
-          <Users size={48} strokeWidth={1.4} />
-          <p className="text-base font-semibold">No se encontraron clientes</p>
-          <p className="text-sm">Prueba con otro DNI, IMEI, modelo, nombre comercial o serie.</p>
-        </div>
+        <StateView icon={Users} title="No se encontraron clientes" description="Prueba con otro documento, IMEI, modelo, nombre comercial o serie." />
       ) : (
         <>
-        <div className="md:hidden saas-mobile-list">
+        <div className="ui-mobile-list md:hidden">
           {clientesVisibles.map(cliente => {
             const historial = [
               ...cliente.ventas.map(item => item.fecha),
               ...cliente.registros.map(item => item.fecha),
             ].filter(Boolean).sort((a, b) => new Date(b) - new Date(a));
             return (
-              <button key={cliente.dni} type="button" onClick={() => setSelectedDni(cliente.dni)} className="saas-mobile-row w-full text-left">
+              <button key={cliente.dni} type="button" onClick={() => setSelectedDni(cliente.dni)} className="ui-mobile-row w-full text-left">
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="break-words text-sm font-semibold text-slate-900">{cliente.nombre || 'Cliente sin nombre'}</p>
@@ -348,9 +328,9 @@ export function ClientesList({showToast}) {
                   <p className="shrink-0 text-right text-sm font-bold text-emerald-700">{soles(cliente.totalIngreso)}</p>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <span className="rounded-md bg-emerald-50 px-2 py-2 text-xs font-semibold text-emerald-700">{cliente.ventas.length} ventas</span>
-                  <span className="rounded-md bg-blue-50 px-2 py-2 text-xs font-semibold text-blue-700">{cliente.registros.length} reg.</span>
-                  <span className="rounded-md bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700">{cliente.equipos.length} equipos</span>
+                  <StatusBadge tone="success" className="justify-center">{cliente.ventas.length} ventas</StatusBadge>
+                  <StatusBadge tone="accent" className="justify-center">{cliente.registros.length} reg.</StatusBadge>
+                  <StatusBadge className="justify-center">{cliente.equipos.length} equipos</StatusBadge>
                 </div>
                 <p className="mt-3 text-xs text-slate-500">Ultimo movimiento: {fechaHora(historial[0])}</p>
               </button>
@@ -359,7 +339,7 @@ export function ClientesList({showToast}) {
         </div>
 
         <div className="hidden md:block">
-          <table className="saas-table text-left">
+          <table className="ui-data-table text-left">
             <thead>
               <tr>
                 <th className="px-5 py-3">Cliente</th>
@@ -370,7 +350,7 @@ export function ClientesList({showToast}) {
                 <th className="px-5 py-3 text-right">Detalle</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {clientesVisibles.map(cliente => {
                 const historial = [
                   ...cliente.ventas.map(item => item.fecha),
@@ -401,9 +381,7 @@ export function ClientesList({showToast}) {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <button onClick={() => setSelectedDni(cliente.dni)} className="saas-icon-button" title="Ver cliente">
-                        <Eye size={18} />
-                      </button>
+                      <IconButton size="sm" onClick={() => setSelectedDni(cliente.dni)} label="Ver cliente"><Eye size={17} /></IconButton>
                     </td>
                   </tr>
                 );
@@ -412,10 +390,8 @@ export function ClientesList({showToast}) {
           </table>
         </div>
         {nextCursor && (
-          <div className="border-t border-slate-100 p-4 text-center">
-            <button type="button" onClick={cargarMasClientes} disabled={cargandoMas} className="saas-secondary disabled:opacity-60">
-              {cargandoMas ? 'Cargando...' : 'Cargar mas clientes'}
-            </button>
+          <div className="border-t border-[var(--ui-border)] p-4 text-center">
+            <Button onClick={cargarMasClientes} loading={cargandoMas} loadingLabel="Cargando…">Cargar más clientes</Button>
           </div>
         )}
         </>

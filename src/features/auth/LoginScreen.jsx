@@ -1,46 +1,11 @@
-import React, { useState } from 'react';
-import {
-  Activity,
-  ArrowRight,
-  CheckCircle2,
-  Clock3,
-  Database,
-  Fingerprint,
-  LockKeyhole,
-  Mail,
-  Phone,
-  ScanLine,
-  ShieldCheck,
-} from 'lucide-react';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import {
-  BRAND_COPY,
-  CORPORATE_PARENT,
-  DIGITAL_SIGNATURE,
-  ENGINEERING_DIVISION,
-  PRODUCT_BRAND,
-  SOFTWARE_BRAND,
-  SUPPORT_EMAIL,
-  SUPPORT_PHONE,
-  SUPPORT_WHATSAPP_URL,
-} from '../../config/branding.js';
-import { LEGAL_DOCUMENT_VERSION, getRequiredLegalSnapshot } from '../../config/legal.js';
-import { registrarConsentimientoLegal } from '../../services/functionsClient.js';
-import { BrandEcosystemStrip, BrandWordmark, TechnicalBadges } from '../../components/branding/BrandEcosystem.jsx';
-import { LegalConsentGate } from '../legal/LegalConsentGate.jsx';
-import { getCookiePreferences } from '../legal/cookiePreferences.js';
-
-const OPERATION_ROWS = [
-  { Icon: ScanLine, title: 'Registros', detail: 'IMEI, estado y cliente', value: 'Listo', tone: 'text-blue-700 bg-blue-50 border-blue-100' },
-  { Icon: Activity, title: 'Ventas', detail: 'Operacion y comprobante', value: 'Activo', tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
-  { Icon: Database, title: 'Clientes', detail: 'Datos para consulta rapida', value: 'Seguro', tone: 'text-slate-700 bg-slate-50 border-slate-200' },
-];
-
-const TRUST_ITEMS = [
-  'Cuenta Google autorizada',
-  'Sesion protegida',
-  'Acceso operativo inmediato',
-];
+import React, {useState} from 'react';
+import {ArrowRight, Fingerprint, LockKeyhole, ShieldCheck} from 'lucide-react';
+import {GoogleAuthProvider, signInWithPopup, signOut} from 'firebase/auth';
+import {CORPORATE_PARENT, DIGITAL_SIGNATURE, ENGINEERING_DIVISION, PRODUCT_BRAND, SOFTWARE_BRAND} from '../../config/branding.js';
+import {LEGAL_DOCUMENT_VERSION, getRequiredLegalSnapshot} from '../../config/legal.js';
+import {registrarConsentimientoLegal} from '../../services/functionsClient.js';
+import {LegalConsentGate} from '../legal/LegalConsentGate.jsx';
+import {getCookiePreferences} from '../legal/cookiePreferences.js';
 
 function GoogleIcon() {
   return (
@@ -53,14 +18,11 @@ function GoogleIcon() {
   );
 }
 
-export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
+export function LoginScreen({showToast, EMAILS_PERMITIDOS, auth}) {
   const [isLoading, setIsLoading] = useState(false);
   const year = new Date().getFullYear();
   const consentStorageKey = `comunicate_legal_acceptance_${LEGAL_DOCUMENT_VERSION}`;
-  const [acceptedAt, setAcceptedAt] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return window.localStorage.getItem(consentStorageKey) || '';
-  });
+  const [acceptedAt, setAcceptedAt] = useState(() => typeof window === 'undefined' ? '' : window.localStorage.getItem(consentStorageKey) || '');
   const hasAcceptedLegal = Boolean(acceptedAt);
 
   const updateLegalAcceptance = (checked) => {
@@ -75,18 +37,15 @@ export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
       showToast('Debes aceptar los documentos legales antes de ingresar.', 'error');
       return;
     }
-
     setIsLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      
       if (!EMAILS_PERMITIDOS.includes(result.user.email)) {
         await signOut(auth);
-        showToast('Acceso denegado. Tu correo no esta autorizado.', 'error');
+        showToast('Acceso denegado. Tu correo no está autorizado.', 'error');
         return;
       }
-
       await registrarConsentimientoLegal({
         accepted: true,
         acceptedAt,
@@ -97,202 +56,55 @@ export function LoginScreen({ showToast, EMAILS_PERMITIDOS, auth }) {
         locale: navigator.language || '',
         source: 'pre-login-gate',
       });
-
       window.sessionStorage.setItem('ggs_intro_after_login_uid', result.user.uid);
-
-      showToast('Sesion iniciada con Google');
+      showToast('Sesión iniciada con Google');
     } catch (error) {
       console.error('Error Google Auth:', error);
-      if (auth.currentUser && error.code !== 'auth/popup-closed-by-user') {
-        await signOut(auth).catch(() => {});
-      }
-      if (error.code === 'auth/unauthorized-domain') {
-        showToast('Firebase no autoriza este dominio. Usa localhost o agrega el dominio en Authentication > Settings.', 'error');
-      } else if (error.code === 'auth/popup-blocked') {
-        showToast('El navegador bloqueo la ventana de Google. Permite ventanas emergentes o usa Chrome.', 'error');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        showToast('La ventana de Google se cerro antes de completar el acceso.', 'error');
-      } else if (error.message === 'AUTH_REQUIRED') {
-        showToast('La sesion de Google no quedo disponible para registrar el consentimiento.', 'error');
-      } else {
-        showToast('No se pudo registrar el consentimiento legal. Revisa la conexion y vuelve a intentar.', 'error');
-      }
+      if (auth.currentUser && error.code !== 'auth/popup-closed-by-user') await signOut(auth).catch(() => {});
+      if (error.code === 'auth/unauthorized-domain') showToast('Firebase no autoriza este dominio. Usa localhost o agrega el dominio en Authentication > Settings.', 'error');
+      else if (error.code === 'auth/popup-blocked') showToast('El navegador bloqueó la ventana de Google. Permite ventanas emergentes o usa Chrome.', 'error');
+      else if (error.code === 'auth/popup-closed-by-user') showToast('La ventana de Google se cerró antes de completar el acceso.', 'error');
+      else if (error.message === 'AUTH_REQUIRED') showToast('La sesión de Google no quedó disponible para registrar el consentimiento.', 'error');
+      else showToast('No se pudo registrar el consentimiento legal. Revisa la conexión y vuelve a intentar.', 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[oklch(0.982_0.006_250)] text-[oklch(0.24_0.028_255)]">
-      <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,oklch(0.9_0.018_250_/_0.55)_1px,transparent_1px),linear-gradient(to_bottom,oklch(0.9_0.018_250_/_0.55)_1px,transparent_1px)] [background-size:48px_48px]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[linear-gradient(to_bottom,oklch(0.995_0.004_250),transparent)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-[linear-gradient(to_top,oklch(0.995_0.004_250),transparent)]" />
+    <div className="login-shell">
+      <header className="login-topbar">
+        <span className="login-brand-mark" aria-hidden="true">CM</span>
+        <div><p>{PRODUCT_BRAND}</p><span>{SOFTWARE_BRAND}</span></div>
+        <span className="login-secure-label"><LockKeyhole size={14} /> Acceso protegido</span>
+      </header>
 
-      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 py-6 sm:px-6 lg:px-8">
-        <section className="grid w-full items-stretch gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,430px)]">
-          <div className="hidden min-h-[34rem] flex-col justify-between px-2 py-4 lg:flex">
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-700">
-                    <ShieldCheck size={22} />
-                  </span>
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-[oklch(0.56_0.025_255)]">{PRODUCT_BRAND}</p>
-                    <p className="mt-0.5 text-sm font-semibold text-[oklch(0.3_0.028_255)]">{SOFTWARE_BRAND} Operations Cloud</p>
-                  </div>
-                </div>
-                <span className="rounded-full border border-[oklch(0.9_0.018_250)] bg-[oklch(0.995_0.004_250)] px-3 py-1 text-xs font-bold text-[oklch(0.47_0.026_255)]">
-                  {CORPORATE_PARENT} ecosystem
-                </span>
-              </div>
+      <main className="login-main">
+        <section className="login-intro">
+          <p className="ui-eyebrow">Operación centralizada</p>
+          <h1>Claridad para cada equipo, venta y cliente.</h1>
+          <p>Un espacio de trabajo preciso para mantener la operación ordenada, segura y fácil de consultar.</p>
+          <div className="login-trust-line"><ShieldCheck size={18} /><span>Acceso restringido a cuentas autorizadas</span></div>
+        </section>
 
-              <div className="mt-12 max-w-xl">
-                <p className="text-sm font-bold uppercase tracking-[0.14em] text-blue-700">Enterprise SaaS access</p>
-                <h2 className="mt-3 max-w-lg text-4xl font-black leading-[1.05] tracking-tight text-[oklch(0.2_0.03_255)]">
-                  Una entrada limpia para una operacion precisa.
-                </h2>
-                <p className="mt-4 max-w-md text-sm leading-6 text-[oklch(0.48_0.024_255)]">
-                  {BRAND_COPY.productLine}
-                </p>
-              </div>
-            </div>
-
-            <section className="mt-8 rounded-2xl border border-[oklch(0.88_0.018_250)] bg-[oklch(0.995_0.004_250)] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">About the ecosystem</p>
-              <p className="mt-2 max-w-lg text-sm leading-6 text-slate-600">
-                {SOFTWARE_BRAND} centralizes operational software under {CORPORATE_PARENT}. {ENGINEERING_DIVISION} provides the engineering, security and product delivery layer behind the platform.
-              </p>
-              <div className="mt-4">
-                <BrandEcosystemStrip dense />
-              </div>
-            </section>
-
-            <div className="mt-10 rounded-2xl border border-[oklch(0.88_0.018_250)] bg-[oklch(0.997_0.003_250)] p-4 shadow-[0_18px_50px_oklch(0.32_0.035_255_/_0.1)]">
-              <div className="flex items-center justify-between border-b border-[oklch(0.91_0.016_250)] pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[oklch(0.95_0.03_255)] text-blue-700">
-                    <Clock3 size={16} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold text-[oklch(0.25_0.028_255)]">Panel listo</p>
-                    <p className="text-xs text-[oklch(0.58_0.024_255)]">Flujo seguro antes de entrar</p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">Verificado</span>
-              </div>
-
-              <div className="mt-4 grid gap-2.5">
-                {OPERATION_ROWS.map(({ Icon, title, detail, value, tone }) => (
-                  <div key={title} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border border-[oklch(0.91_0.016_250)] bg-[oklch(0.99_0.004_250)] px-3 py-3">
-                    <span className={`flex h-9 w-9 items-center justify-center rounded-lg border ${tone}`}>
-                      {React.createElement(Icon, { size: 17 })}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-[oklch(0.25_0.028_255)]">{title}</p>
-                      <p className="truncate text-xs text-[oklch(0.58_0.024_255)]">{detail}</p>
-                    </div>
-                    <span className="text-xs font-black uppercase tracking-[0.08em] text-[oklch(0.5_0.026_255)]">{value}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-4 grid grid-cols-12 gap-1.5" aria-hidden="true">
-                {Array.from({ length: 36 }).map((_, index) => (
-                  <span
-                    key={index}
-                    className={`h-2 rounded-full ${index % 7 === 0 ? 'bg-blue-500/70' : index % 5 === 0 ? 'bg-emerald-400/70' : 'bg-slate-200'}`}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex min-h-[34rem] flex-col justify-between rounded-2xl border border-[oklch(0.88_0.018_250)] bg-[oklch(0.998_0.003_250)] p-5 shadow-[0_24px_70px_oklch(0.32_0.035_255_/_0.13)] sm:p-7">
-            <div>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-700">
-                    <Fingerprint size={25} />
-                  </span>
-                  <BrandWordmark compact />
-                </div>
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-[oklch(0.9_0.018_250)] bg-[oklch(0.985_0.006_250)] text-[oklch(0.52_0.028_255)]">
-                  <LockKeyhole size={17} />
-                </span>
-              </div>
-
-              <div className="mt-14">
-                <h1 className="text-4xl font-black leading-none tracking-tight text-[oklch(0.2_0.03_255)] sm:text-5xl">
-                  {PRODUCT_BRAND}
-                </h1>
-                <p className="mt-4 max-w-sm text-sm leading-6 text-[oklch(0.5_0.024_255)]">
-                  Inicia sesion en {SOFTWARE_BRAND}. Software empresarial creado por {ENGINEERING_DIVISION} para operaciones claras, seguras y auditables.
-                </p>
-              </div>
-
-              <div className="mt-5">
-                <TechnicalBadges />
-              </div>
-
-              <div className="mt-6 grid gap-2 rounded-xl border border-[oklch(0.9_0.018_250)] bg-[oklch(0.99_0.004_250)] p-3 text-sm">
-                <a
-                  href={SUPPORT_WHATSAPP_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2 font-semibold text-[oklch(0.34_0.03_255)] transition-colors hover:text-blue-700"
-                >
-                  <Phone size={16} className="text-emerald-600" />
-                  <span>{SUPPORT_PHONE}</span>
-                </a>
-                <a
-                  href={`mailto:${SUPPORT_EMAIL}`}
-                  className="flex items-center gap-2 break-all font-semibold text-[oklch(0.34_0.03_255)] transition-colors hover:text-blue-700"
-                >
-                  <Mail size={16} className="text-blue-600" />
-                  <span>{SUPPORT_EMAIL}</span>
-                </a>
-              </div>
-
-              <div className="mt-8 space-y-2">
-                {TRUST_ITEMS.map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-sm font-semibold text-[oklch(0.38_0.026_255)]">
-                    <CheckCircle2 size={16} className="text-emerald-600" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-
-              <LegalConsentGate accepted={hasAcceptedLegal} onAcceptedChange={updateLegalAcceptance} />
-
-              <button
-                onClick={handleGoogleLogin}
-                disabled={isLoading || !hasAcceptedLegal}
-                className="group mt-9 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-[oklch(0.84_0.025_250)] bg-[oklch(0.995_0.004_250)] px-4 py-3 text-sm font-black text-[oklch(0.28_0.028_255)] shadow-sm transition-[background,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/60 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:ring-offset-2 focus:ring-offset-[oklch(0.998_0.003_250)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-65 disabled:hover:bg-[oklch(0.995_0.004_250)]"
-              >
-                <span className="flex items-center gap-3">
-                  {isLoading ? (
-                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-[oklch(0.72_0.03_255)] border-t-blue-600" aria-hidden="true" />
-                  ) : (
-                    <GoogleIcon />
-                  )}
-                  {isLoading ? 'Registrando consentimiento...' : 'Ingresar con Google'}
-                </span>
-                <ArrowRight size={17} className="text-[oklch(0.54_0.16_255)] transition-transform duration-200 group-hover:translate-x-0.5" />
-              </button>
-            </div>
-
-            <footer className="mt-10 border-t border-[oklch(0.91_0.016_250)] pt-5 text-xs text-[oklch(0.55_0.024_255)]">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <a href="/copyright" className="font-bold transition-colors hover:text-[oklch(0.25_0.028_255)] hover:underline">Derechos de autor</a>
-                <a href="/terms-and-conditions" className="font-bold transition-colors hover:text-[oklch(0.25_0.028_255)] hover:underline">Terminos y condiciones</a>
-                <a href="/privacy-policy" className="font-bold transition-colors hover:text-[oklch(0.25_0.028_255)] hover:underline">Privacidad</a>
-              </div>
-              <p className="mt-3 leading-5">Copyright {year} {PRODUCT_BRAND}. {SOFTWARE_BRAND} by {CORPORATE_PARENT}. Engineered by {DIGITAL_SIGNATURE}. Todos los derechos reservados.</p>
-            </footer>
-          </div>
+        <section className="login-panel" aria-labelledby="login-title">
+          <span className="login-panel__icon" aria-hidden="true"><Fingerprint size={24} /></span>
+          <p className="ui-eyebrow">Bienvenido</p>
+          <h2 id="login-title">Inicia sesión</h2>
+          <p className="login-panel__description">Usa tu cuenta Google autorizada para acceder a {PRODUCT_BRAND}.</p>
+          <LegalConsentGate accepted={hasAcceptedLegal} onAcceptedChange={updateLegalAcceptance} />
+          <button type="button" onClick={handleGoogleLogin} disabled={isLoading || !hasAcceptedLegal} className="login-google-button">
+            <span>{isLoading ? <span className="ui-button__spinner" aria-hidden="true" /> : <GoogleIcon />}{isLoading ? 'Validando acceso…' : 'Continuar con Google'}</span>
+            <ArrowRight size={17} aria-hidden="true" />
+          </button>
+          <p className="login-panel__note">La sesión se mantiene protegida y vinculada a tu aceptación legal.</p>
         </section>
       </main>
+
+      <footer className="login-footer">
+        <span>© {year} {PRODUCT_BRAND}</span><span>·</span><span>{SOFTWARE_BRAND} by {CORPORATE_PARENT}</span><span>·</span><span>{ENGINEERING_DIVISION} / {DIGITAL_SIGNATURE}</span>
+        <nav aria-label="Documentos legales"><a href="/terms-and-conditions">Términos</a><a href="/privacy-policy">Privacidad</a></nav>
+      </footer>
     </div>
   );
 }

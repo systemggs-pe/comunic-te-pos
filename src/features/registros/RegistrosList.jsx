@@ -1,12 +1,17 @@
 /* eslint-disable no-unused-vars, no-empty */
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useId, useRef } from 'react';
+import {CheckCircle2, ClipboardList, Edit, Eye, Plus, Printer, Share2, Trash2, X} from 'lucide-react';
 import { generarTicketRegistroPDF } from './registroPdf.js';
 import { actualizarEstadoSolicitudRegistro, desbloquearRegistro, eliminarRegistro, marcarTodosRegistrosRealizados } from '../../services/functionsClient.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
 import {registroMatchesSearch, registroMatchesStatus} from '../../utils/searchRecords.js';
 import {indexClientesByDni, normalizeDni} from '../../utils/clientes.js';
+import {Button, IconButton} from '../../components/ui/Button.jsx';
+import {Dialog} from '../../components/ui/Dialog.jsx';
+import {PageHeader, SearchField} from '../../components/ui/PageHeader.jsx';
+import {SkeletonRows, StateView} from '../../components/ui/StateView.jsx';
+import {StatusBadge} from '../../components/ui/StatusBadge.jsx';
 
 const etiquetaTieneCaja = value => value === true || value === 'SI' ? 'SI' : 'NO';
 const celularDeRegistro = (registro, cliente = {}) => registro?.celularCliente || cliente?.celular || '';
@@ -14,14 +19,33 @@ const estadoSolicitudDeRegistro = registro => registro?.estado === 'NO BLOQUEADO
   ? (registro?.estadoSolicitud || 'PENDIENTE')
   : '';
 const REGISTRO_FILTERS = [
-  {id: 'TODOS', label: 'Todos', historyTerm: '', activeClass: 'border-blue-300 bg-blue-50 text-blue-700'},
-  {id: 'REGISTRADOS', label: 'Registrados', historyTerm: 'REALIZADO', activeClass: 'border-emerald-300 bg-emerald-50 text-emerald-700'},
-  {id: 'PENDIENTES', label: 'Pendientes', historyTerm: 'PENDIENTE', activeClass: 'border-amber-300 bg-amber-50 text-amber-700'},
-  {id: 'BLOQUEADOS', label: 'Bloqueados', historyTerm: 'BLOQUEADO', activeClass: 'border-red-300 bg-red-50 text-red-700'},
+  {id: 'TODOS', label: 'Todos', historyTerm: ''},
+  {id: 'REGISTRADOS', label: 'Registrados', historyTerm: 'REALIZADO'},
+  {id: 'PENDIENTES', label: 'Pendientes', historyTerm: 'PENDIENTE'},
+  {id: 'BLOQUEADOS', label: 'Bloqueados', historyTerm: 'BLOQUEADO'},
 ];
 const HISTORY_TERM_BY_FILTER = Object.fromEntries(REGISTRO_FILTERS.map(filter => [filter.id, filter.historyTerm]));
 
+function DetailSection({title, children}) {
+  return (
+    <section className="ui-detail-section">
+      <h4>{title}</h4>
+      <dl className="ui-detail-grid">{children}</dl>
+    </section>
+  );
+}
+
+function DetailRow({label, children, mono = false}) {
+  return (
+    <div className="ui-detail-row">
+      <dt>{label}</dt>
+      <dd className={mono ? 'font-mono' : ''}>{children || '-'}</dd>
+    </div>
+  );
+}
+
 export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
+  const detailTitleId = useId();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('TODOS');
   const [ticketData, setTicketData] = useState(null);
@@ -223,7 +247,7 @@ PDF Recibo: ${row.pdfReciboUrl}`;
   };
 
   return (
-    <div className="saas-list-shell relative">
+    <div className="ui-page-surface relative">
       {ticketData && null}
       <ConfirmModal
         open={Boolean(registroAEliminar)}
@@ -246,261 +270,191 @@ PDF Recibo: ${row.pdfReciboUrl}`;
         onConfirm={handleMarcarTodosRealizados}
         onCancel={() => setConfirmarTodosRealizados(false)}
       />
-      {viewingRegistro && (
-        <div className="saas-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="saas-detail-modal max-h-[88vh] w-full max-w-4xl overflow-y-auto p-0">
-            <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-5 py-4">
+      <Dialog
+        open={Boolean(viewingRegistro)}
+        onClose={() => setViewingRegistro(null)}
+        titleId={detailTitleId}
+        className="ui-dialog w-full max-w-5xl p-0"
+      >
+        {viewingRegistro && (
+          <>
+            <div className="ui-dialog-header">
               <div>
-                <p className="saas-page-kicker">Registro</p>
-                <h3 className="text-lg font-semibold text-slate-900">{viewingRegistro.nRegistro || 'Detalle de registro'}</h3>
-                <p className="mt-1 text-sm text-slate-500">{viewingRegistro.fecha ? new Date(viewingRegistro.fecha).toLocaleString('es-PE') : '-'}</p>
+                <p className="ui-eyebrow">Registro</p>
+                <h3 id={detailTitleId}>{viewingRegistro.nRegistro || 'Detalle de registro'}</h3>
+                <p>{viewingRegistro.fecha ? new Date(viewingRegistro.fecha).toLocaleString('es-PE') : '-'}</p>
               </div>
-              <button onClick={() => setViewingRegistro(null)} className="saas-form-close"><X size={20}/></button>
+              <IconButton label="Cerrar detalle" onClick={() => setViewingRegistro(null)}><X size={19}/></IconButton>
             </div>
-            <div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
-              <aside className="space-y-2">
-                <button type="button" onClick={() => { const cl = getCliente(viewingRegistro.dniCliente); generarTicketRegistroPDF({...viewingRegistro, nombreCliente: cl.nombre || viewingRegistro.nombreCliente || viewingRegistro.dniCliente, correoCliente: cl.correo || '', celularCliente: viewingRegistro.celularCliente || cl.celular || '', celularRef: viewingRegistro.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-secondary w-full justify-start"><Printer size={16}/> Ticket</button>
-                <button type="button" onClick={() => { onEdit(viewingRegistro); setViewingRegistro(null); }} className="saas-secondary w-full justify-start"><Edit size={16}/> Editar</button>
-                <button type="button" onClick={() => { handleShare(viewingRegistro); }} className="saas-secondary w-full justify-start"><Share2 size={16}/> Compartir</button>
-                <button type="button" onClick={() => { setRegistroAEliminar(viewingRegistro); setViewingRegistro(null); }} className="saas-secondary w-full justify-start text-red-600"><Trash2 size={16}/> Eliminar</button>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase text-slate-400">Estado del equipo</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{viewingRegistro.estado || '-'}</p>
-                  <p className="text-xs text-slate-500">{viewingRegistro.operador || '-'}</p>
-                  {estadoSolicitudDeRegistro(viewingRegistro) && (
-                    <div className="mt-3 border-t border-slate-200 pt-3">
-                      <p className="text-xs font-semibold uppercase text-slate-400">Solicitud</p>
-                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${estadoSolicitudDeRegistro(viewingRegistro) === 'REALIZADO' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {estadoSolicitudDeRegistro(viewingRegistro)}
-                      </span>
-                    </div>
-                  )}
+            <div className="ui-detail-layout">
+              <aside className="ui-detail-actions">
+                <Button className="w-full justify-start" onClick={() => { const cl = getCliente(viewingRegistro.dniCliente); generarTicketRegistroPDF({...viewingRegistro, nombreCliente: cl.nombre || viewingRegistro.nombreCliente || viewingRegistro.dniCliente, correoCliente: cl.correo || '', celularCliente: viewingRegistro.celularCliente || cl.celular || '', celularRef: viewingRegistro.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }}><Printer size={16}/> Ticket</Button>
+                <Button className="w-full justify-start" onClick={() => { onEdit(viewingRegistro); setViewingRegistro(null); }}><Edit size={16}/> Editar</Button>
+                <Button className="w-full justify-start" onClick={() => handleShare(viewingRegistro)}><Share2 size={16}/> Compartir</Button>
+                <Button variant="ghost" className="w-full justify-start text-[var(--ui-danger)]" onClick={() => { setRegistroAEliminar(viewingRegistro); setViewingRegistro(null); }}><Trash2 size={16}/> Eliminar</Button>
+                <div className="ui-detail-summary">
+                  <p>Estado del equipo</p>
+                  <StatusBadge tone={viewingRegistro.estado === 'BLOQUEADO' ? 'danger' : 'success'}>{viewingRegistro.estado || 'Sin estado'}</StatusBadge>
+                  <span>{viewingRegistro.operador || 'Sin operador'}</span>
+                  {estadoSolicitudDeRegistro(viewingRegistro) && <StatusBadge tone={estadoSolicitudDeRegistro(viewingRegistro) === 'REALIZADO' ? 'success' : 'warning'}>{estadoSolicitudDeRegistro(viewingRegistro)}</StatusBadge>}
                 </div>
               </aside>
-              <div className="space-y-4 text-sm">
-              {/* Equipo */}
-              <div>
-                <p className="text-xs font-semibold text-blue-600 uppercase mb-2 border-b pb-1">Equipo</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
-                  <p><strong className="text-gray-700">IMEI:</strong></p>
-                  <p className="font-mono text-gray-600">{viewingRegistro.imeiEquipo || viewingRegistro.imeiRegistrado || '-'}</p>
-                  <p><strong className="text-gray-700">IMEI2:</strong></p>
-                  <p className="font-mono text-gray-600">{viewingRegistro.imei2Equipo || getEquipo(viewingRegistro.imeiEquipo).imei2 || '-'}</p>
-                  <p><strong className="text-gray-700">IMEI a registrar:</strong></p>
-                  <p className="font-mono text-gray-600">{viewingRegistro.imeiRegistrado || viewingRegistro.imeiEquipo || '-'}</p>
-                  <p><strong className="text-gray-700">Marca:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.marcaEquipo || '-'}</p>
-                  <p><strong className="text-gray-700">Modelo:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.modeloEquipo || '-'}</p>
-                  <p><strong className="text-gray-700">Nombre comercial:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.nombreComercialEquipo || '-'}</p>
-                  <p><strong className="text-gray-700">Tiene caja:</strong></p>
-                  <p className="text-gray-600">{etiquetaTieneCaja(viewingRegistro.tieneCaja)}</p>
-                  <p><strong className="text-gray-700">Estado del equipo:</strong></p>
-                  <p><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${viewingRegistro.estado === 'BLOQUEADO' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{viewingRegistro.estado || '-'}</span></p>
-                  {estadoSolicitudDeRegistro(viewingRegistro) && (<>
-                    <p><strong className="text-gray-700">Estado de solicitud:</strong></p>
-                    <p className={estadoSolicitudDeRegistro(viewingRegistro) === 'REALIZADO' ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700'}>{estadoSolicitudDeRegistro(viewingRegistro)}</p>
-                  </>)}
-                  <p><strong className="text-gray-700">Operador:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.operador || '-'}</p>
-                  <p><strong className="text-gray-700">Tipo:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.tipo || '-'}</p>
-                  <p><strong className="text-gray-700">Precio:</strong></p>
-                  <p className="text-green-700 font-bold">S/. {parseFloat(viewingRegistro.precio || 0).toFixed(2)}</p>
-                  <p><strong className="text-gray-700">Fecha:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.fecha ? new Date(viewingRegistro.fecha).toLocaleString('es-PE') : '-'}</p>
-                  <p><strong className="text-gray-700">N° Registro:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.nRegistro || '-'}</p>
-                </div>
-              </div>
-              {/* Cliente */}
-              <div>
-                <p className="text-xs font-semibold text-blue-600 uppercase mb-2 border-b pb-1">Cliente</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 p-3 rounded border border-gray-100">
-                  <p><strong className="text-gray-700">Nombre:</strong></p>
-                  <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).nombre || viewingRegistro.nombreCliente || '-'}</p>
-                  <p><strong className="text-gray-700">{etiquetaDocumento(viewingRegistro.tipoDocumentoCliente || getCliente(viewingRegistro.dniCliente).tipoDocumento)}:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.dniCliente}</p>
-                  <p><strong className="text-gray-700">Celular usado:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.celularCliente || getCliente(viewingRegistro.dniCliente).celular || '-'}</p>
-                  <p><strong className="text-gray-700">N° Referencia:</strong></p>
-                  <p className="text-gray-600">{viewingRegistro.celularRef || '-'}</p>
-                  <p><strong className="text-gray-700">Correo:</strong></p>
-                  <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).correo || '-'}</p>
-                  <p><strong className="text-gray-700">Dirección:</strong></p>
-                  <p className="text-gray-600">{getCliente(viewingRegistro.dniCliente).direccion || '-'}</p>
-                </div>
-              </div>
+              <div className="ui-detail-content">
+                <DetailSection title="Equipo">
+                  <DetailRow label="IMEI" mono>{viewingRegistro.imeiEquipo || viewingRegistro.imeiRegistrado}</DetailRow>
+                  <DetailRow label="IMEI 2" mono>{viewingRegistro.imei2Equipo || getEquipo(viewingRegistro.imeiEquipo).imei2}</DetailRow>
+                  <DetailRow label="IMEI a registrar" mono>{viewingRegistro.imeiRegistrado || viewingRegistro.imeiEquipo}</DetailRow>
+                  <DetailRow label="Marca">{viewingRegistro.marcaEquipo}</DetailRow>
+                  <DetailRow label="Modelo">{viewingRegistro.modeloEquipo}</DetailRow>
+                  <DetailRow label="Nombre comercial">{viewingRegistro.nombreComercialEquipo}</DetailRow>
+                  <DetailRow label="Tiene caja">{etiquetaTieneCaja(viewingRegistro.tieneCaja)}</DetailRow>
+                  <DetailRow label="Estado"><StatusBadge tone={viewingRegistro.estado === 'BLOQUEADO' ? 'danger' : 'success'}>{viewingRegistro.estado || '-'}</StatusBadge></DetailRow>
+                  {estadoSolicitudDeRegistro(viewingRegistro) && <DetailRow label="Solicitud"><StatusBadge tone={estadoSolicitudDeRegistro(viewingRegistro) === 'REALIZADO' ? 'success' : 'warning'}>{estadoSolicitudDeRegistro(viewingRegistro)}</StatusBadge></DetailRow>}
+                  <DetailRow label="Operador">{viewingRegistro.operador}</DetailRow>
+                  <DetailRow label="Tipo">{viewingRegistro.tipo}</DetailRow>
+                  <DetailRow label="Precio">S/. {parseFloat(viewingRegistro.precio || 0).toFixed(2)}</DetailRow>
+                </DetailSection>
+                <DetailSection title="Cliente">
+                  <DetailRow label="Nombre">{getCliente(viewingRegistro.dniCliente).nombre || viewingRegistro.nombreCliente}</DetailRow>
+                  <DetailRow label={etiquetaDocumento(viewingRegistro.tipoDocumentoCliente || getCliente(viewingRegistro.dniCliente).tipoDocumento)} mono>{viewingRegistro.dniCliente}</DetailRow>
+                  <DetailRow label="Celular usado">{viewingRegistro.celularCliente || getCliente(viewingRegistro.dniCliente).celular}</DetailRow>
+                  <DetailRow label="N.° de referencia">{viewingRegistro.celularRef}</DetailRow>
+                  <DetailRow label="Correo">{getCliente(viewingRegistro.dniCliente).correo}</DetailRow>
+                  <DetailRow label="Dirección">{getCliente(viewingRegistro.dniCliente).direccion}</DetailRow>
+                </DetailSection>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-      <div className="saas-list-toolbar">
-        <div>
-          <p className="saas-page-kicker">Registros</p>
-          <h2 className="saas-page-title">Registros de equipos</h2>
-          <p className="saas-page-desc">
-            {filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} registro{(total || data.length) !== 1 ? 's' : ''}
-            {searchingAll && <span className="ml-2 text-slate-400">Buscando historial...</span>}
-          </p>
-        </div>
-        <div className="saas-toolbar-actions">
-          <div className="saas-searchbox">
-            <input type="text" placeholder="Buscar por IMEI, cliente o documento" className="saas-search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            <Search size={18} />
-          </div>
-          <button
-            type="button"
-            onClick={() => setConfirmarTodosRealizados(true)}
-            disabled={cargando || marcandoTodos}
-            className="saas-secondary disabled:cursor-wait disabled:opacity-60"
-          >
-            <CheckCircle2 size={18}/> Marcar todos realizados
-          </button>
-          <button onClick={onNew} className="saas-primary"><Plus size={18} /> Nuevo Registro</button>
-        </div>
-      </div>
+          </>
+        )}
+      </Dialog>
+      <PageHeader
+        eyebrow="Registros"
+        title="Registros de equipos"
+        icon={ClipboardList}
+        description={<>{filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} registro{(total || data.length) !== 1 ? 's' : ''}{searchingAll && <span className="ml-2">Buscando historial completo...</span>}</>}
+        actions={<>
+          <SearchField placeholder="IMEI, cliente o documento" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+          <Button onClick={() => setConfirmarTodosRealizados(true)} disabled={cargando || marcandoTodos}><CheckCircle2 size={17}/> Marcar realizados</Button>
+          <Button variant="primary" onClick={onNew}><Plus size={17}/> Nuevo registro</Button>
+        </>}
+      />
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50/70 px-5 py-3" aria-label="Filtrar registros por estado del IMEI">
-        <span className="mr-1 text-xs font-semibold text-slate-500">Estado del IMEI:</span>
-        {REGISTRO_FILTERS.map(filter => {
-          const active = statusFilter === filter.id;
-          return (
-            <button
-              key={filter.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => setStatusFilter(filter.id)}
-              className={`min-h-9 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${active ? filter.activeClass : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}
-            >
+      <div className="ui-toolbar" aria-label="Filtrar registros por estado del IMEI">
+        <span className="text-xs font-semibold text-[var(--ui-text-secondary)]">Estado del IMEI</span>
+        <div className="ui-segmented-control">
+          {REGISTRO_FILTERS.map(filter => (
+            <button key={filter.id} type="button" aria-pressed={statusFilter === filter.id} onClick={() => setStatusFilter(filter.id)}>
               {filter.label}
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
       {/* ── MÓVIL: tarjetas ── */}
-      <div className="md:hidden saas-mobile-list">
+      <div className="ui-mobile-list md:hidden">
         {cargando ? (
-          <div className="py-12 flex flex-col items-center gap-3 text-gray-400">
-            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <span className="text-sm">Cargando registros...</span>
-          </div>
+          <SkeletonRows rows={4} columns={1} label="Cargando registros" />
         ) : filteredData.length === 0 ? (
-          <div className="saas-empty px-4 py-8">
-            <p className="text-sm font-semibold">{searchingAll ? 'Buscando en historial completo...' : 'No se encontraron registros'}</p>
-            <p className="text-xs">Prueba con otro documento, cliente o IMEI.</p>
-          </div>
+          <StateView icon={ClipboardList} title={searchingAll ? 'Buscando en historial completo' : 'No se encontraron registros'} description="Prueba con otro documento, cliente o IMEI." />
         ) : filteredData.map(row => (
-          <div key={row.id} className="saas-mobile-row">
-            <div className="flex items-start justify-between mb-2">
+          <article key={row.id} className="ui-mobile-row">
+            <div className="mb-2 flex items-start justify-between gap-3">
               <div>
-                <p className="font-semibold text-gray-800 text-sm">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</p>
-                <p className="text-xs text-gray-400">{row.nRegistro} · {new Date(row.fecha).toLocaleDateString()}</p>
+                <p className="text-sm font-semibold text-[var(--ui-text)]">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</p>
+                <p className="text-xs text-[var(--ui-text-tertiary)]">{row.nRegistro} · {new Date(row.fecha).toLocaleDateString()}</p>
               </div>
               <div className="flex flex-col items-end gap-1.5">
-                <span className={`saas-chip ${row.estado === 'BLOQUEADO' ? 'saas-chip-danger' : 'saas-chip-success'}`}>{row.estado}</span>
+                <StatusBadge tone={row.estado === 'BLOQUEADO' ? 'danger' : 'success'}>{row.estado}</StatusBadge>
                 {estadoSolicitudDeRegistro(row) && (
                   <>
-                    <span className={`saas-chip ${estadoSolicitudDeRegistro(row) === 'REALIZADO' ? 'saas-chip-success' : 'bg-amber-100 text-amber-700'}`}>{estadoSolicitudDeRegistro(row)}</span>
+                    <StatusBadge tone={estadoSolicitudDeRegistro(row) === 'REALIZADO' ? 'success' : 'warning'}>{estadoSolicitudDeRegistro(row)}</StatusBadge>
                     {estadoSolicitudDeRegistro(row) === 'PENDIENTE' && (
-                      <button
-                        type="button"
+                      <Button size="sm"
                         onClick={() => handleMarcarRealizado(row)}
-                        disabled={actualizandoSolicitud === row.id}
-                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
+                        loading={actualizandoSolicitud === row.id}
+                        loadingLabel="Guardando"
                       >
-                        <CheckCircle2 size={14}/> {actualizandoSolicitud === row.id ? 'Guardando...' : 'Marcar realizado'}
-                      </button>
+                        <CheckCircle2 size={14}/> Marcar realizado
+                      </Button>
                     )}
                   </>
                 )}
                 {row.estado === 'BLOQUEADO' && (
-                  <button
+                  <Button size="sm" variant="danger"
                     onClick={() => handleDesbloquear(row)}
-                    disabled={desbloqueando === row.id}
-                    title="Cambiar a NO BLOQUEADO y marcar REALIZADO"
-                    className={`relative inline-flex items-center h-5 w-9 rounded-full transition-colors focus:outline-none ${desbloqueando === row.id ? 'bg-gray-300 cursor-wait' : 'bg-red-500 hover:bg-red-400'}`}
+                    loading={desbloqueando === row.id}
+                    loadingLabel="Desbloqueando"
                   >
-                    <span className={`inline-block w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${desbloqueando === row.id ? 'translate-x-3' : 'translate-x-1'}`}/>
-                  </button>
+                    Desbloquear
+                  </Button>
                 )}
               </div>
             </div>
-            <p className="text-xs text-gray-600 mb-1">{row.marcaEquipo} {row.nombreComercialEquipo || row.modeloEquipo}</p>
-            <p className="text-xs font-mono text-blue-600 mb-1">IMEI registrado: {row.imeiRegistrado || row.imeiEquipo}</p>
-            <p className="text-xs text-gray-400 mb-3">{row.operador} · {row.tipo}</p>
+            <p className="mb-1 text-xs text-[var(--ui-text-secondary)]">{row.marcaEquipo} {row.nombreComercialEquipo || row.modeloEquipo}</p>
+            <p className="mb-1 font-mono text-xs text-[var(--ui-accent)]">IMEI registrado: {row.imeiRegistrado || row.imeiEquipo}</p>
+            <p className="mb-3 text-xs text-[var(--ui-text-tertiary)]">{row.operador} · {row.tipo}</p>
             <div className="flex gap-2">
-              <button onClick={() => setViewingRegistro(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Ver registro" title="Ver"><Eye size={16}/><span className="sr-only">Ver</span></button>
-              <button onClick={() => onEdit(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Editar registro" title="Editar"><Edit size={16}/><span className="sr-only">Editar</span></button>
-              <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.nombreCliente || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
-              <button onClick={() => handleShare(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Compartir registro" title="Compartir"><Share2 size={16}/><span className="sr-only">Compartir</span></button>
-              <button onClick={() => setRegistroAEliminar(row)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar registro" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
+              <IconButton className="flex-1" label="Ver registro" onClick={() => setViewingRegistro(row)}><Eye size={17}/></IconButton>
+              <IconButton className="flex-1" label="Editar registro" onClick={() => onEdit(row)}><Edit size={17}/></IconButton>
+              <IconButton className="flex-1" label="Generar ticket" onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.nombreCliente || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }}><Printer size={17}/></IconButton>
+              <IconButton className="flex-1" label="Compartir registro" onClick={() => handleShare(row)}><Share2 size={17}/></IconButton>
+              <IconButton className="flex-1" tone="danger" label="Eliminar registro" onClick={() => setRegistroAEliminar(row)}><Trash2 size={17}/></IconButton>
             </div>
-          </div>
+          </article>
         ))}
       </div>
 
       {/* ── DESKTOP: tabla ── */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="saas-table text-left">
+      <div className="hidden overflow-x-auto md:block">
+        <table className="ui-data-table">
           <thead>
-            <tr><th className="px-6 py-3">Fecha / ID</th><th className="px-6 py-3">Cliente</th><th className="px-6 py-3">Equipo (IMEI)</th><th className="px-6 py-3">Estado / Solicitud</th><th className="px-6 py-3 text-right">Acciones</th></tr>
+            <tr><th>Fecha / ID</th><th>Cliente</th><th>Equipo (IMEI)</th><th>Estado / Solicitud</th><th className="text-right">Acciones</th></tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody>
             {cargando ? (
-              <tr><td colSpan="5" className="px-6 py-12 text-center">
-                <div className="flex flex-col items-center gap-3 text-gray-400">
-                  <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                  <span className="text-sm">Cargando registros...</span>
-                </div>
-              </td></tr>
-            ) : filteredData.length === 0 ? (<tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">{searchingAll ? 'Buscando en historial completo...' : 'No se encontraron registros'}</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div></td></tr>) : (
+              <tr><td colSpan="5" className="p-0"><SkeletonRows rows={5} columns={5} label="Cargando registros" /></td></tr>
+            ) : filteredData.length === 0 ? (<tr><td colSpan="5" className="p-0"><StateView icon={ClipboardList} title={searchingAll ? 'Buscando en historial completo' : 'No se encontraron registros'} description="Prueba con otro documento, cliente o IMEI." /></td></tr>) : (
               filteredData.map(row => (
                 <tr key={row.id}>
-                  <td className="px-6 py-4"><div className="font-medium text-gray-800">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs text-gray-400">{row.nRegistro}</div></td>
-                  <td className="px-6 py-4"><div className="font-medium">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</div><div className="text-xs">{row.dniCliente}</div></td>
-                  <td className="px-6 py-4"><div>{row.nombreComercialEquipo || row.modeloEquipo || '-'}</div><div className="text-xs text-blue-600 font-mono">IMEI registrado: {row.imeiRegistrado || row.imeiEquipo}</div></td>
-                  <td className="px-6 py-4">
+                  <td><div className="font-medium text-[var(--ui-text)]">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs text-[var(--ui-text-tertiary)]">{row.nRegistro}</div></td>
+                  <td><div className="font-medium text-[var(--ui-text)]">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</div><div className="text-xs text-[var(--ui-text-tertiary)]">{row.dniCliente}</div></td>
+                  <td><div className="text-[var(--ui-text)]">{row.nombreComercialEquipo || row.modeloEquipo || '-'}</div><div className="font-mono text-xs text-[var(--ui-accent)]">{row.imeiRegistrado || row.imeiEquipo}</div></td>
+                  <td>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`saas-chip ${row.estado === 'BLOQUEADO' ? 'saas-chip-danger' : 'saas-chip-success'}`}>{row.estado}</span>
+                      <StatusBadge tone={row.estado === 'BLOQUEADO' ? 'danger' : 'success'}>{row.estado}</StatusBadge>
                       {estadoSolicitudDeRegistro(row) && (
                         <>
-                          <span className={`saas-chip ${estadoSolicitudDeRegistro(row) === 'REALIZADO' ? 'saas-chip-success' : 'bg-amber-100 text-amber-700'}`}>{estadoSolicitudDeRegistro(row)}</span>
+                          <StatusBadge tone={estadoSolicitudDeRegistro(row) === 'REALIZADO' ? 'success' : 'warning'}>{estadoSolicitudDeRegistro(row)}</StatusBadge>
                           {estadoSolicitudDeRegistro(row) === 'PENDIENTE' && (
-                            <button
-                              type="button"
+                            <Button size="sm"
                               onClick={() => handleMarcarRealizado(row)}
-                              disabled={actualizandoSolicitud === row.id}
-                              className="inline-flex min-h-8 items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
+                              loading={actualizandoSolicitud === row.id}
+                              loadingLabel="Guardando"
                             >
-                              <CheckCircle2 size={14}/> {actualizandoSolicitud === row.id ? 'Guardando...' : 'Marcar realizado'}
-                            </button>
+                              <CheckCircle2 size={14}/> Marcar realizado
+                            </Button>
                           )}
                         </>
                       )}
                       {row.estado === 'BLOQUEADO' && (
-                        <button
+                        <Button size="sm" variant="danger"
                           onClick={() => handleDesbloquear(row)}
-                          disabled={desbloqueando === row.id}
-                          title="Cambiar a NO BLOQUEADO y marcar REALIZADO"
-                          className={`relative inline-flex items-center h-5 w-9 rounded-full transition-colors focus:outline-none ${desbloqueando === row.id ? 'bg-gray-300 cursor-wait' : 'bg-red-500 hover:bg-red-400'}`}
+                          loading={desbloqueando === row.id}
+                          loadingLabel="Desbloqueando"
                         >
-                          <span className={`inline-block w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${desbloqueando === row.id ? 'translate-x-3' : 'translate-x-1'}`}/>
-                        </button>
+                          Desbloquear
+                        </Button>
                       )}
                     </div>
-                    <div className="text-xs mt-1">{row.operador}</div>
+                    <div className="mt-1 text-xs text-[var(--ui-text-tertiary)]">{row.operador}</div>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-1">
-                      <button onClick={() => setViewingRegistro(row)} className="saas-icon-button" title="Ver detalle"><Eye size={18} /></button>
-                      <button onClick={() => onEdit(row)} className="saas-icon-button" title="Editar"><Edit size={18} /></button>
-                      <button onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.nombreCliente || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
-                      <button onClick={() => handleShare(row)} className="saas-icon-button" title="Compartir registro"><Share2 size={18} /></button>
-                      <button onClick={() => setRegistroAEliminar(row)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
+                  <td className="text-right">
+                    <div className="flex justify-end gap-0.5">
+                      <IconButton size="sm" label="Ver detalle" onClick={() => setViewingRegistro(row)}><Eye size={17} /></IconButton>
+                      <IconButton size="sm" label="Editar" onClick={() => onEdit(row)}><Edit size={17} /></IconButton>
+                      <IconButton size="sm" label="Descargar ticket PDF" onClick={() => { const cl = getCliente(row.dniCliente); generarTicketRegistroPDF({...row, nombreCliente: cl.nombre || row.nombreCliente || row.dniCliente, correoCliente: cl.correo || '', celularCliente: row.celularCliente || cl.celular || '', celularRef: row.celularRef || cl.celularRef || '', direccionCliente: cl.direccion || ''}); }}><Printer size={17} /></IconButton>
+                      <IconButton size="sm" label="Compartir registro" onClick={() => handleShare(row)}><Share2 size={17} /></IconButton>
+                      <IconButton size="sm" tone="danger" label="Eliminar" onClick={() => setRegistroAEliminar(row)}><Trash2 size={17} /></IconButton>
                     </div>
                   </td>
                 </tr>
@@ -510,14 +464,8 @@ PDF Recibo: ${row.pdfReciboUrl}`;
         </table>
       </div>
       {hasMore && !searchTerm && (
-        <div className="border-t border-gray-100 p-4 flex justify-center">
-          <button
-            onClick={onLoadMore}
-            disabled={loadingMore}
-            className="saas-secondary disabled:opacity-50"
-          >
-            {loadingMore ? 'Cargando...' : 'Cargar mas registros'}
-          </button>
+        <div className="flex justify-center border-t border-[var(--ui-border)] p-4">
+          <Button onClick={onLoadMore} loading={loadingMore} loadingLabel="Cargando registros">Cargar más registros</Button>
         </div>
       )}
     </div>

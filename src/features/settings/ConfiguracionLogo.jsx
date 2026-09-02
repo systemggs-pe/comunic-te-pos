@@ -1,6 +1,8 @@
 import React, {useState} from 'react';
-import {ImagePlus} from 'lucide-react';
+import {CheckCircle2, ImagePlus} from 'lucide-react';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
+import {Button} from '../../components/ui/Button.jsx';
+import {PageHeader} from '../../components/ui/PageHeader.jsx';
 
 export function ConfiguracionLogo({logoVentas, onLogoChange, showToast}) {
   const [guardando, setGuardando] = useState(false);
@@ -16,7 +18,7 @@ export function ConfiguracionLogo({logoVentas, onLogoChange, showToast}) {
       setGuardando(true);
       try {
         await onLogoChange(ev.target.result);
-        showToast('Logo guardado en la nube ✓', 'success');
+        showToast('Logo guardado en la nube', 'success');
       } catch {
         showToast('Error al guardar el logo', 'error');
       } finally {
@@ -30,7 +32,7 @@ export function ConfiguracionLogo({logoVentas, onLogoChange, showToast}) {
     setGuardando(true);
     try {
       await onLogoChange(null);
-      showToast('Logo eliminado ✓', 'success');
+      showToast('Logo eliminado', 'success');
       setConfirmarEliminar(false);
     } catch {
       showToast('Error al eliminar el logo', 'error');
@@ -40,7 +42,7 @@ export function ConfiguracionLogo({logoVentas, onLogoChange, showToast}) {
   };
 
   return (
-    <div className="saas-settings-page space-y-6">
+    <div className="mx-auto w-full max-w-4xl">
       <ConfirmModal
         open={confirmarEliminar}
         title="Eliminar logo"
@@ -52,16 +54,8 @@ export function ConfiguracionLogo({logoVentas, onLogoChange, showToast}) {
         onConfirm={handleEliminar}
         onCancel={() => setConfirmarEliminar(false)}
       />
-      <div className="saas-settings-card">
-        <div className="saas-form-header">
-          <div>
-            <p className="saas-page-kicker">Configuración</p>
-            <h2 className="saas-page-title flex items-center gap-2">
-              <ImagePlus size={20} className="text-blue-600" /> Logo para tickets de venta
-            </h2>
-            <p className="saas-page-desc">La imagen aparece en la parte superior del ticket PDF y se sincroniza en todos los dispositivos.</p>
-          </div>
-        </div>
+      <div className="ui-page-surface">
+        <PageHeader eyebrow="Configuración" title="Logo para tickets" description="La imagen aparece en la parte superior del ticket PDF y se sincroniza en todos los dispositivos." icon={ImagePlus} />
         <div className="p-6">
 
         {/* Preview */}
@@ -69,7 +63,7 @@ export function ConfiguracionLogo({logoVentas, onLogoChange, showToast}) {
           {logoVentas ? (
             <div className="saas-upload-zone w-full p-4">
               <img src={logoVentas} alt="Logo actual" className="max-h-28 max-w-full object-contain rounded" />
-              <span className="text-xs text-green-600 font-medium flex items-center gap-1">✓ Logo guardado en la nube</span>
+              <span className="flex items-center gap-1 text-xs font-medium text-[var(--ui-success-ink)]"><CheckCircle2 size={14} /> Logo guardado en la nube</span>
             </div>
           ) : (
             <div className="saas-upload-zone w-full p-8">
@@ -88,10 +82,7 @@ export function ConfiguracionLogo({logoVentas, onLogoChange, showToast}) {
             <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={guardando} />
           </label>
           {logoVentas && (
-            <button onClick={() => setConfirmarEliminar(true)} disabled={guardando}
-              className="saas-secondary text-red-600 disabled:opacity-50">
-              Eliminar
-            </button>
+            <Button onClick={() => setConfirmarEliminar(true)} disabled={guardando} className="text-[var(--ui-danger)]">Eliminar</Button>
           )}
         </div>
 

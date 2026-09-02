@@ -1,17 +1,18 @@
-/* eslint-disable no-unused-vars */
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, FileText, Share2, Settings, ImagePlus } from 'lucide-react';
+import { X, ShoppingCart, Plus, Edit, Trash2, Printer, Eye, CheckCircle2 } from 'lucide-react';
 import { generarTicketVentaPDF } from './ventaPdf.js';
 import { eliminarVenta } from '../../services/functionsClient.js';
 import {ConfirmModal} from '../../components/ui/ConfirmModal.jsx';
 import {etiquetaDocumento} from '../../utils/documentos.js';
 import {ventaMatchesSearch} from '../../utils/searchRecords.js';
 import {indexClientesByDni, normalizeDni} from '../../utils/clientes.js';
+import {Button, IconButton} from '../../components/ui/Button.jsx';
+import {PageHeader, SearchField} from '../../components/ui/PageHeader.jsx';
+import {SkeletonRows, StateView} from '../../components/ui/StateView.jsx';
 
 export function VentasList({ data, cargando, clientes, equipos, registeredImeis = null, logoVentas, onNew, onEdit, showToast, onDeleted, onLoadMore, hasMore, loadingMore, total, onSearchAll, searchingAll = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingVenta, setViewingVenta] = useState(null);
-  const [ticketVentaData, setTicketVentaData] = useState(null);
   const [ventaAEliminar, setVentaAEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
   const ultimaBusquedaHistorialRef = useRef('');
@@ -85,8 +86,7 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
   };
 
   return (
-    <div className="saas-list-shell relative">
-      {ticketVentaData && null}
+    <div className="ui-page-surface relative">
       <ConfirmModal
         open={Boolean(ventaAEliminar)}
         title="Eliminar venta"
@@ -199,40 +199,29 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
           </div>
         </div>
       )}
-      <div className="saas-list-toolbar">
-        <div>
-          <p className="saas-page-kicker">Ventas</p>
-          <h2 className="saas-page-title">Ventas de equipos</h2>
-          <p className="saas-page-desc">
-            {filteredData.length} visible{filteredData.length !== 1 ? 's' : ''} de {total || data.length} venta{(total || data.length) !== 1 ? 's' : ''}
-            {searchingAll && <span className="ml-2 text-slate-400">Buscando historial...</span>}
-          </p>
-        </div>
-        <div className="saas-toolbar-actions">
-          <div className="saas-searchbox">
-            <input type="text" placeholder="Buscar por documento, cliente o IMEI" className="saas-search-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            <Search size={18} />
-          </div>
-          <button onClick={onNew} className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
-            <Plus size={18} /> Nueva Venta
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Operación comercial"
+        title="Ventas"
+        description="Consulta comprobantes, equipos vendidos e información del cliente."
+        meta={`${filteredData.length} de ${total || data.length}`}
+        icon={ShoppingCart}
+        actions={(
+          <>
+            <SearchField label="Buscar ventas" placeholder="Documento, cliente o IMEI" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} />
+            <Button variant="primary" onClick={onNew}><Plus size={17} /> Nueva venta</Button>
+          </>
+        )}
+      />
+      {searchingAll && <p className="ui-history-status" role="status">Buscando también en el historial…</p>}
 
       {/* ── MÓVIL: tarjetas ── */}
-      <div className="md:hidden saas-mobile-list">
+      <div className="ui-mobile-list md:hidden">
         {cargando ? (
-          <div className="py-12 flex flex-col items-center gap-3 text-gray-400">
-            <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
-            <span className="text-sm">Cargando ventas...</span>
-          </div>
+          <SkeletonRows rows={4} columns={1} label="Cargando ventas" />
         ) : filteredData.length === 0 ? (
-          <div className="saas-empty px-4 py-8">
-            <p className="text-sm font-semibold">{searchingAll ? 'Buscando en historial completo...' : 'No se encontraron ventas'}</p>
-            <p className="text-xs">Prueba con otro documento, cliente o IMEI.</p>
-          </div>
+          <StateView icon={ShoppingCart} title={searchingAll ? 'Buscando en el historial completo' : 'No se encontraron ventas'} description="Prueba con otro documento, cliente o IMEI." />
         ) : filteredData.map(row => (
-          <div key={row.id} className="saas-mobile-row">
+          <article key={row.id} className="ui-mobile-row">
             <div className="flex items-start justify-between mb-2">
               <div>
                 <p className="font-semibold text-gray-800 text-sm">{getCliente(row.dniCliente).nombre || row.nombreCliente || row.dniCliente}</p>
@@ -252,11 +241,11 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
                 return (
                   <>
                     <p className={`text-xs font-mono ${reg1 ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
-                      {reg1 && '✓ '}{row.imeiEquipo}
+                      {reg1 && <CheckCircle2 size={12} className="mr-1 inline" aria-label="Registrado" />}{row.imeiEquipo}
                     </p>
                     {imei2 && (
                       <p className={`text-xs font-mono ${reg2 ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
-                        {reg2 && '✓ '}{imei2}
+                        {reg2 && <CheckCircle2 size={12} className="mr-1 inline" aria-label="Registrado" />}{imei2}
                       </p>
                     )}
                   </>
@@ -264,31 +253,26 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
               })()}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setViewingVenta(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Ver venta" title="Ver"><Eye size={16}/><span className="sr-only">Ver</span></button>
-              <button onClick={() => onEdit(row)} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Editar venta" title="Editar"><Edit size={16}/><span className="sr-only">Editar</span></button>
-              <button onClick={() => setTicketPendiente(ticketData(row))} className="saas-ghost-button saas-mobile-icon-button flex-1" aria-label="Generar ticket" title="Ticket"><Printer size={16}/><span className="sr-only">Ticket</span></button>
-              <button onClick={() => setVentaAEliminar(row)} className="saas-ghost-button saas-mobile-icon-button flex-1 text-red-600" aria-label="Eliminar venta" title="Eliminar"><Trash2 size={16}/><span className="sr-only">Eliminar</span></button>
+              <IconButton onClick={() => setViewingVenta(row)} className="flex-1" label="Ver venta"><Eye size={16}/></IconButton>
+              <IconButton onClick={() => onEdit(row)} className="flex-1" label="Editar venta"><Edit size={16}/></IconButton>
+              <IconButton onClick={() => setTicketPendiente(ticketData(row))} className="flex-1" label="Generar ticket"><Printer size={16}/></IconButton>
+              <IconButton onClick={() => setVentaAEliminar(row)} className="flex-1" tone="danger" label="Eliminar venta"><Trash2 size={16}/></IconButton>
             </div>
-          </div>
+          </article>
         ))}
       </div>
 
       {/* ── DESKTOP: tabla ── */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="saas-table text-left">
+        <table className="ui-data-table text-left">
           <thead>
             <tr><th className="px-6 py-3">Fecha / ID</th><th className="px-6 py-3">Cliente</th><th className="px-6 py-3">Equipo Vendido</th><th className="px-6 py-3 text-right">Monto</th><th className="px-6 py-3 text-right">Acciones</th></tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody>
             {cargando ? (
-              <tr><td colSpan="5" className="px-6 py-12 text-center">
-                <div className="flex flex-col items-center gap-3 text-gray-400">
-                  <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
-                  <span className="text-sm">Cargando ventas...</span>
-                </div>
-              </td></tr>
+              <tr><td colSpan="5" className="p-0"><SkeletonRows rows={5} columns={5} label="Cargando ventas" /></td></tr>
             ) : filteredData.length === 0 ? (
-              <tr><td colSpan="5"><div className="saas-empty"><p className="text-sm font-semibold">{searchingAll ? 'Buscando en historial completo...' : 'No se encontraron ventas'}</p><p className="text-xs">Prueba con otro documento, cliente o IMEI.</p></div></td></tr>
+              <tr><td colSpan="5" className="p-0"><StateView icon={ShoppingCart} title={searchingAll ? 'Buscando en el historial completo' : 'No se encontraron ventas'} description="Prueba con otro documento, cliente o IMEI." /></td></tr>
             ) : filteredData.map(row => (
               <tr key={row.id}>
                 <td className="px-6 py-4"><div className="font-medium">{new Date(row.fecha).toLocaleDateString()}</div><div className="text-xs">{row.nVenta}</div></td>
@@ -304,11 +288,11 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
                       <>
                         <div className="font-medium text-gray-800">{row.marcaEquipo} {nombre}</div>
                         <div className={`text-xs font-mono mt-0.5 ${reg1 ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
-                          {reg1 && <span className="mr-0.5">✓</span>}{row.imeiEquipo}
+                          {reg1 && <CheckCircle2 size={12} className="mr-1 inline" aria-label="Registrado" />}{row.imeiEquipo}
                         </div>
                         {imei2 && (
                           <div className={`text-xs font-mono ${reg2 ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
-                            {reg2 && <span className="mr-0.5">✓</span>}{imei2}
+                            {reg2 && <CheckCircle2 size={12} className="mr-1 inline" aria-label="Registrado" />}{imei2}
                           </div>
                         )}
                       </>
@@ -318,10 +302,10 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
                 <td className="px-6 py-4 text-right font-bold text-green-600">S/ {parseFloat(row.precio).toFixed(2)}</td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-1">
-                    <button onClick={() => setViewingVenta(row)} className="saas-icon-button" title="Ver detalle"><Eye size={18} /></button>
-                    <button onClick={() => onEdit(row)} className="saas-icon-button" title="Editar"><Edit size={18} /></button>
-                    <button onClick={() => setTicketPendiente(ticketData(row))} className="saas-icon-button" title="Descargar ticket PDF"><Printer size={18} /></button>
-                    <button onClick={() => setVentaAEliminar(row)} className="saas-icon-button hover:!text-red-600 hover:!bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
+                    <IconButton size="sm" onClick={() => setViewingVenta(row)} label="Ver detalle"><Eye size={17} /></IconButton>
+                    <IconButton size="sm" onClick={() => onEdit(row)} label="Editar"><Edit size={17} /></IconButton>
+                    <IconButton size="sm" onClick={() => setTicketPendiente(ticketData(row))} label="Descargar ticket PDF"><Printer size={17} /></IconButton>
+                    <IconButton size="sm" onClick={() => setVentaAEliminar(row)} tone="danger" label="Eliminar"><Trash2 size={17} /></IconButton>
                   </div>
                 </td>
               </tr>
@@ -330,14 +314,14 @@ export function VentasList({ data, cargando, clientes, equipos, registeredImeis 
         </table>
       </div>
       {hasMore && !searchTerm && (
-        <div className="border-t border-gray-100 p-4 flex justify-center">
-          <button
+        <div className="flex justify-center border-t border-[var(--ui-border)] p-4">
+          <Button
             onClick={onLoadMore}
-            disabled={loadingMore}
-            className="saas-secondary disabled:opacity-50"
+            loading={loadingMore}
+            loadingLabel="Cargando…"
           >
-            {loadingMore ? 'Cargando...' : 'Cargar mas ventas'}
-          </button>
+            Cargar más ventas
+          </Button>
         </div>
       )}
     </div>

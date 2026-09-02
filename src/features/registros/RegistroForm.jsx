@@ -600,7 +600,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             <div className={`flex items-center gap-2 ${paso === n ? 'text-blue-600' : paso > n ? 'text-green-600' : 'text-gray-400'}`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors
                 ${paso === n ? 'border-blue-600 bg-blue-50 text-blue-600' : paso > n ? 'border-green-500 bg-green-50 text-green-600' : 'border-gray-300 text-gray-400'}`}>
-                {paso > n ? '✓' : n}
+                {paso > n ? <CheckCircle2 size={15} aria-label="Completado" /> : n}
               </div>
               <span className="text-xs font-medium hidden sm:block">
                 {n === 1 ? 'Datos del cliente' : n === 2 ? 'Datos del equipo' : n === 3 ? 'Precio' : 'Evidencias'}
@@ -771,7 +771,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   placeholder={placeholderEscaneo('imei', '15 digitos')} />
                 {formData.imei.length === 15 && (
                   <p className={`text-xs mt-1 font-medium ${luhn(formData.imei) ? 'text-green-600' : 'text-red-600'}`}>
-                    {luhn(formData.imei) ? '✓ IMEI válido' : '✗ IMEI inválido — verifica los dígitos'}
+                    <span className="inline-flex items-center gap-1">{luhn(formData.imei) ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}{luhn(formData.imei) ? 'IMEI válido' : 'IMEI inválido — verifica los dígitos'}</span>
                   </p>
                 )}
               </div>
@@ -888,7 +888,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   }`}
                 />
                 {formData.estado === 'BLOQUEADO' && parseFloat(formData.precio || 0) < 50 && formData.precio !== '' && (
-                  <p className="text-xs text-red-500 mt-1">⚠ El precio mínimo para BLOQUEADO es S/. 50.00</p>
+                  <p className="mt-1 inline-flex items-center gap-1 text-xs text-red-500"><AlertCircle size={14} /> El precio mínimo para BLOQUEADO es S/. 50.00</p>
                 )}
               </div>
               <fieldset className="sm:col-span-2" aria-describedby="tiene-caja-ayuda">

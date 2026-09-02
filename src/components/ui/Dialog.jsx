@@ -83,7 +83,7 @@ export function Dialog({
   };
 
   return (
-    <div className="saas-modal-backdrop fixed inset-0 z-[260] flex items-center justify-center p-4" onMouseDown={handleBackdropMouseDown}>
+    <div className="ui-dialog-backdrop" onMouseDown={handleBackdropMouseDown}>
       <div
         ref={panelRef}
         role="dialog"
