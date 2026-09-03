@@ -291,9 +291,10 @@ test('client hydration and indexed history searches do not truncate old records'
     readFile(new URL('../../src/app/App.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/main.jsx', import.meta.url), 'utf8'),
   ]);
-  const [ventasList, registrosList, registroPdf, clientesFunction, repository] = await Promise.all([
+  const [ventasList, registrosList, registroShareText, registroPdf, clientesFunction, repository] = await Promise.all([
     readFile(new URL('../../src/features/ventas/VentasList.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/registros/RegistrosList.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/registros/registroShareText.js', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/registros/registroPdf.js', import.meta.url), 'utf8'),
     readFile(new URL('../functions/clientes.mjs', import.meta.url), 'utf8'),
     readFile(new URL('../../src/repositories/firestoreRepository.js', import.meta.url), 'utf8'),
@@ -318,8 +319,9 @@ test('client hydration and indexed history searches do not truncate old records'
   assert.doesNotMatch(app, /boletasExtranjeras|boleta_extranjera|BoletaExtranjera/);
   assert.match(ventasList, /term\.length < 3/);
   assert.match(registrosList, /term\.length < 3/);
-  assert.match(registrosList, /IMEI2:/);
-  assert.match(registrosList, /IMEI A REGISTRAR:/);
+  assert.match(registroShareText, /IMEI2:/);
+  assert.match(registroShareText, /IMEI A REGISTRAR:/);
+  assert.match(registroShareText, /ORIGEN DEL EQUIPO SAMSUNG/);
   assert.match(registroPdf, /field\('IMEI 2'/);
   assert.match(registroPdf, /field\('IMEI A REG\.'/);
   assert.match(clientesFunction, /rateLimit: \{name: 'clientes', max: 30/);
@@ -350,14 +352,16 @@ test('API runtime rate limiting distributes only sensitive endpoints', async () 
   assert.match(registros, /where\('imeiRegistrado', 'in', chunk\)/);
 });
 
-test('APPLE receipt lookup stays server-mediated and bounded', async () => {
-  const [app, ventaForm, settings, functionsClient, registroForm, lookupHelper, netlifyConfig, rules] = await Promise.all([
+test('APPLE receipt lookup stays server-mediated, remote and bounded', async () => {
+  const [app, ventaForm, settings, functionsClient, registroForm, comprobanteEndpoint, registrosEndpoint, remoteClient, netlifyConfig, rules] = await Promise.all([
     readFile(new URL('../../src/app/App.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/ventas/VentaForm.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/settings/ConfiguracionLogo.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/services/functionsClient.js', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/registros/RegistroForm.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../functions/_comprobanteApple.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../functions/comprobanteApple.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../functions/registros.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../functions/_appleReceiptsApi.mjs', import.meta.url), 'utf8'),
     readFile(new URL('../../netlify.toml', import.meta.url), 'utf8'),
     readFile(new URL('../../firestore.rules', import.meta.url), 'utf8'),
   ]);
@@ -366,8 +370,20 @@ test('APPLE receipt lookup stays server-mediated and bounded', async () => {
   assert.doesNotMatch(runtimeSource, /boletasExtranjeras|boleta_extranjera|guardarBoletaExtranjera|publicBoleta/i);
   assert.match(functionsClient, /consultarComprobanteApplePorImei/);
   assert.match(registroForm, /consultarComprobanteApplePorImei/);
-  assert.match(lookupHelper, /\.limit\(1\)/);
-  assert.doesNotMatch(lookupHelper, /onSnapshot|collectionRef\.get\(\)/);
+  assert.match(registroForm, /name="imei1"/);
+  assert.match(registroForm, /name="imei2"/);
+  assert.match(registroForm, /name="imeiRegistrado"/);
+  assert.match(registroForm, /REGISTRO_MARCA_OTROS/);
+  assert.match(registroForm, /const imei1Real = isEditing \? formData\.imei1/);
+  assert.match(registroForm, /const imei2Real = isEditing\s*\? formData\.imei2/);
+  assert.doesNotMatch(registroForm, /esRegistroSimple/);
+  assert.doesNotMatch([comprobanteEndpoint, registrosEndpoint].join('\n'), /collection\(['"]boletasExtranjeras['"]\)/);
+  assert.match(remoteClient, /APPLE_RECEIPTS_API_URL/);
+  assert.match(remoteClient, /APPLE_RECEIPTS_API_KEY/);
+  assert.match(remoteClient, /'X-API-Key'/);
+  assert.match(remoteClient, /action: 'searchHistory'/);
+  assert.match(remoteClient, /MAX_RESPONSE_BYTES/);
+  assert.doesNotMatch(remoteClient, /import\.meta\.env|VITE_APPLE/);
   assert.doesNotMatch(netlifyConfig, /api\/boletasExtranjeras|api\/publicBoleta/);
   assert.match(netlifyConfig, /api\/comprobanteApple/);
   assert.match(netlifyConfig, /from = "\/boleta"[\s\S]*comunicate-boletas-extranjeras\.netlify\.app\/boleta/);

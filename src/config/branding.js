@@ -4,8 +4,10 @@ export const SOFTWARE_BRAND = 'GGS SYSTEMS';
 export const ENGINEERING_DIVISION = 'GGS CODE';
 export const PRODUCT_BRAND = 'COMUNIC@TE';
 export const DIGITAL_SIGNATURE = ENGINEERING_DIVISION;
-export const SYSTEM_VERSION = 'v7.0';
-export const SPLASH_VERSION = 'v7.0';
+// `branding.js` is shared by Vite and the Node-based Netlify/local API.
+// Optional chaining keeps server imports safe because Node has no `import.meta.env`.
+export const APP_VERSION = import.meta.env?.VITE_APP_VERSION || '0.0.0';
+export const SYSTEM_VERSION = `v${APP_VERSION.split('.').slice(0, 2).join('.')}`;
 export const SUPPORT_WHATSAPP_URL = 'https://wa.me/51929138755';
 export const SUPPORT_PHONE = '+51929138755';
 export const SUPPORT_EMAIL = 'systemggs.pe@gmail.com';

@@ -1,4 +1,5 @@
 import {getPdfTools} from '../../utils/pdfLibraries.js';
+import {drawAppleStoreReceiptPages} from './appleStoreReceiptPdf.js';
 
 const PAGE = {w: 210, h: 297};
 const PLACEHOLDER_FILL = [218, 235, 249];
@@ -56,10 +57,7 @@ async function loadImage(source) {
 
 function fitContain(image, boxW, boxH) {
   const ratio = Math.min(boxW / image.width, boxH / image.height);
-  return {
-    w: image.width * ratio,
-    h: image.height * ratio,
-  };
+  return {w: image.width * ratio, h: image.height * ratio};
 }
 
 function drawPlaceholder(doc, slot) {
@@ -87,13 +85,10 @@ async function drawEvidence(doc, slot, evidencia) {
     drawPlaceholder(doc, slot);
     return;
   }
-
   const loaded = await loadImage(evidencia.dataUrl);
-  const image = loaded.image;
-  const fitted = fitContain(image, slot.w, slot.h);
+  const fitted = fitContain(loaded.image, slot.w, slot.h);
   const x = slot.x + (slot.w - fitted.w) / 2;
   const y = slot.y + (slot.h - fitted.h) / 2;
-
   doc.addImage(loaded.dataUrl, 'JPEG', x, y, fitted.w, fitted.h, undefined, 'FAST');
 }
 
@@ -102,151 +97,30 @@ function paintPage(doc) {
   doc.rect(0, 0, PAGE.w, PAGE.h, 'F');
 }
 
-function formatClp(value) {
-  return new Intl.NumberFormat('es-CL', {maximumFractionDigits: 0}).format(Number(value || 0));
-}
-
-function cleanReceiptText(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
-}
-
-function getReceiptItemName(venta, equiposMap) {
-  const equipo = equiposMap?.[venta?.imeiEquipo] || {};
-  return cleanReceiptText([
-    venta?.marcaEquipo || equipo.marca,
-    venta?.nombreComercial || equipo.nombreComercial || venta?.modeloEquipo || equipo.modelo,
-    venta?.memoria || equipo.memoria,
-  ].filter(Boolean).join(' ')) || 'EQUIPO APPLE';
-}
-
-function drawAppleReceipt(doc, boleta) {
-  const data = boleta?.boletaData || {};
-  const emisor = data.emisor || {};
-  const cliente = data.cliente || {};
-  const todasLasVentas = Array.isArray(data.ventas) ? data.ventas : [];
-  const ventas = todasLasVentas.slice(0, 10);
-  const receipt = {x: 49, y: 14, w: 112, padding: 8};
-  const left = receipt.x + receipt.padding;
-  const right = receipt.x + receipt.w - receipt.padding;
-  const center = receipt.x + receipt.w / 2;
-  const maxWidth = receipt.w - receipt.padding * 2;
-  let y = receipt.y + 10;
-
-  const addCentered = (text, size = 8, bold = false, gap = 1.5) => {
-    const value = cleanReceiptText(text);
-    if (!value) return;
-    doc.setFont('courier', bold ? 'bold' : 'normal');
-    doc.setFontSize(size);
-    const lines = doc.splitTextToSize(value, maxWidth);
-    lines.forEach(line => {
-      doc.text(line, center, y, {align: 'center'});
-      y += size * 0.42 + 1;
-    });
-    y += gap;
-  };
-
-  const addLeft = (text, size = 7, bold = false, gap = 1) => {
-    const value = cleanReceiptText(text);
-    if (!value) return;
-    doc.setFont('courier', bold ? 'bold' : 'normal');
-    doc.setFontSize(size);
-    const lines = doc.splitTextToSize(value, maxWidth);
-    lines.forEach(line => {
-      doc.text(line, left, y);
-      y += size * 0.42 + 1;
-    });
-    y += gap;
-  };
-
-  const addRow = (label, value, {size = 7, bold = false} = {}) => {
-    const text = `${label}: ${cleanReceiptText(value)}`;
-    addLeft(text, size, bold, 0.8);
-  };
-
-  const separator = () => {
-    doc.setDrawColor(120, 126, 136);
-    doc.setLineWidth(0.25);
-    doc.setLineDash([1, 1]);
-    doc.line(left, y, right, y);
-    doc.setLineDash([]);
-    y += 4;
-  };
-
-  const fecha = data.fechaHora || boleta?.fechaHora;
-  const fechaValida = fecha && !Number.isNaN(new Date(fecha).getTime()) ? new Date(fecha) : null;
-  const fechaTexto = fechaValida
-    ? fechaValida.toLocaleString('es-PE', {dateStyle: 'short', timeStyle: 'short'})
-    : cleanReceiptText(fecha);
-  const nBoleta = data.nBoleta || boleta?.nBoleta || '';
-  const totalClp = Number(data.totalClp || boleta?.totalClp || 0);
-  const totalPen = ventas.reduce((total, venta) => total + Number(venta?.precio || 0), 0) || Number(boleta?.totalPen || 0);
-
-  addCentered(emisor.nombre || 'BOLETA EXTRANJERA', 9, true);
-  addCentered(emisor.rut ? `R.U.T. ${emisor.rut}` : '', 8, true, 0.5);
-  addCentered(`BOLETA ELECTRONICA NRO. ${nBoleta || '-'}`, 8, true, 0.5);
-  addCentered('SII ARICA', 7, true, 2);
-  addCentered([emisor.direccion, emisor.comuna, emisor.ciudad].filter(Boolean).join(', '), 6.5, false, 2);
-  separator();
-  addRow('FECHA', fechaTexto || '-');
-  addRow('CLIENTE', cliente.nombre || boleta?.clienteNombre || '-');
-  addRow('RUT / DNI', cliente.dni || boleta?.clienteDni || '-');
-  separator();
-
-  ventas.forEach((venta, index) => {
-    const precioPen = Number(venta?.precio || 0);
-    const precioClp = totalPen > 0 ? Math.round(totalClp * (precioPen / totalPen)) : 0;
-    addLeft(`${index + 1}. ${getReceiptItemName(venta, data.equiposMap)}`, 7, true, 0.8);
-    addRow('IMEI', venta?.imeiEquipo || '-', {size: 6.5});
-    if (venta?.imei2Equipo) addRow('IMEI 2', venta.imei2Equipo, {size: 6.5});
-    addRow('IMPORTE', `$${formatClp(precioClp)}`, {size: 7});
-    y += 1;
-  });
-
-  if (todasLasVentas.length > ventas.length) {
-    addLeft(`+ ${todasLasVentas.length - ventas.length} equipos adicionales`, 6.5, false, 1);
-  }
-  separator();
-  addCentered(`TOTAL $${formatClp(totalClp)}`, 11, true, 2);
-  addCentered(`REFERENCIA S/. ${Number(boleta?.totalPen || totalPen || 0).toFixed(2)}`, 6.5, false, 2);
-  separator();
-  addCentered('DOCUMENTO ASOCIADO AL REGISTRO APPLE', 6.5, true, 1);
-  addCentered(`FORMATO ${boleta?.formato || 1}`, 6, false, 1);
-
-  const receiptHeight = Math.min(PAGE.h - receipt.y - 14, Math.max(120, y - receipt.y + 8));
-  doc.setDrawColor(194, 201, 211);
-  doc.setLineWidth(0.35);
-  doc.rect(receipt.x, receipt.y, receipt.w, receiptHeight, 'S');
-}
-
 export async function generarRegistroEvidenciasPDF(registro, evidencias, options = {}) {
-  const {jsPDF} = getPdfTools();
+  const {jsPDF, JsBarcode} = getPdfTools();
   const plan = getRegistroEvidencePdfPlan(options);
   const doc = new jsPDF({unit: 'mm', format: 'a4', orientation: 'portrait'});
   const numero = registro.nRegistro || 'REGISTRO';
 
+  paintPage(doc);
   if (options.formatoApple) {
     if (!options.boletaExtranjera?.id) throw new Error('BOLETA_APPLE_NO_ENCONTRADA');
-    paintPage(doc);
     for (const slot of plan.slots) {
       await drawEvidence(doc, slot, evidencias?.[slot.key]);
     }
-    doc.addPage('a4', 'portrait');
-    paintPage(doc);
-    drawAppleReceipt(doc, options.boletaExtranjera);
+    drawAppleStoreReceiptPages(doc, options.boletaExtranjera, JsBarcode);
     doc.save(`${numero}.pdf`);
     return;
   }
 
-  paintPage(doc);
   for (const slot of plan.slots.filter(item => item.page === 1)) {
     await drawEvidence(doc, slot, evidencias?.[slot.key]);
   }
-
   doc.addPage('a4', 'portrait');
   paintPage(doc);
   for (const slot of plan.slots.filter(item => item.page === 2)) {
     await drawEvidence(doc, slot, evidencias?.[slot.key]);
   }
-
   doc.save(`${numero}.pdf`);
 }

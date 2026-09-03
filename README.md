@@ -146,6 +146,7 @@ Do not deploy Firebase Functions for this project unless the architecture change
 
 - Keep `.env` and `functions/.env` out of version control.
 - Configure production secrets in Netlify environment variables.
+- Configure `APPLE_RECEIPTS_API_URL` and the server-only `APPLE_RECEIPTS_API_KEY` in Netlify for Apple receipt verification; never expose the key with a `VITE_` prefix.
 - Review `firestore.rules` before adding any new client-side write path.
 - API writes for registrations, sales and customers should remain server-mediated through Netlify Functions.
 - Legal documents define the current Peru/Tacna/domain baseline in `src/config/legal.js`; counsel should still confirm formal registration, tax, retention and provider-processing obligations before public production use.

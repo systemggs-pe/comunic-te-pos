@@ -6,7 +6,7 @@ import {normalizeImeiList, releaseImeiLocks, syncImeiLocks} from './_imeiLocks.m
 import {queueAuditEvent} from './_observability.mjs';
 import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex.mjs';
 import {parseEstadoSolicitudPayload, parseIdPayload, parseRegistroPayload} from './_validators.mjs';
-import {findComprobanteAppleByIdAndImei} from './_comprobanteApple.mjs';
+import {verifyRemoteComprobanteApple} from './_appleReceiptsApi.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
@@ -29,12 +29,12 @@ function resolveEstadoSolicitud(current, next) {
   return next?.estadoSolicitud || 'PENDIENTE';
 }
 
-async function assertComprobanteApple(db, registro) {
+async function assertComprobanteApple(registro, options = {}) {
   if (String(registro?.marcaEquipo || '').toUpperCase() !== 'APPLE') return;
-  const comprobante = await findComprobanteAppleByIdAndImei(
-    baseRef(db).collection('boletasExtranjeras'),
+  const comprobante = await verifyRemoteComprobanteApple(
     registro.boletaExtranjeraId,
     registro.imeiRegistrado || registro.imeiEquipo,
+    options,
   );
   if (!comprobante) {
     throw Object.assign(new Error('BOLETA_APPLE_NO_ENCONTRADA'), {
@@ -112,9 +112,9 @@ function getNextFromExisting(snapshot, field, prefix) {
   return max + 1;
 }
 
-async function createRegistro(db, payload, context) {
+async function createRegistro(db, payload, context, options = {}) {
   const {cliente, equipo, registro} = parseRegistroPayload(payload);
-  await assertComprobanteApple(db, registro);
+  await assertComprobanteApple(registro, options);
   const base = baseRef(db);
   const counterRef = db.collection('_counters').doc('registros');
   const registroRef = base.collection('registros').doc();
@@ -178,10 +178,10 @@ async function createRegistro(db, payload, context) {
   });
 }
 
-async function updateRegistro(db, payload, context) {
+async function updateRegistro(db, payload, context, options = {}) {
   const {id} = parseIdPayload(payload);
   const {cliente, equipo, registro} = parseRegistroPayload(payload);
-  await assertComprobanteApple(db, registro);
+  await assertComprobanteApple(registro, options);
 
   const base = baseRef(db);
   const registrosRef = base.collection('registros');
@@ -451,12 +451,12 @@ async function completeAllRequestStatuses(db, context) {
   return {estadoSolicitud: 'REALIZADO', scannedCount, updatedCount};
 }
 
-async function dispatchRegistros(body, user, context) {
+async function dispatchRegistros(body, user, context, options = {}) {
   const db = getAdminDb();
   const action = String(body?.action || '');
   if (action === 'checkImeis') return checkRegisteredImeis(db, body);
-  if (action === 'create') return createRegistro(db, body, context);
-  if (action === 'update') return updateRegistro(db, body, context);
+  if (action === 'create') return createRegistro(db, body, context, options);
+  if (action === 'update') return updateRegistro(db, body, context, options);
   if (action === 'delete') return deleteRegistro(db, body, context);
   if (action === 'unlock') return unlockRegistro(db, body, context);
   if (action === 'updateRequestStatus') return updateEstadoSolicitud(db, body, context);
@@ -466,6 +466,8 @@ async function dispatchRegistros(body, user, context) {
 
 export const __test = {checkRegisteredImeis, resolveEstadoSolicitud, shouldCompleteRequestStatus};
 
-export const handler = event => handlePost(event, dispatchRegistros, {
+export const handler = event => handlePost(event, (body, user, context) => dispatchRegistros(body, user, context, {
+  authorization: event.headers?.authorization || event.headers?.Authorization || '',
+}), {
   rateLimit: {name: 'registros', max: 120, windowMs: 60 * 1000},
 });

@@ -72,6 +72,25 @@ function sanitizeEmisor(value = {}) {
     comuna: cleanText(value.comuna, 80),
     ciudad: cleanText(value.ciudad, 80),
     vendedor: cleanText(value.vendedor, 40),
+    pais: cleanText(value.pais, 80),
+    email: cleanText(value.email, 180),
+    telefono: cleanText(value.telefono, 40),
+    sitioWeb: cleanText(value.sitioWeb, 240),
+    metodoPago: cleanText(value.metodoPago, 80),
+    tipoCambioPenUsd: cleanMoney(value.tipoCambioPenUsd),
+    impuestoPorcentaje: cleanMoney(value.impuestoPorcentaje),
+    tarjetaUltimos4: cleanText(value.tarjetaUltimos4, 4).replace(/\D/g, ''),
+    codigoTerminal: cleanText(value.codigoTerminal, 40),
+    applicationId: cleanText(value.applicationId, 80),
+    applicationPanSequence: cleanText(value.applicationPanSequence, 20),
+    deviceId: cleanText(value.deviceId, 40),
+    cardType: cleanText(value.cardType, 40),
+    tvr: cleanText(value.tvr, 40),
+    tsi: cleanText(value.tsi, 40),
+    diasDevolucion: cleanMoney(value.diasDevolucion),
+    partNumber: cleanText(value.partNumber, 80),
+    policyUrl: cleanText(value.policyUrl, 300),
+    supportMessage: cleanText(value.supportMessage, 300),
   };
 }
 
@@ -86,6 +105,8 @@ function sanitizeBoletaData(value = {}) {
     nombreComercial: cleanText(venta?.nombreComercial, 140),
     memoria: cleanText(venta?.memoria, 20),
     color: cleanText(venta?.color, 80),
+    sn: cleanText(venta?.sn, 100),
+    partNumber: cleanText(venta?.partNumber, 80),
     precio: cleanMoney(venta?.precio),
   })).filter(venta => venta.imeiEquipo);
 
@@ -101,6 +122,8 @@ function sanitizeBoletaData(value = {}) {
         nombreComercial: cleanText(equipo?.nombreComercial, 140),
         memoria: cleanText(equipo?.memoria, 20),
         color: cleanText(equipo?.color, 80),
+        sn: cleanText(equipo?.sn, 100),
+        partNumber: cleanText(equipo?.partNumber, 80),
       };
     });
   }
@@ -119,45 +142,18 @@ function sanitizeBoletaData(value = {}) {
   };
 }
 
-export function serializeComprobanteApple(doc) {
-  const data = doc?.data?.() || {};
+export function serializeComprobanteAppleData(rawData = {}, fallbackId = '') {
+  const data = rawData && typeof rawData === 'object' && !Array.isArray(rawData) ? rawData : {};
   return {
-    id: cleanText(doc?.id, 180),
+    id: cleanText(data.id || fallbackId, 180),
     nBoleta: Number.isFinite(Number(data.nBoleta)) ? Number(data.nBoleta) : null,
     clienteDni: cleanText(data.clienteDni, 20),
     clienteNombre: cleanText(data.clienteNombre, 180),
     totalPen: cleanMoney(data.totalPen),
     totalClp: cleanMoney(data.totalClp),
     fechaHora: cleanText(data.fechaHora, 40),
-    formato: [1, 2, 3].includes(Number(data.formato)) ? Number(data.formato) : 1,
+    formato: [1, 2, 3, 4, 5, 6, 7].includes(Number(data.formato)) ? Number(data.formato) : 1,
     boletaEquipoKeys: getImeisComprobanteApple(data),
     boletaData: sanitizeBoletaData(data.boletaData),
   };
-}
-
-export async function findComprobanteAppleByImei(boletasRef, rawImei) {
-  const imei = normalizarImeiApple(rawImei);
-  if (!imei) return null;
-
-  const directSnap = await boletasRef.doc(imei).get();
-  if (directSnap.exists && getImeisComprobanteApple(directSnap.data() || {}).includes(imei)) {
-    return serializeComprobanteApple(directSnap);
-  }
-
-  const keysSnap = await boletasRef.where('boletaEquipoKeys', 'array-contains', imei).limit(1).get();
-  if (!keysSnap.empty) return serializeComprobanteApple(keysSnap.docs[0]);
-
-  const legacySnap = await boletasRef.where('boletaEquipoKey', '==', imei).limit(1).get();
-  if (!legacySnap.empty) return serializeComprobanteApple(legacySnap.docs[0]);
-  return null;
-}
-
-export async function findComprobanteAppleByIdAndImei(boletasRef, rawId, rawImei) {
-  const id = cleanText(rawId, 180);
-  const imei = normalizarImeiApple(rawImei);
-  if (!id || id.includes('/') || !imei) return null;
-
-  const snap = await boletasRef.doc(id).get();
-  if (!snap.exists || !getImeisComprobanteApple(snap.data() || {}).includes(imei)) return null;
-  return serializeComprobanteApple(snap);
 }

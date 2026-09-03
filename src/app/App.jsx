@@ -8,7 +8,6 @@ import { auth, db, appId } from '../lib/firebase.js';
 import { LoginScreen } from '../features/auth/LoginScreen.jsx';
 import { FloatingNavigation } from '../components/navigation/FloatingNavigation.jsx';
 import { AppFooter } from '../components/branding/AppFooter.jsx';
-import { IntroSplash } from '../components/branding/IntroSplash.jsx';
 import { ConfirmModal } from '../components/ui/ConfirmModal.jsx';
 import { IconButton } from '../components/ui/Button.jsx';
 import { StatusBadge } from '../components/ui/StatusBadge.jsx';
@@ -33,9 +32,6 @@ const ClientesList = lazyNamed(() => import('../features/clientes/ClientesList.j
 const DniFotosPage = lazyNamed(() => import('../features/dniFotos/DniFotosPage.jsx'), 'DniFotosPage');
 const ProblemasApp = lazyNamed(() => import('../features/problemas/ProblemasApp.jsx'), 'ProblemasApp');
 
-const INTRO_LOGIN_KEY = 'ggs_intro_after_login_uid';
-const INTRO_SEEN_PREFIX = 'ggs_intro_seen_at_';
-const INTRO_REPEAT_AFTER_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 40;
 const REFERENCE_DATA_LIMIT = 200;
 
@@ -118,7 +114,6 @@ function App() {
   const [busquedaGlobal, setBusquedaGlobal] = useState('');
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [logoVentas, setLogoVentas] = useState(null);
-  const [showIntro, setShowIntro] = useState(false);
   const [pendingView, setPendingView] = useState(null);
 
   const [clientes, setClientes] = useState([]);
@@ -139,7 +134,6 @@ function App() {
 
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const toastTimerRef = React.useRef(null);
-  const lastIntroUserRef = React.useRef(null);
   const lastRegistroDocRef = React.useRef(null);
   const lastVentaDocRef = React.useRef(null);
   const registrosRealtimeRef = React.useRef(new Map());
@@ -245,32 +239,6 @@ function App() {
     });
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (!user) {
-      lastIntroUserRef.current = null;
-      return;
-    }
-
-    if (lastIntroUserRef.current === user.uid) return;
-
-    const now = Date.now();
-    const seenKey = `${INTRO_SEEN_PREFIX}${user.uid}`;
-    const lastSeenAt = Number(window.localStorage.getItem(seenKey) || 0);
-    const loginUid = window.sessionStorage.getItem(INTRO_LOGIN_KEY);
-    const shouldShowIntro = loginUid === user.uid || !lastSeenAt || now - lastSeenAt > INTRO_REPEAT_AFTER_MS;
-
-    lastIntroUserRef.current = user.uid;
-    window.sessionStorage.removeItem(INTRO_LOGIN_KEY);
-
-    if (!shouldShowIntro) return;
-
-    window.localStorage.setItem(seenKey, String(now));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setShowIntro(true);
-    const timeoutId = window.setTimeout(() => setShowIntro(false), 2400);
-    return () => window.clearTimeout(timeoutId);
-  }, [user]);
 
   // ── SUSCRIPCIONES LAZY POR MÓDULO ──
   // clientes + equipos: se activan solo al abrir módulos que los necesitan
@@ -778,7 +746,6 @@ function App() {
 
   return (
     <div className="app-shell">
-      {showIntro && <IntroSplash />}
       <ConfirmModal
         open={Boolean(pendingView)}
         title="Salir sin guardar"

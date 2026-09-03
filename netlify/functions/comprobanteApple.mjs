@@ -1,37 +1,20 @@
 import {handlePost} from './_shared.mjs';
-import {getAdminDb} from './_firebaseAdmin.mjs';
-import {
-  findComprobanteAppleByImei,
-  luhnImeiApple,
-  normalizarImeiApple,
-} from './_comprobanteApple.mjs';
+import {findRemoteComprobanteAppleByImei} from './_appleReceiptsApi.mjs';
+import {luhnImeiApple, normalizarImeiApple} from './_comprobanteApple.mjs';
 
-const APP_ID = 'comunicate-pos';
-const SCOPE = 'shared';
-
-function boletasRef(db) {
-  return db.collection('artifacts')
-    .doc(APP_ID)
-    .collection('users')
-    .doc(SCOPE)
-    .collection('boletasExtranjeras');
-}
-
-async function buscarComprobanteApple(db, body) {
+async function buscarComprobanteApple(body, options = {}) {
   const imei = normalizarImeiApple(body?.imei);
   if (!imei || !luhnImeiApple(imei)) {
     throw Object.assign(new Error('IMEI_INVALIDO'), {status: 400});
   }
 
-  const boleta = await findComprobanteAppleByImei(boletasRef(db), imei);
+  const boleta = await findRemoteComprobanteAppleByImei(imei, options);
   return boleta ? {found: true, boleta} : {found: false, boleta: null};
 }
 
-async function dispatchComprobanteApple(body) {
-  return buscarComprobanteApple(getAdminDb(), body);
-}
-
-export const handler = event => handlePost(event, dispatchComprobanteApple, {
+export const handler = event => handlePost(event, body => buscarComprobanteApple(body, {
+  authorization: event.headers?.authorization || event.headers?.Authorization || '',
+}), {
   rateLimit: {name: 'comprobanteApple', max: 60, windowMs: 60 * 1000, distributed: true},
 });
 

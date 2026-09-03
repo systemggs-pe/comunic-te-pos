@@ -201,6 +201,9 @@ Configure in Netlify:
 - `ALLOWED_EMAILS`
 - `ALLOWED_ORIGINS`
 - `RENIEC_TOKEN`
+- `APPLE_RECEIPTS_API_URL`
+- `APPLE_RECEIPTS_API_KEY`
+- `APPLE_RECEIPTS_TIMEOUT_MS` (optional)
 - `VITE_BACKEND_BASE_URL`
 
 For frontend and functions hosted in the same Netlify site, `VITE_BACKEND_BASE_URL` can stay empty.

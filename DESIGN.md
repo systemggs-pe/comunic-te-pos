@@ -49,6 +49,7 @@ Legacy `.saas-*` classes remain as compatibility adapters for the large transact
 - Dialogs must manage focus, Escape and focus return.
 - Color never carries meaning alone.
 - Motion timing is 120–260ms and disabled under `prefers-reduced-motion`.
+- The launch presentation runs after every confirmed login, derives `v7.0` from `package.json`, and reduces to a short static presentation when reduced motion is requested.
 - All pages must be checked at 390px, 768px and 1440px widths.
 
 ## Product Rules

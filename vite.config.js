@@ -1,5 +1,9 @@
 import {defineConfig, loadEnv} from 'vite';
 import react from '@vitejs/plugin-react';
+import {readFileSync} from 'node:fs';
+
+// Keep the visible product release aligned with package metadata at build and dev startup.
+const packageMetadata = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -7,6 +11,9 @@ export default defineConfig(({mode}) => {
 
   return {
     plugins: [react()],
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageMetadata.version),
+    },
     server: {
       proxy: {
         '/api': {

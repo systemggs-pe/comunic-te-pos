@@ -86,6 +86,9 @@ const VALIDATION_MESSAGES = {
   IMEI_INVALIDO: 'el IMEI debe tener 15 digitos',
   IMEI_LUHN_INVALIDO: 'el IMEI no pasa la validacion',
   IMEI_NO_COINCIDE: 'el IMEI del equipo no coincide con el registro',
+  IMEI2_NO_COINCIDE: 'el IMEI 2 del equipo no coincide con el registro',
+  IMEIS_DUPLICADOS: 'el IMEI 1 y el IMEI 2 deben ser diferentes',
+  IMEI_REGISTRADO_NO_PERTENECE: 'elige como IMEI a registrar uno de los IMEI del equipo',
   IMEI_YA_REGISTRADO: 'el IMEI ya tiene un registro activo',
   IMEI_YA_VENDIDO: 'el IMEI ya tiene una venta registrada',
   ITEM_CANTIDAD_INVALIDA: 'la cantidad del item debe ser mayor a 0',
@@ -93,6 +96,7 @@ const VALIDATION_MESSAGES = {
   ITEMS_MUY_LARGOS: 'hay demasiados items adicionales',
   CONTACTOS_MUY_LARGOS: 'hay demasiados contactos registrados',
   MARCA_REQUERIDA: 'la marca es obligatoria',
+  MARCA_NO_COINCIDE: 'la marca del equipo no coincide con el registro',
   MODELO_REQUERIDO: 'el modelo es obligatorio',
   NOMBRE_COMERCIAL_REQUERIDO: 'el nombre comercial es obligatorio',
   NOMBRE_REQUERIDO: 'el nombre del cliente es obligatorio',
@@ -105,6 +109,7 @@ const VALIDATION_MESSAGES = {
   PROVEEDOR_PASE_REQUERIDO: 'indica quién nos pasó el equipo',
   PROVEEDOR_PASE_NO_APLICA: 'solo corresponde cuando el origen es PASE',
   TIPO_INVALIDO: 'el tipo de registro no es valido',
+  TIPO_SAMSUNG_REQUERIDO: 'para Samsung elige TIENDA o EXTERNO',
   TIPO_DOCUMENTO_INVALIDO: 'el tipo de documento no es valido',
   MEDIO_PAGO_INVALIDO: 'el medio de pago no es valido',
 };
@@ -204,6 +209,11 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'BOLETA_APPLE_NO_ENCONTRADA' || error?.message === 'BOLETA_APPLE_REQUERIDA') {
     return 'No existe una boleta extranjera para el IMEI del equipo APPLE';
   }
+  if (error?.message === 'APPLE_RECEIPTS_NOT_CONFIGURED') return 'Falta configurar APPLE_RECEIPTS_API_URL o APPLE_RECEIPTS_API_KEY en el servidor';
+  if (error?.message === 'APPLE_RECEIPTS_ACCESS_DENIED') return 'El servicio externo de boletas rechazo las credenciales';
+  if (error?.message === 'APPLE_RECEIPTS_RATE_LIMIT') return 'El servicio externo de boletas esta ocupado; intenta nuevamente';
+  if (error?.message === 'APPLE_RECEIPTS_INVALID_RESPONSE') return 'El servicio externo devolvio una boleta invalida';
+  if (error?.message === 'APPLE_RECEIPTS_UPSTREAM_ERROR') return 'No se pudo consultar la base externa de boletas';
   if (error?.message === 'BOLETA_SIN_EQUIPO' || error?.message === 'BOLETA_SIN_IMEI') return 'La boleta debe tener un equipo valido';
   if (error?.message === 'CODART_TOKEN_MISSING') return 'Falta configurar CODART_TOKEN o RENIEC_TOKEN en .env local';
   if (error?.message === 'CODART_TOKEN_INVALID') return 'El token de CODART no es valido o ya vencio';

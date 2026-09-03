@@ -69,6 +69,7 @@ The same ID is written to structured function logs and server-side audit events 
 | Method | URL | Function | Auth Required | Purpose |
 |---|---|---|---|---|
 | POST | `/api/reniec` | `reniec.mjs` | Yes | Lookup DNI data. |
+| POST | `/api/comprobanteApple` | `comprobanteApple.mjs` | Yes | Verify an Apple IMEI against the external receipts service. |
 | POST | `/api/registros` | `registros.mjs` | Yes | Create, update, delete and unlock registrations. |
 | POST | `/api/ventas` | `ventas.mjs` | Yes | Create, update and delete sales. |
 | POST | `/api/clientes` | `clientes.mjs` | Yes | Update and delete customers. |
@@ -156,6 +157,14 @@ Limits: 2.1 MiB JSON request, 15 requests per user/IP window of 60 seconds, dist
 rate limiting, maximum 25-second upstream timeout. Provider errors are sanitized.
 Missing key/model access: 503; quota: 429; unreadable/blocked image: 422;
 malformed provider response: 502; timeout: 504. No local learning fallback occurs.
+
+## POST /api/comprobanteApple
+
+Accepts `{ "imei": "..." }` and returns `{ "found": true, "boleta": {...} }` or
+`{ "found": false, "boleta": null }`. The Function queries the configured
+`APPLE_RECEIPTS_API_URL` with the server-only `APPLE_RECEIPTS_API_KEY`; neither the key
+nor unbounded provider responses are exposed to the browser. Apple registration create
+and update operations repeat this verification before writing to Firestore.
 
 ## POST /api/registros
 

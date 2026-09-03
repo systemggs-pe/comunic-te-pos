@@ -30,6 +30,9 @@ Production secrets should be configured in Netlify environment variables.
 | `ALLOWED_EMAILS` | Recommended | functions | Comma-separated authorized emails. |
 | `ALLOWED_ORIGINS` | Recommended | functions | Comma-separated allowed CORS origins. |
 | `RENIEC_TOKEN` | Required for RENIEC | functions | Bearer token for RENIEC provider. |
+| `APPLE_RECEIPTS_API_URL` | Required for Apple registrations | functions/local API | HTTPS endpoint of the external receipts service. |
+| `APPLE_RECEIPTS_API_KEY` | Required for Apple registrations | functions/local API | Server-only key sent as `X-API-Key`; never use a `VITE_` prefix. |
+| `APPLE_RECEIPTS_TIMEOUT_MS` | Optional | functions/local API | External receipt lookup timeout. Defaults to 10000 and is capped at 20000 ms. |
 
 ## Safe Example
 
@@ -41,6 +44,9 @@ ALLOWED_EMAILS=operator1@example.com,operator2@example.com
 ALLOWED_ORIGINS=https://your-production-domain.example
 RENIEC_TOKEN=your-reniec-token
 FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"..."}
+APPLE_RECEIPTS_API_URL=https://comunicate-boletas.netlify.app/api/boletas
+APPLE_RECEIPTS_API_KEY=your-server-only-integration-key
+APPLE_RECEIPTS_TIMEOUT_MS=10000
 ```
 
 Do not put real secrets in documentation, screenshots, commits or client-visible code.
@@ -149,6 +155,21 @@ The image is compressed to JPEG (maximum 1.5 MiB) before the operator-requested 
 The backend uses inline image data and JSON structured output; see the official
 [Gemini image API](https://ai.google.dev/gemini-api/docs/generate-content/image-understanding)
 and [structured output reference](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig).
+
+### External Apple receipt lookup
+
+Apple registration receipt checks are performed only by Netlify Functions. Configure
+`APPLE_RECEIPTS_API_URL`, `APPLE_RECEIPTS_API_KEY` and, optionally,
+`APPLE_RECEIPTS_TIMEOUT_MS` both in the local `.env` and in the Netlify environment.
+The browser receives only the sanitized receipt result; the API key is never bundled
+into the Vite application. The current integration sends an exact IMEI query compatible
+with the external boletas `/api/boletas` `searchHistory` action, forwards the already
+authenticated operator token, and sends the integration key as `X-API-Key`.
+
+The external boletas service must be configured to accept that integration key (or the
+forwarded authenticated operator token) and return either `{ boletas: [...] }` or
+`{ found, boleta }`. COMUNIC@TE rejects responses whose receipt does not contain the
+requested IMEI and verifies the receipt again when the registration is saved.
 
 ### Local OCR and Trainable Verifier (temporarily paused)
 

@@ -121,6 +121,9 @@ function hasFirebaseAdminConfig() {
 function logConfigHints() {
   const hints = [];
   if (!process.env.GEMINI_API_KEY) hints.push('GEMINI_API_KEY no esta configurado; /api/analizarCajaGemini fallara.');
+  if (!process.env.APPLE_RECEIPTS_API_URL || !process.env.APPLE_RECEIPTS_API_KEY) {
+    hints.push('APPLE_RECEIPTS_API_URL o APPLE_RECEIPTS_API_KEY no estan configurados; la verificacion APPLE fallara.');
+  }
   if (!process.env.RENIEC_TOKEN) hints.push('RENIEC_TOKEN no esta configurado; /api/reniec fallara.');
   if (!hasFirebaseAdminConfig()) {
     hints.push('Firebase Admin no esta configurado; /api/registros y /api/ventas fallaran.');

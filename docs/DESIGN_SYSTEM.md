@@ -189,6 +189,8 @@ Cards are not the default layout primitive. Cards inside cards are prohibited.
 
 Use `cubic-bezier(0.16, 1, 0.3, 1)` for entry and state changes. Animate only opacity and transform. Respect `prefers-reduced-motion`; decorative continuous motion is prohibited.
 
+The post-login launch is the sole deliberate exception to standard product timing: it uses a 3.6-second minimal sequence after every confirmed login and a 700ms static alternative under `prefers-reduced-motion`. The application renders behind the translucent overlay so startup work is not blocked.
+
 ## Responsive contract
 
 - 320–639px: single column, 16px page gutters, bottom navigation, 44px targets.

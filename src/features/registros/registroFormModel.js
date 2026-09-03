@@ -6,6 +6,7 @@ export const MONEY_RE = /^\d+(\.\d{1,2})?$/;
 export const PHONE_RE = /^9\d{8}$/;
 export const SCAN_LOADING_INPUT_CLASS = 'bg-blue-50/70 placeholder:text-blue-700 placeholder:font-semibold';
 export const REGISTRO_MARCAS = ['APPLE', 'SAMSUNG', 'HONOR', 'XIAOMI', 'OPPO', 'VIVO', 'TECNO', 'INFINIX', 'ZTE', 'MOTOROLA', 'PIXEL', 'HTC'];
+export const REGISTRO_MARCA_OTROS = 'OTROS';
 export const APPLE_EVIDENCIA_ORDER = ['dniFrente', 'dniReverso', 'imeiLogico', 'cajaEquipo'];
 
 export const clean = value => String(value || '').trim();
@@ -13,6 +14,17 @@ export const clean = value => String(value || '').trim();
 export function normalizarMarcaRegistro(value) {
   const marca = clean(value).toUpperCase();
   return REGISTRO_MARCAS.includes(marca) ? marca : '';
+}
+
+export function descomponerMarcaRegistro(value) {
+  const marca = clean(value).toUpperCase();
+  if (!marca) return {marca: '', marcaOtra: ''};
+  if (REGISTRO_MARCAS.includes(marca)) return {marca, marcaOtra: ''};
+  return {marca: REGISTRO_MARCA_OTROS, marcaOtra: marca};
+}
+
+export function marcaFinalRegistro(form) {
+  return clean(form?.marca === REGISTRO_MARCA_OTROS ? form?.marcaOtra : form?.marca).toUpperCase();
 }
 
 export function normalizarTieneCaja(value) {
@@ -62,7 +74,7 @@ export function toLocalDatetimeValue(isoString) {
 export function createInitialRegistroForm() {
   return {
     tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', departamento: '',
-    imei1: '', imei: '', imei2: '', sn: '', marca: '', modelo: '', nombreComercial: '', color: '', memoria: '', ram: '',
+    imei1: '', imei: '', imei2: '', sn: '', marca: '', marcaOtra: '', modelo: '', nombreComercial: '', color: '', memoria: '', ram: '',
     estado: 'NO BLOQUEADO', estadoSolicitud: 'PENDIENTE', operador: 'BITEL', tipo: 'TIENDA', tieneCaja: 'NO', precio: '0',
     fecha: toLocalDatetimeValue(new Date().toISOString()),
   };
@@ -81,11 +93,20 @@ export function validateCustomerStep(form, direccionFinalCliente) {
 }
 
 export function validateEquipmentStep(form, {imeiYaRegistrado} = {}) {
+  const marcaFinal = marcaFinalRegistro(form);
   if (!luhn(clean(form.imei1))) return 'El IMEI 1 no es valido; verifica los digitos';
   if (clean(form.imei2) && !luhn(clean(form.imei2))) return 'El IMEI 2 no es valido; verifica los digitos';
   if (clean(form.imei1) && clean(form.imei1) === clean(form.imei2)) return 'El IMEI 1 y el IMEI 2 deben ser diferentes';
   if (![clean(form.imei1), clean(form.imei2)].includes(clean(form.imei))) return 'Selecciona el IMEI que se va a registrar';
-  if (form.marca && !REGISTRO_MARCAS.includes(form.marca)) return 'Selecciona una marca de la lista';
+  if (!clean(form.marca)) return 'La marca del equipo es obligatoria';
+  if (![...REGISTRO_MARCAS, REGISTRO_MARCA_OTROS].includes(form.marca)) return 'Selecciona una marca de la lista';
+  if (!marcaFinal) return 'Escribe la marca del equipo';
+  if (form.marca === REGISTRO_MARCA_OTROS && REGISTRO_MARCAS.includes(marcaFinal)) {
+    return `Selecciona ${marcaFinal} directamente en la lista`;
+  }
+  if (marcaFinal === 'SAMSUNG' && !['TIENDA', 'EXTERNO'].includes(form.tipo)) {
+    return 'Indica si el equipo Samsung es de TIENDA o EXTERNO';
+  }
   if (!clean(form.nombreComercial)) return 'El nombre comercial es obligatorio';
   if (imeiYaRegistrado?.(form.imei)) return `El IMEI ${form.imei} ya tiene un registro activo`;
   return null;
@@ -93,8 +114,6 @@ export function validateEquipmentStep(form, {imeiYaRegistrado} = {}) {
 
 export function validateRegistroDraft(form, {
   direccionFinalCliente,
-  esRegistroSimple,
-  isEditing,
   imeiYaRegistrado,
   esApple,
   comprobanteAppleValido,
@@ -102,7 +121,7 @@ export function validateRegistroDraft(form, {
 } = {}) {
   const customerError = validateCustomerStep(form, direccionFinalCliente);
   if (customerError) return customerError;
-  const equipmentError = validateEquipmentStep(form, {esRegistroSimple, imeiYaRegistrado: isEditing ? null : imeiYaRegistrado});
+  const equipmentError = validateEquipmentStep(form, {imeiYaRegistrado});
   if (equipmentError) return equipmentError;
   if (![clean(form.imei1), clean(form.imei2)].includes(clean(form.imei))) return 'Selecciona el IMEI que se va a registrar';
   if (esApple && !comprobanteAppleValido) return 'Primero verifica que el IMEI tenga una boleta extranjera';

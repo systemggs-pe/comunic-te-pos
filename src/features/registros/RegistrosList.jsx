@@ -12,8 +12,8 @@ import {Dialog} from '../../components/ui/Dialog.jsx';
 import {PageHeader, SearchField} from '../../components/ui/PageHeader.jsx';
 import {SkeletonRows, StateView} from '../../components/ui/StateView.jsx';
 import {StatusBadge} from '../../components/ui/StatusBadge.jsx';
+import {construirTextoRegistro, etiquetaTieneCaja} from './registroShareText.js';
 
-const etiquetaTieneCaja = value => value === true || value === 'SI' ? 'SI' : 'NO';
 const celularDeRegistro = (registro, cliente = {}) => registro?.celularCliente || cliente?.celular || '';
 const estadoSolicitudDeRegistro = registro => registro?.estado === 'NO BLOQUEADO'
   ? (registro?.estadoSolicitud || 'PENDIENTE')
@@ -62,30 +62,10 @@ export function RegistrosList({ data, cargando, clientes, equipos, onNew, onEdit
   const clientePorDni = useMemo(() => indexClientesByDni(clientes), [clientes]);
   const getCliente = (dni) => clientePorDni.get(normalizeDni(dni)) || {};
   const getEquipo = (imei) => equipos.find(equipo => equipo.idEquipo === imei) || {};
-  const construirTextoRegistro = (registro, encabezado = 'REGISTRO') => {
+  const textoParaCompartir = (registro, encabezado = 'REGISTRO') => {
     const cliente = getCliente(registro.dniCliente);
     const equipo = getEquipo(registro.imeiEquipo || registro.imeiRegistrado);
-    const imei = registro.imeiEquipo || registro.imeiRegistrado || '';
-    const imei2 = registro.imei2Equipo || equipo.imei2 || '';
-    const imeiRegistrar = registro.imeiRegistrado || imei;
-    const docLabel = registro.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI';
-    const celular = celularDeRegistro(registro, cliente);
-    const nombre = registro.nombreCliente || cliente.nombre || '';
-    const direccion = registro.direccionCliente || cliente.direccion || '';
-    const correo = registro.correoCliente || cliente.correo || '';
-
-    return `${encabezado}
-
-IMEI: ${imei}
-IMEI2: ${imei2}
-TIENE CAJA: ${etiquetaTieneCaja(registro.tieneCaja)}
-${docLabel}: ${registro.dniCliente || ''}
-CELULAR: ${celular}
-NOMBRE CLIENTE: ${nombre}
-DIRECCION: ${direccion}
-CORREO ELECTRONICO: ${correo}
-
-IMEI A REGISTRAR: ${imeiRegistrar}`;
+    return construirTextoRegistro(registro, {cliente, equipo, encabezado});
   };
 
   useEffect(() => {
@@ -109,7 +89,7 @@ IMEI A REGISTRAR: ${imeiRegistrar}`;
   }, [data, clientePorDni, searchTerm, statusFilter]);
 
   const handleCopy = (item) => {
-    const text = construirTextoRegistro(item);
+    const text = textoParaCompartir(item);
     navigator.clipboard.writeText(text).then(() => showToast('Datos copiados')).catch(() => showToast('Error al copiar', 'error'));
   };
 
@@ -117,7 +97,7 @@ IMEI A REGISTRAR: ${imeiRegistrar}`;
     const encabezado = String(row.estado || '').toUpperCase() === 'BLOQUEADO'
       ? 'DESBLOQUEO LISTA BLANCA'
       : 'REGISTRO';
-    const texto = construirTextoRegistro(row, encabezado);
+    const texto = textoParaCompartir(row, encabezado);
 
     // Intentar Web Share API con archivos PDF si están disponibles
     const tieneArchivos = row.pdfDniUrl || row.pdfCajaUrl || row.pdfReciboUrl;

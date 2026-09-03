@@ -40,9 +40,8 @@ test('un registro no bloqueado inicia con solicitud pendiente', () => {
   assert.equal(parsed.registro.estadoSolicitud, 'PENDIENTE');
 });
 
-test('tienda y pase no bloqueados aceptan precio cero con solo IMEI y nombre comercial obligatorios', () => {
-  const payload = payloadRegistro({precio: '0', marcaEquipo: '', modeloEquipo: ''});
-  payload.equipo.marca = '';
+test('tienda y pase no bloqueados aceptan precio cero con IMEI, marca y nombre comercial obligatorios', () => {
+  const payload = payloadRegistro({precio: '0', modeloEquipo: ''});
   payload.equipo.modelo = '';
 
   const parsed = parseRegistroPayload(payload);
@@ -54,6 +53,39 @@ test('tienda y pase no bloqueados aceptan precio cero con solo IMEI y nombre com
   const pase = parseRegistroPayload(payloadRegistro({tipo: 'PASE', precio: '0'}));
   assert.equal(pase.registro.tipo, 'PASE');
   assert.equal(pase.registro.precio, '0');
+});
+
+test('la marca es obligatoria y Samsung exige origen de tienda o externo', () => {
+  const missingBrand = payloadRegistro({marcaEquipo: ''});
+  missingBrand.equipo.marca = '';
+  assert.throws(
+    () => parseRegistroPayload(missingBrand),
+    error => error.payload?.issues?.some(issue => issue.message === 'MARCA_REQUERIDA'),
+  );
+
+  const samsungPase = payloadRegistro({marcaEquipo: 'SAMSUNG', tipo: 'PASE'});
+  samsungPase.equipo.marca = 'SAMSUNG';
+  assert.throws(
+    () => parseRegistroPayload(samsungPase),
+    error => error.payload?.issues?.some(issue => issue.message === 'TIPO_SAMSUNG_REQUERIDO'),
+  );
+  assert.equal(parseRegistroPayload({...samsungPase, registro: {...samsungPase.registro, tipo: 'EXTERNO'}}).registro.tipo, 'EXTERNO');
+});
+
+test('el IMEI a registrar debe pertenecer a los dos IMEI editables del equipo', () => {
+  const secondary = '356938035643809';
+  const payload = payloadRegistro({imei2Equipo: secondary, imeiRegistrado: secondary});
+  payload.equipo.imei2 = secondary;
+  assert.equal(parseRegistroPayload(payload).registro.imeiRegistrado, secondary);
+
+  assert.throws(
+    () => parseRegistroPayload({...payload, registro: {...payload.registro, imeiRegistrado: '865716088094342'}}),
+    error => error.payload?.issues?.some(issue => issue.message === 'IMEI_REGISTRADO_NO_PERTENECE'),
+  );
+  assert.throws(
+    () => parseRegistroPayload({...payload, registro: {...payload.registro, imei2Equipo: ''}}),
+    error => error.payload?.issues?.some(issue => issue.message === 'IMEI2_NO_COINCIDE'),
+  );
 });
 
 test('precio cero sigue rechazado fuera de tienda no bloqueada', () => {

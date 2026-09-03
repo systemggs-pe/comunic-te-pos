@@ -6,6 +6,7 @@ import {LEGAL_DOCUMENT_VERSION, getRequiredLegalSnapshot} from '../../config/leg
 import {registrarConsentimientoLegal} from '../../services/functionsClient.js';
 import {LegalConsentGate} from '../legal/LegalConsentGate.jsx';
 import {getCookiePreferences} from '../legal/cookiePreferences.js';
+import {requestLaunchAnimation} from '../../components/branding/launchAnimationState.js';
 
 function GoogleIcon() {
   return (
@@ -56,7 +57,7 @@ export function LoginScreen({showToast, EMAILS_PERMITIDOS, auth}) {
         locale: navigator.language || '',
         source: 'pre-login-gate',
       });
-      window.sessionStorage.setItem('ggs_intro_after_login_uid', result.user.uid);
+      requestLaunchAnimation(window);
       showToast('Sesión iniciada con Google');
     } catch (error) {
       console.error('Error Google Auth:', error);

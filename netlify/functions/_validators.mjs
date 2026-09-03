@@ -88,7 +88,7 @@ const registroEquipoSchema = z.object({
   idDuenio: documentoSchema,
   imei2: optionalImeiSchema,
   sn: optionalText(80),
-  marca: optionalText(80),
+  marca: requiredText('MARCA_REQUERIDA', 80),
   modelo: optionalText(100),
   nombreComercial: requiredText('NOMBRE_COMERCIAL_REQUERIDO', 140),
   ram: optionalText(12),
@@ -124,7 +124,7 @@ const registroSchema = z.object({
   imeiRegistrado: imeiSchema,
   imei2Equipo: optionalImeiSchema,
   modeloEquipo: optionalText(100),
-  marcaEquipo: optionalText(80),
+  marcaEquipo: requiredText('MARCA_REQUERIDA', 80),
   nombreComercialEquipo: requiredText('NOMBRE_COMERCIAL_REQUERIDO', 140),
   estado: z.enum(['NO BLOQUEADO', 'BLOQUEADO'], {message: 'ESTADO_INVALIDO'}),
   estadoSolicitud: z.enum(['', 'PENDIENTE', 'REALIZADO'], {message: 'ESTADO_SOLICITUD_INVALIDO'}).default(''),
@@ -174,6 +174,13 @@ const registroSchema = z.object({
       code: 'custom',
       path: ['boletaExtranjeraId'],
       message: 'BOLETA_APPLE_REQUERIDA',
+    });
+  }
+  if (registro.marcaEquipo.toUpperCase() === 'SAMSUNG' && !['TIENDA', 'EXTERNO'].includes(registro.tipo)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['tipo'],
+      message: 'TIPO_SAMSUNG_REQUERIDO',
     });
   }
 });
@@ -231,6 +238,16 @@ const registroPayloadSchema = z.object({
   ensureSame(payload.cliente.dni, payload.equipo.idDuenio, ['equipo', 'idDuenio'], ctx, 'DNI_NO_COINCIDE');
   ensureSame(payload.cliente.dni, payload.registro.dniCliente, ['registro', 'dniCliente'], ctx, 'DNI_NO_COINCIDE');
   ensureSame(payload.equipo.idEquipo, payload.registro.imeiEquipo, ['registro', 'imeiEquipo'], ctx, 'IMEI_NO_COINCIDE');
+  ensureSame(payload.equipo.imei2, payload.registro.imei2Equipo, ['registro', 'imei2Equipo'], ctx, 'IMEI2_NO_COINCIDE');
+  if (payload.equipo.idEquipo === payload.equipo.imei2) {
+    ctx.addIssue({code: 'custom', path: ['equipo', 'imei2'], message: 'IMEIS_DUPLICADOS'});
+  }
+  if (![payload.equipo.idEquipo, payload.equipo.imei2].filter(Boolean).includes(payload.registro.imeiRegistrado)) {
+    ctx.addIssue({code: 'custom', path: ['registro', 'imeiRegistrado'], message: 'IMEI_REGISTRADO_NO_PERTENECE'});
+  }
+  if (payload.equipo.marca.toUpperCase() !== payload.registro.marcaEquipo.toUpperCase()) {
+    ctx.addIssue({code: 'custom', path: ['registro', 'marcaEquipo'], message: 'MARCA_NO_COINCIDE'});
+  }
 });
 
 const ventaPayloadSchema = z.object({

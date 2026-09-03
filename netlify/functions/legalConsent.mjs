@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import {handlePost} from './_shared.mjs';
 import {getAdminDb} from './_firebaseAdmin.mjs';
 import {queueAuditEvent} from './_observability.mjs';
+// This configuration is shared with the browser, so its imports must remain Node-safe.
 import {LEGAL_DOCUMENT_VERSION, REQUIRED_LEGAL_DOCUMENTS} from '../../src/config/legal.js';
 
 const APP_ID = 'comunicate-pos';

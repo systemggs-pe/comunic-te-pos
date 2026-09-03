@@ -2,25 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-@keyframes ggsSplashFade {
-  0% { opacity: 0; transform: translateY(8px); }
-  18% { opacity: 1; transform: translateY(0); }
-  74% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-6px); }
+@keyframes app-launch-screen {
+  0% { opacity: 0; }
+  5%, 92% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
-@keyframes ggsSplashBackdrop {
-  0% { opacity: 1; }
-  78% { opacity: 1; }
-  100% { opacity: 0; pointer-events: none; }
+@keyframes app-launch-product {
+  0%, 4% { opacity: 0; filter: blur(7px); transform: translate3d(0, 8px, 0) scale(0.985); }
+  13%, 27% { opacity: 1; filter: blur(0); transform: translate3d(0, 0, 0) scale(1); }
+  35%, 100% { opacity: 0; filter: blur(5px); transform: translate3d(0, -7px, 0) scale(0.99); }
 }
 
-.ggs-splash-screen {
-  animation: ggsSplashBackdrop 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+@keyframes app-launch-credit {
+  0%, 28% { opacity: 0; filter: blur(6px); transform: translate3d(0, 7px, 0); }
+  39%, 55% { opacity: 1; filter: blur(0); transform: translate3d(0, 0, 0); }
+  64%, 100% { opacity: 0; filter: blur(4px); transform: translate3d(0, -6px, 0); }
 }
 
-.ggs-splash-logo {
-  animation: ggsSplashFade 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+@keyframes app-launch-version {
+  0%, 57% { opacity: 0; filter: blur(12px); transform: translate3d(0, 8px, 0) scale(0.94); }
+  69%, 89% { opacity: 1; filter: blur(0); transform: translate3d(0, 0, 0) scale(1); }
+  100% { opacity: 0; filter: blur(6px); transform: translate3d(0, -4px, 0) scale(0.985); }
+}
+
+@keyframes app-launch-reduced {
+  0%, 100% { opacity: 0; }
+  18%, 78% { opacity: 1; }
 }
 
 :root {
@@ -130,12 +138,125 @@
   --ui-nav-glass-sheen: oklch(0.96 0.008 255 / 0.08);
 }
 
+.app-root-frame,
+.app-root-content {
+  min-width: 0;
+  min-height: 100dvh;
+}
+
+.app-launch {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  box-sizing: border-box;
+  min-width: 0;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  background: color-mix(in oklch, var(--ui-canvas) 76%, transparent);
+  color: var(--ui-text);
+  padding:
+    calc(1rem + env(safe-area-inset-top))
+    max(0.75rem, env(safe-area-inset-right))
+    calc(1rem + env(safe-area-inset-bottom))
+    max(0.75rem, env(safe-area-inset-left));
+  animation: app-launch-screen 3600ms var(--ui-ease) both;
+  backdrop-filter: blur(22px) saturate(1.04);
+  -webkit-backdrop-filter: blur(22px) saturate(1.04);
+  contain: paint;
+}
+
+.app-launch__sequence {
+  display: grid;
+  box-sizing: border-box;
+  width: min(100%, 34rem);
+  min-height: 8rem;
+  place-items: center;
+  text-align: center;
+}
+
+.app-launch__product,
+.app-launch__credit,
+.app-launch__version {
+  grid-area: 1 / 1;
+  will-change: opacity, transform, filter;
+}
+
+.app-launch__product {
+  color: var(--ui-text);
+  font-size: 2.75rem;
+  font-weight: 690;
+  letter-spacing: -0.055em;
+  line-height: 0.95;
+  animation: app-launch-product 3600ms var(--ui-ease) both;
+}
+
+.app-launch__credit {
+  color: var(--ui-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 520;
+  letter-spacing: 0.045em;
+  animation: app-launch-credit 3600ms var(--ui-ease) both;
+}
+
+.app-launch__credit strong {
+  color: var(--ui-text);
+  font-weight: 730;
+  letter-spacing: 0.08em;
+}
+
+.app-launch__version {
+  display: inline-block;
+  background: color-mix(in oklch, var(--ui-surface-raised) 38%, transparent);
+  background-clip: text;
+  color: transparent;
+  font-size: 4.25rem;
+  font-weight: 590;
+  letter-spacing: -0.075em;
+  line-height: 1;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px color-mix(in oklch, var(--ui-text) 24%, transparent);
+  text-shadow:
+    0 -1px 0 color-mix(in oklch, var(--ui-surface-raised) 72%, transparent),
+    0 1px 1px color-mix(in oklch, var(--ui-text) 18%, transparent),
+    0 10px 30px color-mix(in oklch, var(--ui-text) 14%, transparent);
+  animation: app-launch-version 3600ms var(--ui-ease) both;
+}
+
+@media (min-width: 640px) {
+  .app-launch__product {
+    font-size: 4rem;
+  }
+
+  .app-launch__version {
+    font-size: 5.25rem;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-launch {
+    background: var(--ui-canvas);
+  }
+
+  .app-launch__version {
+    background: none;
+    color: color-mix(in oklch, var(--ui-text) 58%, transparent);
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
 html {
   min-width: 0;
   background: var(--ui-canvas);
   font-family: var(--ui-font-sans);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+html[data-launch-active="true"] {
+  overflow: hidden;
 }
 
 body {
@@ -2947,5 +3068,26 @@ label[for] {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-launch {
+    animation: app-launch-reduced 700ms linear both !important;
+  }
+
+  .app-launch__sequence {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .app-launch__product,
+  .app-launch__credit,
+  .app-launch__version {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    animation: none !important;
   }
 }

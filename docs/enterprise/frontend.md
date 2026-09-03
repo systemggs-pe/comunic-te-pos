@@ -147,7 +147,7 @@ Reusable components:
 | `TopNavItem` | `src/components/navigation/TopNavItem.jsx` | Desktop navigation button. |
 | `MobileNavIcon` | `src/components/navigation/MobileNavIcon.jsx` | Mobile navigation icon button. |
 | `ConfirmModal` | `src/components/ui/ConfirmModal.jsx` | Generic confirmation modal. |
-| `IntroSplash` | `src/components/branding/IntroSplash.jsx` | Post-login intro animation. |
+| `AppLaunchAnimation` | `src/components/branding/AppLaunchAnimation.jsx` | Minimal presentation after each confirmed login. |
 | `AppFooter` | `src/components/branding/AppFooter.jsx` | Corporate footer and legal links. |
 | `BrandEcosystem` | `src/components/branding/BrandEcosystem.jsx` | Brand hierarchy display. |
 
@@ -202,7 +202,7 @@ Dark mode is implemented only for legal document pages through local component s
 
 Implemented animations:
 
-- Intro splash fade/backdrop animation in `src/index.css`.
+- Post-login sequence with staged product, engineering credit, frosted `v7.0` and reduced-motion treatment in `src/index.css`.
 - Loading spinners through Tailwind `animate-spin`.
 - Small hover transitions for buttons, tables and cards.
 
@@ -223,4 +223,3 @@ Needs improvement:
 - Touch targets should be at least 44px.
 - Some desktop icon-only buttons rely on `title` instead of `aria-label`.
 - Toasts should expose `aria-live`.
-
