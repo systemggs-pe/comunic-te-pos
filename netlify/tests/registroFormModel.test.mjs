@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   createInitialRegistroForm,
   descomponerMarcaRegistro,
+  esRegistroSamsungDual,
   marcaFinalRegistro,
   normalizarMarcaRegistro,
   validateCustomerStep,
@@ -63,9 +64,34 @@ test('registro form model supports a custom brand and requires Samsung origin', 
   assert.equal(marcaFinalRegistro(custom), 'FAIRPHONE');
   assert.deepEqual(descomponerMarcaRegistro('Fairphone'), {marca: 'OTROS', marcaOtra: 'FAIRPHONE'});
   assert.equal(validateEquipmentStep({...custom, marcaOtra: ''}), 'Escribe la marca del equipo');
-  assert.equal(
-    validateEquipmentStep({...validForm, marca: 'SAMSUNG', tipo: 'PASE'}),
-    'Indica si el equipo Samsung es de TIENDA o EXTERNO',
-  );
+  assert.equal(validateEquipmentStep({...validForm, marca: 'SAMSUNG', tipo: 'PASE'}), null);
+  assert.equal(validateRegistroDraft({...validForm, marca: 'SAMSUNG', tipo: 'PASE'}, {
+    direccionFinalCliente: 'AV. TACNA 123 - TACNA',
+    esRegistroSimple: true,
+    isEditing: false,
+    imeiYaRegistrado: () => false,
+    permitePrecioCero: true,
+  }), 'Indica si el equipo Samsung es de TIENDA o EXTERNO');
   assert.equal(validateEquipmentStep({...validForm, marca: 'SAMSUNG', tipo: 'EXTERNO'}), null);
+});
+
+test('dual Samsung registration requires both IMEIs and a different second phone', () => {
+  const dual = {
+    ...validForm,
+    marca: 'SAMSUNG',
+    tipo: 'TIENDA',
+    registrarAmbosImeis: true,
+    celular2: '988777666',
+  };
+  assert.equal(esRegistroSamsungDual(dual), true);
+  assert.equal(validateEquipmentStep(dual, {imeiYaRegistrado: () => false}), null);
+  assert.equal(
+    validateEquipmentStep({...dual, celular2: dual.celular}, {imeiYaRegistrado: () => false}),
+    'El celular 2 debe ser diferente del celular 1',
+  );
+  assert.equal(
+    validateEquipmentStep({...dual, imei2: ''}, {imeiYaRegistrado: () => false}),
+    'Ingresa el IMEI 2 para crear las dos solicitudes Samsung',
+  );
+  assert.match(validateEquipmentStep(dual, {imeiYaRegistrado: imei => imei === dual.imei2}), /ya tiene un registro activo/);
 });

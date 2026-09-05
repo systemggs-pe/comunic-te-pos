@@ -62,6 +62,7 @@ export async function llamarFuncionSegura(nombre, payload, {signal} = {}) {
 
 const VALIDATION_MESSAGES = {
   CELULAR_INVALIDO: 'el celular debe tener 9 digitos y empezar con 9',
+  CELULARES_DUPLICADOS: 'el celular 2 debe ser diferente del celular 1',
   CIUDAD_REQUERIDA: 'la ciudad es obligatoria',
   COLOR_REQUERIDO: 'el color es obligatorio',
   DECLARACION_REQUERIDA: 'debes confirmar la declaración',
@@ -89,6 +90,8 @@ const VALIDATION_MESSAGES = {
   IMEI2_NO_COINCIDE: 'el IMEI 2 del equipo no coincide con el registro',
   IMEIS_DUPLICADOS: 'el IMEI 1 y el IMEI 2 deben ser diferentes',
   IMEI_REGISTRADO_NO_PERTENECE: 'elige como IMEI a registrar uno de los IMEI del equipo',
+  IMEI_DUAL_PRINCIPAL_REQUERIDO: 'el registro doble debe comenzar con el IMEI 1',
+  IMEI2_REQUERIDO: 'ingresa el IMEI 2 para crear las dos solicitudes',
   IMEI_YA_REGISTRADO: 'el IMEI ya tiene un registro activo',
   IMEI_YA_VENDIDO: 'el IMEI ya tiene una venta registrada',
   ITEM_CANTIDAD_INVALIDA: 'la cantidad del item debe ser mayor a 0',
@@ -110,6 +113,7 @@ const VALIDATION_MESSAGES = {
   PROVEEDOR_PASE_NO_APLICA: 'solo corresponde cuando el origen es PASE',
   TIPO_INVALIDO: 'el tipo de registro no es valido',
   TIPO_SAMSUNG_REQUERIDO: 'para Samsung elige TIENDA o EXTERNO',
+  REGISTRO_DUAL_SOLO_SAMSUNG: 'el registro doble solo esta disponible para equipos Samsung',
   TIPO_DOCUMENTO_INVALIDO: 'el tipo de documento no es valido',
   MEDIO_PAGO_INVALIDO: 'el medio de pago no es valido',
 };
@@ -156,6 +160,7 @@ const FIELD_LABELS = {
   'venta.proveedorPase': 'Quién nos pasó el equipo',
   'venta.tipoDocumentoCliente': 'Tipo de documento',
   celular: 'Celular',
+  celular2: 'Celular 2',
   ciudad: 'Ciudad',
   color: 'Color',
   correo: 'Correo',
@@ -284,6 +289,10 @@ async function runClientMutation(nombre, payload) {
 
 export function crearRegistro(payload) {
   return runClientMutation('registros', {action: 'create', ...payload});
+}
+
+export function crearRegistroSamsungDual(payload) {
+  return runClientMutation('registros', {action: 'createSamsungDual', ...payload});
 }
 
 export function actualizarRegistro(payload) {

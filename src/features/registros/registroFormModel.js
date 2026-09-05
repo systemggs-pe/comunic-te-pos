@@ -73,11 +73,15 @@ export function toLocalDatetimeValue(isoString) {
 
 export function createInitialRegistroForm() {
   return {
-    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celularRef: '', correo: '', direccion: '', departamento: '',
+    tipoDocumento: 'DNI', dni: '', nombre: '', celular: '', celular2: '', celularRef: '', correo: '', direccion: '', departamento: '',
     imei1: '', imei: '', imei2: '', sn: '', marca: '', marcaOtra: '', modelo: '', nombreComercial: '', color: '', memoria: '', ram: '',
-    estado: 'NO BLOQUEADO', estadoSolicitud: 'PENDIENTE', operador: 'BITEL', tipo: 'TIENDA', tieneCaja: 'NO', precio: '0',
+    registrarAmbosImeis: false, estado: 'NO BLOQUEADO', estadoSolicitud: 'PENDIENTE', operador: 'BITEL', tipo: 'TIENDA', tieneCaja: 'NO', precio: '0',
     fecha: toLocalDatetimeValue(new Date().toISOString()),
   };
+}
+
+export function esRegistroSamsungDual(form) {
+  return marcaFinalRegistro(form) === 'SAMSUNG' && form?.registrarAmbosImeis === true;
 }
 
 export function validateCustomerStep(form, direccionFinalCliente) {
@@ -94,21 +98,27 @@ export function validateCustomerStep(form, direccionFinalCliente) {
 
 export function validateEquipmentStep(form, {imeiYaRegistrado} = {}) {
   const marcaFinal = marcaFinalRegistro(form);
+  const registroDual = esRegistroSamsungDual(form);
   if (!luhn(clean(form.imei1))) return 'El IMEI 1 no es valido; verifica los digitos';
   if (clean(form.imei2) && !luhn(clean(form.imei2))) return 'El IMEI 2 no es valido; verifica los digitos';
   if (clean(form.imei1) && clean(form.imei1) === clean(form.imei2)) return 'El IMEI 1 y el IMEI 2 deben ser diferentes';
-  if (![clean(form.imei1), clean(form.imei2)].includes(clean(form.imei))) return 'Selecciona el IMEI que se va a registrar';
   if (!clean(form.marca)) return 'La marca del equipo es obligatoria';
   if (![...REGISTRO_MARCAS, REGISTRO_MARCA_OTROS].includes(form.marca)) return 'Selecciona una marca de la lista';
   if (!marcaFinal) return 'Escribe la marca del equipo';
   if (form.marca === REGISTRO_MARCA_OTROS && REGISTRO_MARCAS.includes(marcaFinal)) {
     return `Selecciona ${marcaFinal} directamente en la lista`;
   }
-  if (marcaFinal === 'SAMSUNG' && !['TIENDA', 'EXTERNO'].includes(form.tipo)) {
-    return 'Indica si el equipo Samsung es de TIENDA o EXTERNO';
-  }
   if (!clean(form.nombreComercial)) return 'El nombre comercial es obligatorio';
-  if (imeiYaRegistrado?.(form.imei)) return `El IMEI ${form.imei} ya tiene un registro activo`;
+  if (registroDual) {
+    if (!clean(form.imei2)) return 'Ingresa el IMEI 2 para crear las dos solicitudes Samsung';
+    if (!PHONE_RE.test(clean(form.celular2))) return 'El celular 2 debe tener 9 digitos y empezar con 9';
+    if (clean(form.celular) === clean(form.celular2)) return 'El celular 2 debe ser diferente del celular 1';
+    const duplicado = [clean(form.imei1), clean(form.imei2)].find(imei => imeiYaRegistrado?.(imei));
+    if (duplicado) return `El IMEI ${duplicado} ya tiene un registro activo`;
+  } else {
+    if (![clean(form.imei1), clean(form.imei2)].includes(clean(form.imei))) return 'Selecciona el IMEI que se va a registrar';
+    if (imeiYaRegistrado?.(form.imei)) return `El IMEI ${form.imei} ya tiene un registro activo`;
+  }
   return null;
 }
 
@@ -123,7 +133,11 @@ export function validateRegistroDraft(form, {
   if (customerError) return customerError;
   const equipmentError = validateEquipmentStep(form, {imeiYaRegistrado});
   if (equipmentError) return equipmentError;
-  if (![clean(form.imei1), clean(form.imei2)].includes(clean(form.imei))) return 'Selecciona el IMEI que se va a registrar';
+  const marcaFinal = marcaFinalRegistro(form);
+  if (marcaFinal === 'SAMSUNG' && !['TIENDA', 'EXTERNO'].includes(form.tipo)) {
+    return 'Indica si el equipo Samsung es de TIENDA o EXTERNO';
+  }
+  if (!esRegistroSamsungDual(form) && ![clean(form.imei1), clean(form.imei2)].includes(clean(form.imei))) return 'Selecciona el IMEI que se va a registrar';
   if (esApple && !comprobanteAppleValido) return 'Primero verifica que el IMEI tenga una boleta extranjera';
   if (!normalizarTieneCaja(form.tieneCaja)) return 'Indica si el cliente tiene la caja del equipo';
   const precio = clean(form.precio);

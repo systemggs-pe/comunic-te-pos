@@ -250,6 +250,10 @@ const registroPayloadSchema = z.object({
   }
 });
 
+const registroSamsungDualExtraSchema = z.object({
+  celular2: phoneRequiredSchema,
+}).passthrough();
+
 const ventaPayloadSchema = z.object({
   cliente: ventaClienteSchema,
   equipo: ventaEquipoSchema,
@@ -326,6 +330,24 @@ function parseOrThrow(schema, payload) {
 
 export function parseRegistroPayload(payload) {
   return parseOrThrow(registroPayloadSchema, payload);
+}
+
+export function parseRegistroSamsungDualPayload(payload) {
+  const parsed = parseRegistroPayload(payload);
+  const {celular2} = parseOrThrow(registroSamsungDualExtraSchema, payload);
+  const issues = [];
+  if (parsed.equipo.marca.toUpperCase() !== 'SAMSUNG' || parsed.registro.marcaEquipo.toUpperCase() !== 'SAMSUNG') {
+    issues.push({path: 'registro.marcaEquipo', message: 'REGISTRO_DUAL_SOLO_SAMSUNG'});
+  }
+  if (!parsed.equipo.imei2) issues.push({path: 'equipo.imei2', message: 'IMEI2_REQUERIDO'});
+  if (parsed.registro.imeiRegistrado !== parsed.equipo.idEquipo) {
+    issues.push({path: 'registro.imeiRegistrado', message: 'IMEI_DUAL_PRINCIPAL_REQUERIDO'});
+  }
+  if (parsed.cliente.celular === celular2) issues.push({path: 'celular2', message: 'CELULARES_DUPLICADOS'});
+  if (issues.length) {
+    throw Object.assign(new Error('VALIDATION_ERROR'), {status: 400, payload: {issues}});
+  }
+  return {...parsed, celular2};
 }
 
 export function parseVentaPayload(payload) {

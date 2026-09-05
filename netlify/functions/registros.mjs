@@ -2,10 +2,10 @@ import {FieldPath} from 'firebase-admin/firestore';
 import {handlePost} from './_shared.mjs';
 import {getAdminDb} from './_firebaseAdmin.mjs';
 import {withContactHistory} from './_clientesShared.mjs';
-import {normalizeImeiList, releaseImeiLocks, syncImeiLocks} from './_imeiLocks.mjs';
+import {assertAndSetImeiLockAssignments, normalizeImeiList, releaseImeiLocks, syncImeiLocks} from './_imeiLocks.mjs';
 import {queueAuditEvent} from './_observability.mjs';
 import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex.mjs';
-import {parseEstadoSolicitudPayload, parseIdPayload, parseRegistroPayload} from './_validators.mjs';
+import {parseEstadoSolicitudPayload, parseIdPayload, parseRegistroPayload, parseRegistroSamsungDualPayload} from './_validators.mjs';
 import {verifyRemoteComprobanteApple} from './_appleReceiptsApi.mjs';
 
 const APP_ID = 'comunicate-pos';
@@ -178,6 +178,119 @@ async function createRegistro(db, payload, context, options = {}) {
   });
 }
 
+export function buildSamsungDualRegistrationData({registro, equipo, cliente, celular2, grupoId, firstNumber}) {
+  const shared = {
+    ...registro,
+    registroDual: true,
+    registroGrupoId: grupoId,
+  };
+  return [
+    {
+      ...shared,
+      nRegistro: `RECO-${String(firstNumber).padStart(5, '0')}`,
+      registroGrupoPosicion: 1,
+      imeiRegistrado: equipo.idEquipo,
+      celularCliente: cliente.celular,
+      celularRef: celular2,
+    },
+    {
+      ...shared,
+      nRegistro: `RECO-${String(firstNumber + 1).padStart(5, '0')}`,
+      registroGrupoPosicion: 2,
+      imeiRegistrado: equipo.imei2,
+      celularCliente: celular2,
+      celularRef: cliente.celular,
+    },
+  ];
+}
+
+async function createSamsungDualRegistro(db, payload, context) {
+  const {cliente, equipo, registro, celular2} = parseRegistroSamsungDualPayload(payload);
+  const base = baseRef(db);
+  const counterRef = db.collection('_counters').doc('registros');
+  const registrosRef = base.collection('registros');
+  const [firstRef, secondRef] = [registrosRef.doc(), registrosRef.doc()];
+  const grupoId = `samsung-${firstRef.id}`;
+  const clienteRef = base.collection('clientes').doc(cliente.dni);
+  const equipoRef = base.collection('equipos').doc(equipo.idEquipo);
+  const locksRef = imeiLocksRef(base);
+
+  return db.runTransaction(async transaction => {
+    const counterSnap = await transaction.get(counterRef);
+    let next = Number(counterSnap.data()?.last || 0) + 1;
+    if (!counterSnap.exists) {
+      const existingSnap = await transaction.get(registrosRef);
+      next = Math.max(next, getNextFromExisting(existingSnap, 'nRegistro', 'RECO'));
+    }
+    const registrosBase = buildSamsungDualRegistrationData({
+      registro,
+      equipo,
+      cliente,
+      celular2,
+      grupoId,
+      firstNumber: next,
+    });
+    const imeis = registrosBase.map(item => item.imeiRegistrado);
+    await assertNoOtherRegistroWithImeis(registrosRef, imeis, '', transaction);
+    const clienteSnap = await transaction.get(clienteRef);
+    const clienteData = withContactHistory(clienteSnap.exists ? clienteSnap.data() || {} : {}, {
+      ...cliente,
+      celulares: [...cliente.celulares, cliente.celular, celular2],
+    });
+    await assertAndSetImeiLockAssignments({
+      transaction,
+      locksRef,
+      kind: 'registro',
+      assignments: [
+        {imei: equipo.idEquipo, ownerId: firstRef.id},
+        {imei: equipo.imei2, ownerId: secondRef.id},
+      ],
+    });
+
+    const registrosData = registrosBase.map(item => ({
+      ...item,
+      nombreCliente: clienteData.nombre || cliente.nombre || '',
+      searchTerms: buildMovimientoSearchTerms(item, clienteData.nombre || cliente.nombre),
+    }));
+    const equipoData = {
+      ...equipo,
+      isRegistrado: true,
+      imei1Registrado: true,
+      imei2Registrado: true,
+      searchTerms: buildEquipoSearchTerms(equipo, clienteData.nombre || cliente.nombre),
+    };
+
+    transaction.set(clienteRef, clienteData, {merge: true});
+    transaction.set(counterRef, {last: next + 1, updatedAt: new Date().toISOString()}, {merge: true});
+    transaction.set(equipoRef, equipoData, {merge: true});
+    transaction.set(firstRef, registrosData[0]);
+    transaction.set(secondRef, registrosData[1]);
+    [firstRef, secondRef].forEach((ref, index) => {
+      queueAuditEvent(transaction, base, context, {
+        entityType: 'registro',
+        entityId: ref.id,
+        action: 'create',
+        metadata: {
+          nRegistro: registrosData[index].nRegistro,
+          dniCliente: registrosData[index].dniCliente,
+          imeiEquipo: registrosData[index].imeiEquipo,
+          imeiRegistrado: registrosData[index].imeiRegistrado,
+          estado: registrosData[index].estado,
+          estadoSolicitud: registrosData[index].estadoSolicitud,
+          tipo: registrosData[index].tipo,
+          registroDual: true,
+          registroGrupoId: grupoId,
+        },
+      });
+    });
+
+    return {
+      ids: [firstRef.id, secondRef.id],
+      registros: registrosData.map((item, index) => ({id: index === 0 ? firstRef.id : secondRef.id, ...item})),
+    };
+  });
+}
+
 async function updateRegistro(db, payload, context, options = {}) {
   const {id} = parseIdPayload(payload);
   const {cliente, equipo, registro} = parseRegistroPayload(payload);
@@ -213,6 +326,11 @@ async function updateRegistro(db, payload, context, options = {}) {
     }
     const registroBase = {
       ...registro,
+      ...(current.registroDual ? {
+        registroDual: true,
+        registroGrupoId: current.registroGrupoId || '',
+        registroGrupoPosicion: current.registroGrupoPosicion || 0,
+      } : {}),
       estadoSolicitud: resolveEstadoSolicitud(current, registro),
       nRegistro: current.nRegistro || registro.nRegistro || '',
     };
@@ -456,6 +574,7 @@ async function dispatchRegistros(body, user, context, options = {}) {
   const action = String(body?.action || '');
   if (action === 'checkImeis') return checkRegisteredImeis(db, body);
   if (action === 'create') return createRegistro(db, body, context, options);
+  if (action === 'createSamsungDual') return createSamsungDualRegistro(db, body, context);
   if (action === 'update') return updateRegistro(db, body, context, options);
   if (action === 'delete') return deleteRegistro(db, body, context);
   if (action === 'unlock') return unlockRegistro(db, body, context);
@@ -464,7 +583,7 @@ async function dispatchRegistros(body, user, context, options = {}) {
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 
-export const __test = {checkRegisteredImeis, resolveEstadoSolicitud, shouldCompleteRequestStatus};
+export const __test = {checkRegisteredImeis, createSamsungDualRegistro, resolveEstadoSolicitud, shouldCompleteRequestStatus};
 
 export const handler = event => handlePost(event, (body, user, context) => dispatchRegistros(body, user, context, {
   authorization: event.headers?.authorization || event.headers?.Authorization || '',

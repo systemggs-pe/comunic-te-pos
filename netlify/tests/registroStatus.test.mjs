@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseEstadoSolicitudPayload, parseRegistroPayload} from '../functions/_validators.mjs';
-import {__test as registrosTest} from '../functions/registros.mjs';
+import {parseEstadoSolicitudPayload, parseRegistroPayload, parseRegistroSamsungDualPayload} from '../functions/_validators.mjs';
+import {__test as registrosTest, buildSamsungDualRegistrationData} from '../functions/registros.mjs';
 import {registroMatchesStatus} from '../../src/utils/searchRecords.js';
 import {emptyRegistroEvidencias, missingRegistroEvidencias} from '../../src/features/registros/registroEvidencias.js';
 
@@ -29,6 +29,51 @@ function payloadRegistro(overrides = {}) {
       ...overrides,
     },
   };
+}
+
+function createFirestoreForDualTest() {
+  const docs = new Map([['_counters/registros', {last: 40}]]);
+  let autoId = 0;
+  const collection = path => ({
+    kind: 'collection',
+    path,
+    doc(id = `auto-${++autoId}`) {
+      return document(`${path}/${id}`, id);
+    },
+    where(field, operator, value) {
+      assert.equal(operator, '==');
+      return {kind: 'query', path, field, value, limit() { return this; }};
+    },
+  });
+  const document = (path, id = path.split('/').at(-1)) => ({
+    kind: 'document', path, id,
+    collection(name) { return collection(`${path}/${name}`); },
+  });
+  const snapshotFor = ref => {
+    const data = docs.get(ref.path);
+    return {exists: Boolean(data), data: () => data ? structuredClone(data) : undefined};
+  };
+  const querySnapshotFor = query => {
+    const prefix = `${query.path}/`;
+    const matches = [...docs.entries()]
+      .filter(([path, data]) => path.startsWith(prefix) && !path.slice(prefix.length).includes('/') && data?.[query.field] === query.value)
+      .map(([path, data]) => ({id: path.split('/').at(-1), data: () => structuredClone(data), ref: document(path)}));
+    return {docs: matches, empty: matches.length === 0, size: matches.length};
+  };
+  const db = {
+    collection(name) { return collection(name); },
+    async runTransaction(callback) {
+      const writes = [];
+      const transaction = {
+        get: async ref => ref.kind === 'query' ? querySnapshotFor(ref) : snapshotFor(ref),
+        set: (ref, data, options = {}) => writes.push({ref, data, merge: options.merge === true}),
+      };
+      const result = await callback(transaction);
+      writes.forEach(({ref, data, merge}) => docs.set(ref.path, merge ? {...(docs.get(ref.path) || {}), ...data} : {...data}));
+      return result;
+    },
+  };
+  return {db, docs};
 }
 
 test('ninguna evidencia fotografica es obligatoria', () => {
@@ -70,6 +115,73 @@ test('la marca es obligatoria y Samsung exige origen de tienda o externo', () =>
     error => error.payload?.issues?.some(issue => issue.message === 'TIPO_SAMSUNG_REQUERIDO'),
   );
   assert.equal(parseRegistroPayload({...samsungPase, registro: {...samsungPase.registro, tipo: 'EXTERNO'}}).registro.tipo, 'EXTERNO');
+});
+
+test('el backend valida el registro Samsung doble y los dos celulares distintos', () => {
+  const dual = payloadRegistro({
+    marcaEquipo: 'SAMSUNG',
+    tipo: 'TIENDA',
+    imei2Equipo: '356938035643809',
+  });
+  dual.equipo.marca = 'SAMSUNG';
+  dual.equipo.imei2 = '356938035643809';
+  dual.celular2 = '988777666';
+
+  const parsed = parseRegistroSamsungDualPayload(dual);
+  assert.equal(parsed.celular2, '988777666');
+  assert.equal(parsed.equipo.imei2, '356938035643809');
+
+  assert.throws(
+    () => parseRegistroSamsungDualPayload({...dual, celular2: dual.cliente.celular}),
+    error => error.payload?.issues?.some(issue => issue.message === 'CELULARES_DUPLICADOS'),
+  );
+  assert.throws(
+    () => parseRegistroSamsungDualPayload({...dual, equipo: {...dual.equipo, marca: 'XIAOMI'}, registro: {...dual.registro, marcaEquipo: 'XIAOMI'}}),
+    error => error.payload?.issues?.some(issue => issue.message === 'REGISTRO_DUAL_SOLO_SAMSUNG'),
+  );
+});
+
+test('el registro Samsung doble produce dos solicitudes consecutivas con IMEI y celular propios', () => {
+  const parsed = parseRegistroSamsungDualPayload((() => {
+    const payload = payloadRegistro({
+      marcaEquipo: 'SAMSUNG',
+      tipo: 'EXTERNO',
+      imei2Equipo: '356938035643809',
+    });
+    payload.equipo.marca = 'SAMSUNG';
+    payload.equipo.imei2 = '356938035643809';
+    payload.celular2 = '988777666';
+    return payload;
+  })());
+  const result = buildSamsungDualRegistrationData({...parsed, grupoId: 'samsung-grupo', firstNumber: 41});
+
+  assert.equal(result.length, 2);
+  assert.deepEqual(result.map(item => item.nRegistro), ['RECO-00041', 'RECO-00042']);
+  assert.deepEqual(result.map(item => item.imeiRegistrado), ['490154203237518', '356938035643809']);
+  assert.deepEqual(result.map(item => item.celularCliente), ['999111222', '988777666']);
+  assert.deepEqual(result.map(item => item.celularRef), ['988777666', '999111222']);
+  assert.ok(result.every(item => item.registroDual && item.registroGrupoId === 'samsung-grupo'));
+});
+
+test('la transaccion Samsung doble persiste ambas solicitudes, contactos y locks juntos', async () => {
+  const payload = payloadRegistro({
+    marcaEquipo: 'SAMSUNG',
+    tipo: 'TIENDA',
+    imei2Equipo: '356938035643809',
+  });
+  payload.equipo.marca = 'SAMSUNG';
+  payload.equipo.imei2 = '356938035643809';
+  payload.celular2 = '988777666';
+  const {db, docs} = createFirestoreForDualTest();
+
+  const response = await registrosTest.createSamsungDualRegistro(db, payload, {requestId: 'dual-test', user: {uid: 'operator'}});
+  assert.equal(response.registros.length, 2);
+  assert.deepEqual(response.registros.map(item => item.nRegistro), ['RECO-00041', 'RECO-00042']);
+  assert.equal(docs.get('_counters/registros').last, 42);
+  assert.deepEqual(docs.get('artifacts/comunicate-pos/users/shared/clientes/12345678').celulares.sort(), ['988777666', '999111222']);
+  assert.equal(docs.get('artifacts/comunicate-pos/users/shared/equipos/490154203237518').imei2Registrado, true);
+  assert.equal(docs.get('artifacts/comunicate-pos/users/shared/imeiLocks/490154203237518').registroId, response.ids[0]);
+  assert.equal(docs.get('artifacts/comunicate-pos/users/shared/imeiLocks/356938035643809').registroId, response.ids[1]);
 });
 
 test('el IMEI a registrar debe pertenecer a los dos IMEI editables del equipo', () => {

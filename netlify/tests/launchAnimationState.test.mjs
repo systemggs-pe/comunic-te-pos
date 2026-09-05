@@ -4,9 +4,12 @@ import {readFile} from 'node:fs/promises';
 import {
   APP_LAUNCH_EVENT,
   APP_LAUNCH_DURATION_MS,
+  APP_LAUNCH_INTERVAL_MS,
   APP_LAUNCH_REDUCED_DURATION_MS,
+  APP_LAUNCH_STOP_EVENT,
   getLaunchAnimationDuration,
   requestLaunchAnimation,
+  stopLaunchAnimation,
 } from '../../src/components/branding/launchAnimationState.js';
 
 test('each successful login request emits a fresh launch event', () => {
@@ -20,6 +23,17 @@ test('each successful login request emits a fresh launch event', () => {
   assert.equal(requestLaunchAnimation(null), false);
 });
 
+test('launch animation can be stopped and is scheduled every 30 minutes', () => {
+  const target = new EventTarget();
+  let stops = 0;
+  target.addEventListener(APP_LAUNCH_STOP_EVENT, () => { stops += 1; });
+
+  assert.equal(APP_LAUNCH_INTERVAL_MS, 30 * 60 * 1000);
+  assert.equal(stopLaunchAnimation(target), true);
+  assert.equal(stops, 1);
+  assert.equal(stopLaunchAnimation(null), false);
+});
+
 test('reduced motion uses the short launch duration', () => {
   assert.equal(getLaunchAnimationDuration(false), APP_LAUNCH_DURATION_MS);
   assert.equal(getLaunchAnimationDuration(true), APP_LAUNCH_REDUCED_DURATION_MS);
@@ -27,17 +41,24 @@ test('reduced motion uses the short launch duration', () => {
 });
 
 test('login and root wire the launch event after authentication', async () => {
-  const [login, root, launch] = await Promise.all([
+  const [login, root, app, launch] = await Promise.all([
     readFile(new URL('../../src/features/auth/LoginScreen.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/app/RootApplication.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/app/App.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/components/branding/AppLaunchAnimation.jsx', import.meta.url), 'utf8'),
   ]);
 
   assert.match(login, /await registrarConsentimientoLegal/);
   assert.match(login, /requestLaunchAnimation\(window\)/);
+  assert.ok(login.indexOf('requestLaunchAnimation(window)') < login.indexOf('await registrarConsentimientoLegal'));
   assert.match(root, /addEventListener\(APP_LAUNCH_EVENT/);
+  assert.match(root, /addEventListener\(APP_LAUNCH_STOP_EVENT/);
+  assert.match(root, /window\.setInterval\(runLaunch, APP_LAUNCH_INTERVAL_MS\)/);
+  assert.match(root, /window\.clearInterval\(recurringLaunchRef\.current\)/);
+  assert.match(root, /data-launch-hidden=\{showLaunch \? 'true' : undefined\}/);
   assert.match(root, /useState\(false\)/);
   assert.doesNotMatch(root, /localStorage|sessionStorage/);
+  assert.match(app, /stopLaunchAnimation\(window\)/);
   assert.ok(launch.indexOf('app-launch__product') < launch.indexOf('app-launch__credit'));
   assert.ok(launch.indexOf('app-launch__credit') < launch.indexOf('app-launch__version'));
 });

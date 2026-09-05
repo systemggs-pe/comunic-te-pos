@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  assertAndSetImeiLockAssignments,
   assertAndSetImeiLocks,
   normalizeImeiList,
   releaseImeiLocks,
@@ -105,6 +106,26 @@ test('sets and releases a registro IMEI lock', async () => {
 
   assert.equal(readLock(store, '111').registroId, '');
   assert.equal(readLock(store, '111').registrado, false);
+});
+
+test('assigns two IMEI locks to two independent Samsung registros atomically', async () => {
+  const store = createStore();
+  const transaction = createTransaction(store);
+
+  await assertAndSetImeiLockAssignments({
+    transaction: transaction.transaction,
+    locksRef: createLocksRef(),
+    kind: 'registro',
+    assignments: [
+      {imei: '111', ownerId: 'registro-1'},
+      {imei: '222', ownerId: 'registro-2'},
+    ],
+    now: '2026-09-04T00:00:00.000Z',
+  });
+  transaction.commit();
+
+  assert.equal(readLock(store, '111').registroId, 'registro-1');
+  assert.equal(readLock(store, '222').registroId, 'registro-2');
 });
 
 test('blocks a registro lock owned by another document', async () => {

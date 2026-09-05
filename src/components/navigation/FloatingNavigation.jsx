@@ -22,6 +22,11 @@ export function FloatingNavigation({items, moreActive = false, children}) {
   const titleId = useId();
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
+  const activeItemIndex = items.findIndex(item => item.active);
+  const activeIndex = moreOpen || moreActive
+    ? items.length
+    : Math.max(activeItemIndex, 0);
+  const indicatorOffset = `calc(${activeIndex * 100}% + ${(activeIndex * 0.15).toFixed(2)}rem)`;
 
   const closeMore = (restoreFocus = false) => {
     setMoreOpen(false);
@@ -62,7 +67,12 @@ export function FloatingNavigation({items, moreActive = false, children}) {
         </section>
       )}
 
-      <nav className="app-floating-nav" aria-label="Navegación principal">
+      <nav
+        className="app-floating-nav"
+        aria-label="Navegación principal"
+        data-active-index={activeIndex}
+        style={{'--app-nav-indicator-x': indicatorOffset}}
+      >
         {items.map(item => <NavigationItem key={item.id} item={item} onSelect={selectItem} />)}
         <button
           ref={triggerRef}

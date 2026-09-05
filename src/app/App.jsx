@@ -8,6 +8,7 @@ import { auth, db, appId } from '../lib/firebase.js';
 import { LoginScreen } from '../features/auth/LoginScreen.jsx';
 import { FloatingNavigation } from '../components/navigation/FloatingNavigation.jsx';
 import { AppFooter } from '../components/branding/AppFooter.jsx';
+import { stopLaunchAnimation } from '../components/branding/launchAnimationState.js';
 import { ConfirmModal } from '../components/ui/ConfirmModal.jsx';
 import { IconButton } from '../components/ui/Button.jsx';
 import { StatusBadge } from '../components/ui/StatusBadge.jsx';
@@ -547,6 +548,7 @@ function App() {
   // Cancelar todas las suscripciones al cerrar sesión
   useEffect(() => {
     if (!user) {
+      stopLaunchAnimation(window);
       if (unsubRegistrosRef.current) { unsubRegistrosRef.current(); unsubRegistrosRef.current = null; }
       if (unsubVentasRef.current) { unsubVentasRef.current(); unsubVentasRef.current = null; }
       lastRegistroDocRef.current = null;

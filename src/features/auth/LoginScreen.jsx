@@ -47,6 +47,7 @@ export function LoginScreen({showToast, EMAILS_PERMITIDOS, auth}) {
         showToast('Acceso denegado. Tu correo no está autorizado.', 'error');
         return;
       }
+      requestLaunchAnimation(window);
       await registrarConsentimientoLegal({
         accepted: true,
         acceptedAt,
@@ -57,7 +58,6 @@ export function LoginScreen({showToast, EMAILS_PERMITIDOS, auth}) {
         locale: navigator.language || '',
         source: 'pre-login-gate',
       });
-      requestLaunchAnimation(window);
       showToast('Sesión iniciada con Google');
     } catch (error) {
       console.error('Error Google Auth:', error);

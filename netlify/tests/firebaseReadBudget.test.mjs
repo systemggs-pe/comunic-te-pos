@@ -321,7 +321,8 @@ test('client hydration and indexed history searches do not truncate old records'
   assert.match(registrosList, /term\.length < 3/);
   assert.match(registroShareText, /IMEI2:/);
   assert.match(registroShareText, /IMEI A REGISTRAR:/);
-  assert.match(registroShareText, /ORIGEN DEL EQUIPO SAMSUNG/);
+  assert.match(registroShareText, /registroDual === true && esSamsung/);
+  assert.match(registroShareText, /const tipoLine = esSamsung \? '' :/);
   assert.match(registroPdf, /field\('IMEI 2'/);
   assert.match(registroPdf, /field\('IMEI A REG\.'/);
   assert.match(clientesFunction, /rateLimit: \{name: 'clientes', max: 30/);

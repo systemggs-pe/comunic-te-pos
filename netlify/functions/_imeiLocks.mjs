@@ -44,6 +44,36 @@ export async function assertAndSetImeiLocks({transaction, locksRef, imeis, kind,
   return result.setImeis;
 }
 
+export async function assertAndSetImeiLockAssignments({transaction, locksRef, assignments, kind, now = new Date().toISOString()}) {
+  const config = getLockConfig(kind);
+  const normalized = (assignments || [])
+    .map(item => ({imei: String(item?.imei || '').trim(), ownerId: String(item?.ownerId || '').trim()}))
+    .filter(item => item.imei);
+  const uniqueImeis = new Set(normalized.map(item => item.imei));
+  if (uniqueImeis.size !== normalized.length) {
+    throw Object.assign(new Error('IMEI_LOCK_ASSIGNMENTS_INVALIDOS'), {status: 500});
+  }
+  if (!normalized.length || normalized.some(item => !item.ownerId)) {
+    throw Object.assign(new Error('IMEI_LOCK_OWNER_INVALIDO'), {status: 500});
+  }
+
+  const refs = normalized.map(item => locksRef.doc(item.imei));
+  const snaps = await Promise.all(refs.map(ref => transaction.get(ref)));
+  normalized.forEach((item, index) => {
+    const currentOwner = String(snaps[index].data()?.[config.ownerField] || '').trim();
+    if (currentOwner && currentOwner !== item.ownerId) throw duplicateError(kind, item.imei);
+  });
+  normalized.forEach((item, index) => {
+    transaction.set(refs[index], {
+      imei: item.imei,
+      [config.ownerField]: item.ownerId,
+      [config.stateField]: true,
+      updatedAt: now,
+    }, {merge: true});
+  });
+  return normalized;
+}
+
 export async function releaseImeiLocks({transaction, locksRef, imeis, kind, ownerId, keepImeis = [], now = new Date().toISOString()}) {
   const result = await syncImeiLocks({
     transaction,
