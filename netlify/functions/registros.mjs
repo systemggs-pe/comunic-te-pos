@@ -7,6 +7,7 @@ import {queueAuditEvent} from './_observability.mjs';
 import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex.mjs';
 import {parseEstadoSolicitudPayload, parseIdPayload, parseRegistroPayload, parseRegistroSamsungDualPayload} from './_validators.mjs';
 import {verifyRemoteComprobanteApple} from './_appleReceiptsApi.mjs';
+import {getImeisComprobanteApple} from './_comprobanteApple.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
@@ -31,9 +32,21 @@ function resolveEstadoSolicitud(current, next) {
 
 async function assertComprobanteApple(registro, options = {}) {
   if (String(registro?.marcaEquipo || '').toUpperCase() !== 'APPLE') return;
+  const expectedImei = registro.imeiRegistrado || registro.imeiEquipo;
+  const preverified = options.preverifiedAppleReceipt;
+  if (
+    preverified?.id
+    && preverified.id === registro.boletaExtranjeraId
+    && getImeisComprobanteApple(preverified).includes(expectedImei)
+  ) {
+    registro.marcaEquipo = 'APPLE';
+    registro.boletaExtranjeraId = preverified.id;
+    registro.boletaExtranjeraNro = String(preverified.nBoleta || '');
+    return;
+  }
   const comprobante = await verifyRemoteComprobanteApple(
     registro.boletaExtranjeraId,
-    registro.imeiRegistrado || registro.imeiEquipo,
+    expectedImei,
     options,
   );
   if (!comprobante) {
@@ -112,7 +125,7 @@ function getNextFromExisting(snapshot, field, prefix) {
   return max + 1;
 }
 
-async function createRegistro(db, payload, context, options = {}) {
+export async function createRegistro(db, payload, context, options = {}) {
   const {cliente, equipo, registro} = parseRegistroPayload(payload);
   await assertComprobanteApple(registro, options);
   const base = baseRef(db);
@@ -389,7 +402,7 @@ async function updateRegistro(db, payload, context, options = {}) {
   });
 }
 
-async function deleteRegistro(db, payload, context) {
+export async function deleteRegistro(db, payload, context) {
   const {id} = parseIdPayload(payload);
   const base = baseRef(db);
   const registrosRef = base.collection('registros');
@@ -583,7 +596,7 @@ async function dispatchRegistros(body, user, context, options = {}) {
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 
-export const __test = {checkRegisteredImeis, createSamsungDualRegistro, resolveEstadoSolicitud, shouldCompleteRequestStatus};
+export const __test = {assertComprobanteApple, checkRegisteredImeis, createSamsungDualRegistro, resolveEstadoSolicitud, shouldCompleteRequestStatus};
 
 export const handler = event => handlePost(event, (body, user, context) => dispatchRegistros(body, user, context, {
   authorization: event.headers?.authorization || event.headers?.Authorization || '',

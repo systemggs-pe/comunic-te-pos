@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {CheckCircle2, ImagePlus, RefreshCw} from 'lucide-react';
 import {consultarDniFotos, obtenerMensajeErrorFuncion} from '../../services/functionsClient.js';
 import {Button} from '../../components/ui/Button.jsx';
@@ -46,6 +46,8 @@ export function DniFotosPage({showToast}) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const activeRequestRef = useRef('');
+  const [imageErrors, setImageErrors] = useState({});
 
   const cleanDni = dni.trim();
   const canSearch = DNI_RE.test(cleanDni) && !loading;
@@ -71,25 +73,28 @@ export function DniFotosPage({showToast}) {
     clearResult();
   };
 
-  const consultar = async event => {
+  const consultar = async (event, options = {}) => {
     event?.preventDefault();
     if (!DNI_RE.test(cleanDni)) {
       showToast?.('Ingresa un DNI valido de 8 digitos', 'error');
       return;
     }
-
+    const requestKey = `${tipo}:${cleanDni}`;
+    if (activeRequestRef.current) return;
+    activeRequestRef.current = requestKey;
     setLoading(true);
     setError('');
     setResult(null);
+    setImageErrors({});
     try {
-      const json = await consultarDniFotos(cleanDni, tipo);
+      const json = await consultarDniFotos(cleanDni, tipo, {refresh: options.refresh === true});
       const queriedResult = buildResult(json.data || {}, cleanDni, selectedType);
       if (json.success && queriedResult.images.length) {
         setResult(queriedResult);
         return;
       }
 
-      const message = `No se encontraron imagenes de ${selectedType.label}`;
+      const message = 'La respuesta no contiene imagenes utilizables. No se repetira la consulta automaticamente; revisa el consumo en CODART.';
       setError(message);
       showToast?.(message, 'error');
     } catch (queryError) {
@@ -98,13 +103,19 @@ export function DniFotosPage({showToast}) {
       setError(message);
       showToast?.(message, 'error');
     } finally {
+      if (activeRequestRef.current === requestKey) activeRequestRef.current = '';
       setLoading(false);
     }
   };
 
+  const actualizar = event => {
+    event.preventDefault();
+    consultar(event, {refresh: true});
+  };
+
   return (
     <div className="ui-page-surface">
-      <PageHeader eyebrow="Documento" title="Foto DNI" description="Consulta anverso y reverso por número de DNI. Cada consulta consume créditos del proveedor y no se guarda en el historial." icon={ImagePlus} />
+      <PageHeader eyebrow="Documento" title="Foto DNI" description="Consulta anverso y reverso por número de DNI. Las consultas nuevas y la opción Actualizar consumen créditos del proveedor." icon={ImagePlus} />
 
       <div className="border-b border-slate-200 p-4">
         <div className="mb-4 grid gap-2 md:grid-cols-2">
@@ -112,6 +123,7 @@ export function DniFotosPage({showToast}) {
             <button
               key={item.value}
               type="button"
+              disabled={loading}
               onClick={() => handleTypeChange(item.value)}
               data-active={tipo === item.value}
               className="ui-choice-row"
@@ -136,19 +148,20 @@ export function DniFotosPage({showToast}) {
               inputClassName="font-mono"
               inputMode="numeric"
               maxLength={8}
+              disabled={loading}
               placeholder="DNI de 8 dígitos"
               className="sm:w-80"
             />
           <Button type="submit" variant="primary" disabled={!canSearch} loading={loading} loadingLabel="Consultando…"><ImagePlus size={16} /> Consultar {selectedType.label}</Button>
-          {result && (
-            <Button onClick={consultar} disabled={loading} title="Realiza una nueva consulta con costo"><RefreshCw size={14} /> Actualizar</Button>
+          {(result || error) && (
+            <Button onClick={actualizar} disabled={loading} title="Realiza una nueva consulta con costo"><RefreshCw size={14} /> Actualizar</Button>
           )}
         </form>
       </div>
 
       <div className="p-4">
         {error && (
-          <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <div role="alert" className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
             {error}
           </div>
         )}
@@ -158,9 +171,19 @@ export function DniFotosPage({showToast}) {
         )}
 
         {loading && (
-          <div className="flex min-h-56 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-blue-700">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-transparent" />
-            Consultando imagenes...
+          <div role="status" aria-label="Cargando imágenes del DNI" className="dni-photo-loading">
+            <span className="sr-only">Cargando imágenes del DNI</span>
+            {imageLabels.map(label => (
+              <div key={label} className="dni-photo-loading__preview" aria-hidden="true">
+                <div className="dni-photo-loading__document">
+                  <span className="dni-photo-loading__portrait" />
+                  <div className="dni-photo-loading__lines">
+                    <span /><span /><span />
+                  </div>
+                </div>
+                <span className="dni-photo-loading__label">{label}</span>
+              </div>
+            ))}
           </div>
         )}
 
@@ -182,12 +205,16 @@ export function DniFotosPage({showToast}) {
                     <figcaption className="border-b border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-500">
                       {label}
                     </figcaption>
-                    {image ? (
+                    {imageErrors[index] ? (
+                      <p role="alert" className="p-4 text-sm text-red-700">La imagen recibida no se pudo mostrar. No se ha realizado otra consulta ni consumido creditos adicionales.</p>
+                    ) : image ? (
                       <img
                         src={image.dataUri}
                         alt={`DNI ${label}`}
                         className="max-h-[72vh] w-full bg-white object-contain lg:max-h-[34rem]"
-                        loading="lazy"
+                        loading="eager"
+                        decoding="async"
+                        onError={() => setImageErrors(previous => ({...previous, [index]: true}))}
                       />
                     ) : (
                       <div className="flex min-h-56 items-center justify-center text-sm text-slate-400">

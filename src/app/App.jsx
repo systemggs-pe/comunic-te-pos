@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
-import { X, Home, ShoppingCart, ClipboardList, Search, CheckCircle2, AlertCircle, AlertTriangle, Users, UploadCloud, LogOut, Settings, ImagePlus, ChevronRight } from 'lucide-react';
+import { X, Home, ShoppingCart, ClipboardList, Search, CheckCircle2, AlertCircle, AlertTriangle, Users, UploadCloud, LogOut, Settings, ImagePlus, ChevronRight, Link2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { onSnapshot, setDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { EMAILS_PERMITIDOS } from '../config/auth.js';
@@ -32,6 +32,8 @@ const VentaForm = lazyNamed(() => import('../features/ventas/VentaForm.jsx'), 'V
 const ClientesList = lazyNamed(() => import('../features/clientes/ClientesList.jsx'), 'ClientesList');
 const DniFotosPage = lazyNamed(() => import('../features/dniFotos/DniFotosPage.jsx'), 'DniFotosPage');
 const ProblemasApp = lazyNamed(() => import('../features/problemas/ProblemasApp.jsx'), 'ProblemasApp');
+const SolicitudesPublicas = lazyNamed(() => import('../features/solicitudesPublicas/SolicitudesPublicas.jsx'), 'SolicitudesPublicas');
+const PublicSolicitudRegistro = lazyNamed(() => import('../features/solicitudesPublicas/PublicSolicitudRegistro.jsx'), 'PublicSolicitudRegistro');
 
 const PAGE_SIZE = 40;
 const REFERENCE_DATA_LIMIT = 200;
@@ -48,6 +50,7 @@ const VIEW_LABELS = {
   foto_dni: 'Foto DNI',
   problemas_app: 'Problemas de la aplicación',
   configuracion: 'Configuración',
+  solicitudes_publicas: 'Solicitudes públicas',
 };
 
 function SearchResultIcon({type}) {
@@ -106,6 +109,11 @@ function App() {
   const legalSlug = useMemo(() => {
     if (typeof window === 'undefined') return null;
     return isLegalPath(window.location.pathname) ? slugFromPath(window.location.pathname) : null;
+  }, []);
+  const publicSolicitudToken = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const match = window.location.pathname.match(/^\/solicitud\/([A-Za-z0-9_-]{32,140})\/?$/);
+    return match?.[1] || null;
   }, []);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -670,7 +678,7 @@ function App() {
     {id: 'ventas', label: 'Ventas', Icon: ShoppingCart, active: currentView.startsWith('ventas'), onSelect: () => navegarA('ventas_list')},
     {id: 'clientes', label: 'Clientes', Icon: Users, active: currentView === 'clientes_list', onSelect: () => navegarA('clientes_list')},
   ];
-  const moreNavigationActive = ['foto_dni', 'problemas_app', 'configuracion'].includes(currentView);
+  const moreNavigationActive = ['foto_dni', 'problemas_app', 'configuracion', 'solicitudes_publicas'].includes(currentView);
 
   const abrirResultadoBusqueda = (resultado) => {
     setBusquedaGlobal('');
@@ -726,6 +734,17 @@ function App() {
         <span className="ui-button__spinner mr-3" aria-hidden="true" />
         Cargando sistema…
       </div>
+    );
+  }
+
+  if (publicSolicitudToken) {
+    return (
+      <>
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[var(--ui-canvas)] text-[var(--ui-text-tertiary)]" role="status"><span className="ui-button__spinner mr-3" aria-hidden="true" />Cargando solicitud…</div>}>
+          <PublicSolicitudRegistro token={publicSolicitudToken} />
+        </Suspense>
+        <CookieConsentBanner />
+      </>
     );
   }
 
@@ -815,6 +834,8 @@ function App() {
 
           {currentView === 'problemas_app' && <ProblemasApp user={user} showToast={showToast} />}
 
+          {currentView === 'solicitudes_publicas' && <SolicitudesPublicas showToast={showToast} onCompleted={refrescarTotales} />}
+
           {currentView === 'configuracion' && (
             <ConfiguracionLogo
               logoVentas={logoVentas}
@@ -847,6 +868,7 @@ function App() {
               <div className="app-more-group">
                 <p className="app-more-group__label">Módulos</p>
                 <MoreMenuItem Icon={ImagePlus} title="Foto DNI" description="Consultar imágenes documentarias" active={currentView === 'foto_dni'} onClick={() => navegarA('foto_dni')} />
+                <MoreMenuItem Icon={Link2} title="Solicitudes públicas" description="Links de registro para clientes" active={currentView === 'solicitudes_publicas'} onClick={() => navegarA('solicitudes_publicas')} />
                 <MoreMenuItem Icon={AlertTriangle} title="Problemas" description="Incidencias y cambios resueltos" active={currentView === 'problemas_app'} tone="warning" onClick={() => navegarA('problemas_app')} />
                 <MoreMenuItem Icon={Settings} title="Configuración" description="Logo y preferencias del sistema" active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} />
               </div>

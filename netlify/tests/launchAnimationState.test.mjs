@@ -5,10 +5,13 @@ import {
   APP_LAUNCH_EVENT,
   APP_LAUNCH_DURATION_MS,
   APP_LAUNCH_INTERVAL_MS,
+  APP_LAUNCH_LAST_ACTIVE_KEY,
   APP_LAUNCH_REDUCED_DURATION_MS,
   APP_LAUNCH_STOP_EVENT,
   getLaunchAnimationDuration,
+  markLaunchActivity,
   requestLaunchAnimation,
+  shouldLaunchAfterInactivity,
   stopLaunchAnimation,
 } from '../../src/components/branding/launchAnimationState.js';
 
@@ -34,6 +37,21 @@ test('launch animation can be stopped and is scheduled every 30 minutes', () => 
   assert.equal(stopLaunchAnimation(null), false);
 });
 
+test('launch animation is due after 30 minutes outside the app', () => {
+  const storage = new Map();
+  const target = {
+    localStorage: {
+      getItem: key => storage.get(key) || null,
+      setItem: (key, value) => storage.set(key, value),
+    },
+  };
+
+  assert.equal(markLaunchActivity(target, 1_700_000_000_000), true);
+  assert.equal(storage.get(APP_LAUNCH_LAST_ACTIVE_KEY), '1700000000000');
+  assert.equal(shouldLaunchAfterInactivity(target, 1_700_000_000_000 + APP_LAUNCH_INTERVAL_MS - 1), false);
+  assert.equal(shouldLaunchAfterInactivity(target, 1_700_000_000_000 + APP_LAUNCH_INTERVAL_MS), true);
+});
+
 test('reduced motion uses the short launch duration', () => {
   assert.equal(getLaunchAnimationDuration(false), APP_LAUNCH_DURATION_MS);
   assert.equal(getLaunchAnimationDuration(true), APP_LAUNCH_REDUCED_DURATION_MS);
@@ -53,11 +71,13 @@ test('login and root wire the launch event after authentication', async () => {
   assert.ok(login.indexOf('requestLaunchAnimation(window)') < login.indexOf('await registrarConsentimientoLegal'));
   assert.match(root, /addEventListener\(APP_LAUNCH_EVENT/);
   assert.match(root, /addEventListener\(APP_LAUNCH_STOP_EVENT/);
+  assert.match(root, /addEventListener\('pagehide', markInactive\)/);
+  assert.match(root, /document\.addEventListener\('visibilitychange', handleVisibilityChange\)/);
   assert.match(root, /window\.setInterval\(runLaunch, APP_LAUNCH_INTERVAL_MS\)/);
   assert.match(root, /window\.clearInterval\(recurringLaunchRef\.current\)/);
   assert.match(root, /data-launch-hidden=\{showLaunch \? 'true' : undefined\}/);
-  assert.match(root, /useState\(false\)/);
-  assert.doesNotMatch(root, /localStorage|sessionStorage/);
+  assert.match(root, /shouldLaunchAfterInactivity\(window\)/);
+  assert.match(root, /markLaunchActivity\(window\)/);
   assert.match(app, /stopLaunchAnimation\(window\)/);
   assert.ok(launch.indexOf('app-launch__product') < launch.indexOf('app-launch__credit'));
   assert.ok(launch.indexOf('app-launch__credit') < launch.indexOf('app-launch__version'));

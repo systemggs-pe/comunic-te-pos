@@ -60,6 +60,45 @@ export async function llamarFuncionSegura(nombre, payload, {signal} = {}) {
   return data;
 }
 
+export async function llamarFuncionPublica(nombre, payload, {signal} = {}) {
+  const resp = await fetch(`${BACKEND_BASE_URL}/api/${nombre}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+    ...(signal ? {signal} : {}),
+  });
+
+  const text = await resp.text();
+  const requestId = resp.headers.get('x-request-id') || '';
+  if (looksLikeHtml(text)) {
+    const error = new Error('BACKEND_NOT_DEPLOYED');
+    error.requestId = requestId;
+    throw error;
+  }
+
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    const error = new Error('BACKEND_INVALID_RESPONSE');
+    error.requestId = requestId;
+    throw error;
+  }
+  if (resp.status === 404 && !data.error) {
+    const error = new Error('BACKEND_NOT_DEPLOYED');
+    error.requestId = requestId;
+    throw error;
+  }
+  if (!resp.ok) {
+    const error = new Error(data.error || 'BACKEND_ERROR');
+    error.status = resp.status;
+    error.requestId = requestId || data.requestId || '';
+    error.payload = data;
+    throw error;
+  }
+  return data;
+}
+
 const VALIDATION_MESSAGES = {
   CELULAR_INVALIDO: 'el celular debe tener 9 digitos y empezar con 9',
   CELULARES_DUPLICADOS: 'el celular 2 debe ser diferente del celular 1',
@@ -71,6 +110,15 @@ const VALIDATION_MESSAGES = {
   MEMORIA_REQUERIDA: 'la memoria es obligatoria',
   NOMBRES_REQUERIDOS: 'los nombres y apellidos son obligatorios',
   RAM_REQUERIDA: 'la RAM es obligatoria',
+  LINK_EXPIRADO: 'el link ya vencio',
+  LINK_NO_ENCONTRADO: 'el link no existe o fue revocado',
+  LINK_YA_USADO: 'este link ya fue usado',
+  PROVINCIA_REQUERIDA: 'la provincia es obligatoria',
+  SOLICITUD_NO_ENCONTRADA: 'la solicitud no existe',
+  SOLICITUD_NO_LISTA: 'el cliente aun no completo la solicitud',
+  SOLICITUD_TERMINADA_NO_ELIMINABLE: 'no se puede eliminar un link que ya genero un registro',
+  TOKEN_INVALIDO: 'el link de solicitud no es valido',
+  TRAMITE_INVALIDO: 'el tramite no es valido',
 
   DIRECCION_REQUERIDA: 'la direccion es obligatoria',
   DOCUMENTO_INVALIDO: 'el numero de documento no es valido para el tipo elegido',
@@ -173,6 +221,7 @@ const FIELD_LABELS = {
   nombreEquipo: 'Nombre del equipo',
   nombres: 'Nombres y apellidos',
   precioCompra: 'Precio de compra',
+  provincia: 'Provincia',
   ram: 'RAM',
 
 };
@@ -191,6 +240,7 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'AUTH_REQUIRED') return 'Debes iniciar sesion nuevamente';
   if (error?.message === 'API_LOCAL_ERROR') return 'La API local devolvio un error. Revisa la terminal de npm run dev';
   if (error?.message === 'API_LOCAL_NO_DISPONIBLE') return 'La API local no esta disponible. Ejecuta npm run dev';
+  if (VALIDATION_MESSAGES[error?.message]) return VALIDATION_MESSAGES[error.message];
   if (error?.message === 'BACKEND_ERROR') return fallback;
   if (error?.message === 'BACKEND_INVALID_RESPONSE') return 'Respuesta invalida de Netlify Functions';
   if (error?.message === 'BACKEND_NOT_DEPLOYED') return 'Funciones Netlify no desplegadas';
@@ -226,6 +276,9 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'CODART_RATE_LIMIT') return 'CODART recibio demasiadas consultas; intenta nuevamente en unos minutos';
   if (error?.message === 'ACTION_INVALIDA') return 'La accion solicitada no es valida';
   if (error?.message === 'DNI_FOTOS_UPSTREAM_ERROR') return 'No se pudo consultar la foto del DNI';
+  if (error?.message === 'DNI_FOTOS_TIMEOUT') return 'CODART no entrego las imagenes dentro del tiempo de espera. La consulta puede haberse cobrado. No se reintentara automaticamente; revisa el movimiento en CODART.';
+  if (error?.message === 'DNI_FOTOS_INVALID_RESPONSE') return 'CODART respondio sin imagenes utilizables. La consulta puede haberse cobrado. Revisa el movimiento antes de volver a consultar.';
+  if (error?.message === 'DNI_FOTOS_IN_PROGRESS') return 'Este DNI ya se está consultando en otra ventana. Espera a que termine para volver a consultar.';
   if (error?.message === 'DNI_FOTO_TIPO_INVALIDO') return 'El tipo de foto DNI no es valido';
   if (error?.message === 'DNI_INVALIDO') return 'El DNI debe tener 8 digitos';
   if (error?.message === 'FIREBASE_ADMIN_CONFIG_MISSING') return 'Falta configurar Firebase Admin en .env local';
@@ -261,8 +314,8 @@ export function consultarReniecDni(dni, options = {}) {
   return llamarFuncionSegura('reniec', {dni: String(dni)}, options);
 }
 
-export function consultarDniFotos(dni, tipo = 'azul') {
-  return llamarFuncionSegura('dniFotos', {dni: String(dni), tipo});
+export function consultarDniFotos(dni, tipo = 'azul', {refresh = false} = {}) {
+  return llamarFuncionSegura('dniFotos', {dni: String(dni), tipo, ...(refresh ? {refresh: true} : {})});
 }
 
 export function consultarComprobanteApplePorImei(imei) {
@@ -331,6 +384,34 @@ export function actualizarEstadoSolicitudRegistro(id, estadoSolicitud) {
 
 export function marcarTodosRegistrosRealizados() {
   return llamarFuncionSegura('registros', {action: 'completeAllRequestStatuses'});
+}
+
+export function generarSolicitudPublicaLink(dni) {
+  return llamarFuncionSegura('solicitudesPublicas', {action: 'createLink', dni: String(dni)});
+}
+
+export function listarSolicitudesPublicas() {
+  return llamarFuncionSegura('solicitudesPublicas', {action: 'list'});
+}
+
+export function terminarSolicitudPublica(payload) {
+  return runClientMutation('solicitudesPublicas', {action: 'complete', ...payload});
+}
+
+export function eliminarSolicitudPublica(id) {
+  return runClientMutation('solicitudesPublicas', {action: 'delete', id: String(id)});
+}
+
+export function cargarSolicitudPublica(token, options = {}) {
+  return llamarFuncionPublica('solicitudesPublicas', {action: 'load', token: String(token)}, options);
+}
+
+export function consultarImeiSolicitudPublica(token, imei, options = {}) {
+  return llamarFuncionPublica('solicitudesPublicas', {action: 'lookupImei', token: String(token), imei: String(imei)}, options);
+}
+
+export function enviarSolicitudPublica(token, data, options = {}) {
+  return llamarFuncionPublica('solicitudesPublicas', {action: 'submit', token: String(token), data}, options);
 }
 
 export function crearVenta(payload) {
