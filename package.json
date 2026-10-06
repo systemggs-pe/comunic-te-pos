@@ -11,10 +11,11 @@
     "dev:vite": "npm run prepare:ocr-assets && vite",
     "build": "npm run prepare:ocr-assets && vite build",
     "lint": "eslint .",
+    "verify": "node scripts/verify.mjs",
     "backfill:search-index": "node scripts/backfill-search-index.mjs",
     "train:box-verifier": "node packages/local-field-verifier/training/train.mjs",
     "evaluate:box-verifier": "node packages/local-field-verifier/training/evaluate.mjs",
-    "test": "node --test netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/_sharedLimits.test.mjs netlify/tests/boxOcr.test.mjs netlify/tests/boxLearning.test.mjs netlify/tests/geminiBox.test.mjs netlify/tests/localFieldVerifier.test.mjs netlify/tests/registroFormModel.test.mjs netlify/tests/registroPdf.test.mjs netlify/tests/registroShareText.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/appleReceiptsApi.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs netlify/tests/roles.test.mjs netlify/tests/searchIndex.test.mjs netlify/tests/launchAnimationState.test.mjs netlify/tests/floatingNavigationAnimation.test.mjs netlify/tests/legalConsent.test.mjs netlify/tests/solicitudesPublicas.test.mjs",
+    "test": "node --test netlify/tests/baselineRouting.test.mjs netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/_sharedLimits.test.mjs netlify/tests/boxOcr.test.mjs netlify/tests/boxLearning.test.mjs netlify/tests/geminiBox.test.mjs netlify/tests/localFieldVerifier.test.mjs netlify/tests/registroFormModel.test.mjs netlify/tests/registroPdf.test.mjs netlify/tests/registroShareText.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/appleReceiptsApi.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs netlify/tests/roles.test.mjs netlify/tests/searchIndex.test.mjs netlify/tests/launchAnimationState.test.mjs netlify/tests/floatingNavigationAnimation.test.mjs netlify/tests/legalConsent.test.mjs netlify/tests/solicitudesPublicas.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

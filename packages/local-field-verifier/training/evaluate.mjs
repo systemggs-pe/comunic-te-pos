@@ -6,7 +6,9 @@ import {parseArguments, readExamples} from './io.mjs';
 
 const args = parseArguments();
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const modelPath = resolve(process.cwd(), String(args.model || 'packages/local-field-verifier/models/model.json'));
+const modelPath = args.model
+  ? resolve(process.cwd(), String(args.model))
+  : resolve(packageRoot, 'models/model.json');
 const inputPath = args.input
   ? resolve(process.cwd(), String(args.input))
   : resolve(packageRoot, 'training/data/corrections.json');
