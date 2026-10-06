@@ -1,0 +1,324 @@
+
+> comunicate@7.0.0 verify
+> node scripts/verify.mjs
+
+[verify] typecheck: NO APLICA (script no definido)
+[verify] Ejecutando npm run lint
+
+> comunicate@7.0.0 lint
+> eslint .
+
+
+C:\Users\COMUNICATE\Documents\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\comunicate\src\features\registros\RegistroForm.jsx
+  105:7   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  103 |         ? ''
+  104 |         : (initialData.tipo || 'TIENDA');
+> 105 |       setContactosClienteReg({celulares, correos});
+      |       ^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  106 |       setFormData({
+  107 |         tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: initialData.nombreCliente || cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', celular2: '', celularRef: initialData.celularRef || cliente.celularRef || initialData.celularCliente || cliente.celular || '', correo: initialData.correoCliente || correos[0] || '', direccion: direccionCliente.direccion, departamento: departamentoCliente, imei1: imeiPrincipal, imei: imeiRegistrado, imei2: imeiSecundario, sn: initialData.sn || eq.sn || '', ...seleccionMarca, modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', color: initialData.colorEquipo || eq.color || '', memoria: initialData.memoriaEquipo || eq.memoria || '', ram: initialData.ramEquipo || eq.ram || '', registrarAmbosImeis: false, estado: initialData.estado || 'NO BLOQUEADO', estadoSolicitud: initialData.estado === 'BLOQUEADO' ? '' : (initialData.estadoSolicitud || 'PENDIENTE'), operador: initialData.operador || 'BITEL', tipo: tipoRegistro, tieneCaja: normalizarTieneCaja(initialData.tieneCaja) || 'NO', precio: initialData.precio || '0', fecha: toLocalDatetimeValue(initialData.fecha)
+  108 |       });  react-hooks/set-state-in-effect
+  191:15  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  189 |     if (formData.imei1.length === 15 && !initialData) {
+  190 |       const eq = equiposCliente.find(e => e.idEquipo === formData.imei1 || e.imei2 === formData.imei1);
+> 191 |       if (eq) setFormData(prev => {
+      |               ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  192 |         const marca = prev.marca || normalizarMarcaRegistro(eq.marca);
+  193 |         return {
+  194 |           ...prev, imei1: eq.idEquipo, imei: prev.imei || formData.imei1,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/set-state-in-effect
+
+C:\Users\COMUNICATE\Documents\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\comunicate\src\features\ventas\VentaForm.jsx
+   55:7   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  53 |       const celulares = opcionesCelulares(cliente);
+  54 |       const correos = opcionesContacto(cliente, 'correo', 'correos');
+> 55 |       setContactosClienteV({celulares, correos});
+     |       ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |       setFormData({ tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', correo: correos[0] || '', imei1: initialData.imeiEquipo || '', imei2: initialData.imei2Equipo || '', sn: initialData.sn || '', nombreComercial: initialData.nombreComercial || '', ram: initialData.ram || '', memoria: initialData.memoria || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', color: initialData.color || '', precio: initialData.precioEquipo || initialData.precio || '', medioPago: initialData.medioPago || 'EFECTIVO', origenEquipo: initialData.origenEquipo || 'TIENDA', proveedorPase: initialData.proveedorPase || '', fecha: toLocalDatetimeValue(initialData.fecha) });
+  57 |       setItemsAdicionales(Array.isArray(initialData.itemsAdicionales)
+  58 |         ? initialData.itemsAdicionales.map(item => ({...createAccessoryItem(), ...item}))  react-hooks/set-state-in-effect
+  127:9   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  125 |         const celulares = opcionesCelulares(c);
+  126 |         const correos = opcionesContacto(c, 'correo', 'correos');
+> 127 |         setContactosClienteV({celulares, correos});
+      |         ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  128 |         setDniStatusV({type: 'db', text: 'Cliente COMUNIC@TE'});
+  129 |         setFormData(prev => ({
+  130 |           ...prev,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        react-hooks/set-state-in-effect
+  144:6   warning  React Hook useEffect has a missing dependency: 'buscarReniecV'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+  149:14  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  147 |     if (formData.imei1.length >= 14 && !initialData) {
+  148 |       const e = equipos.find(e => e.idEquipo === formData.imei1);
+> 149 |       if (e) setFormData(prev => ({
+      |              ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  150 |         ...prev,
+  151 |         imei2:           prev.imei2           || e.imei2 || '',
+  152 |         marca:           prev.marca           || e.marca || '',                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-hooks/set-state-in-effect
+
+✖ 6 problems (0 errors, 6 warnings)
+
+[verify] lint: VERIFICADO
+[verify] Ejecutando npm run test
+
+> comunicate@7.0.0 test
+> node --test netlify/tests/baselineRouting.test.mjs netlify/tests/_imeiLocks.test.mjs netlify/tests/_observability.test.mjs netlify/tests/_rateLimit.test.mjs netlify/tests/_sharedLimits.test.mjs netlify/tests/boxOcr.test.mjs netlify/tests/boxLearning.test.mjs netlify/tests/geminiBox.test.mjs netlify/tests/localFieldVerifier.test.mjs netlify/tests/registroFormModel.test.mjs netlify/tests/registroPdf.test.mjs netlify/tests/registroShareText.test.mjs netlify/tests/contactHistory.test.mjs netlify/tests/comprobanteApple.test.mjs netlify/tests/appleReceiptsApi.test.mjs netlify/tests/dniFotos.test.mjs netlify/tests/firebaseReadBudget.test.mjs netlify/tests/registroStatus.test.mjs netlify/tests/reniec.test.mjs netlify/tests/roles.test.mjs netlify/tests/searchIndex.test.mjs netlify/tests/launchAnimationState.test.mjs netlify/tests/floatingNavigationAnimation.test.mjs netlify/tests/legalConsent.test.mjs netlify/tests/solicitudesPublicas.test.mjs
+
+✔ normalizeImeiList removes empty and repeated values (9.1272ms)
+✔ sets and releases a registro IMEI lock (3.704ms)
+✔ assigns two IMEI locks to two independent Samsung registros atomically (1.1853ms)
+✔ blocks a registro lock owned by another document (5.6793ms)
+✔ allows registro and venta states on the same IMEI but blocks duplicate venta (1.302ms)
+✔ concurrent transactions cannot both claim the same IMEI (1.7864ms)
+✔ getHeader reads headers case-insensitively (2.0974ms)
+✔ createRequestContext reuses incoming request id (0.8089ms)
+✔ sanitizeMetadata removes sensitive fields (2.126ms)
+✔ queueAuditEvent writes structured audit document (492.6933ms)
+✔ getRateLimitWindow calculates bucket and reset (2.2887ms)
+✔ createRateLimitKey includes endpoint, uid, ip and bucket (1.9118ms)
+✔ enforceMemoryRateLimit blocks without a Firestore database (2.0639ms)
+✔ enforcePersistentRateLimit persists and blocks over limit (2.5049ms)
+✔ enforcePersistentRateLimit separates buckets by ip and time window (0.8447ms)
+✔ parseBody rejects oversized JSON before parsing (4.4476ms)
+✔ parseBody accepts JSON within the configured limit (2.1907ms)
+✔ remote Apple lookup uses the server-only key and exact IMEI query (180.8516ms)
+✔ remote Apple lookup rejects unrelated or mismatched receipt data (2.9678ms)
+✔ remote Apple configuration and upstream errors never expose the API key (2.6966ms)
+✔ Netlify resolves every API used by the local adapter before the SPA fallback (14.2478ms)
+✔ local learning example never contains IMEI, serial or raw OCR text (9.242ms)
+✔ local corrections train automatically and are applied before the bundled model (9.5924ms)
+✔ automatic training ignores a single correction to avoid overfitting (2.4089ms)
+✔ local box parser prioritizes valid barcode IMEIs and extracts labelled fields (14.9439ms)
+✔ local box parser corrects common OCR digit confusions only when Luhn remains valid (5.0182ms)
+✔ local box parser never returns an IMEI that fails Luhn (4.5049ms)
+✔ local box parser handles the Redmi A7 Pro label layout and separates its color (3.8427ms)
+✔ local verifier moves a specific color out of the commercial name and upgrades a generic color (2.304ms)
+✔ Apple receipt serializer keeps only bounded fields and both valid IMEIs (7.7293ms)
+✔ luhnImeiApple validates the IMEI before a remote query (0.5535ms)
+✔ una operación nueva conserva el celular principal y agrega el número usado al historial (5.1473ms)
+✔ la edición explícita del cliente cambia el principal sin perder números anteriores (0.6446ms)
+✔ la venta guarda el celular usado como dato propio de la operación (25.3017ms)
+✔ el origen y proveedor del pase no se incluyen en el ticket del cliente (0.4149ms)
+✔ un correo valido reemplaza datos antiguos invalidos de RENIEC (0.7033ms)
+✔ editar el correo lo convierte en actual y conserva el anterior en el historial (0.5362ms)
+{"timestamp":"2026-10-06T04:54:00.950Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"ccf9eedf-a8a9-49ed-b0d5-3bacb51ff85a","functionName":"dniFotos","method":"OPTIONS","path":"","origin":"","ipAddress":"","durationMs":1}
+{"timestamp":"2026-10-06T04:54:00.954Z","level":"info","event":"request.success","service":"netlify-functions","requestId":"ccf9eedf-a8a9-49ed-b0d5-3bacb51ff85a","functionName":"dniFotos","method":"OPTIONS","path":"","origin":"","ipAddress":"","durationMs":5,"statusCode":204}
+✔ parseDniPhotoPayload only accepts eight digit DNI values (10.7962ms)
+✔ normalizeDniPhotosResponse maps safe image data URIs only (2.0468ms)
+✔ normalizeDniPhotosResponse accepts CODART alternate image fields and raw base64 images (0.6745ms)
+✔ fetchDniFotos sends the documented CODART request and normalizes images (57.6169ms)
+✔ DNI photo dispatch returns only the current provider response without history or counters (2.4117ms)
+✔ fetchDniFotos deduplicates simultaneous and immediate repeated CODART calls for the same DNI and type (2.5497ms)
+✔ explicit refresh bypasses successful cache but simultaneous refreshes share one provider request (8.2934ms)
+✔ DNI photo responses disable HTTP caching (6.1826ms)
+✔ DNI photo endpoint keeps a practical authenticated rate limit for repeated provider retries (43.4463ms)
+✔ fetchDniFotos maps CODART credit errors without exposing its response body (2.5437ms)
+✔ slow CODART success after the old ten-second deadline returns images with one charge (10177.3464ms)
+✔ timeout during image body download releases the request and allows an explicit retry without automatic calls (74.6689ms)
+✔ malformed or empty provider responses allow a later manual retry without caching the error (3.7292ms)
+✔ distributed lease admits one concurrent claim and allows the next immediately after release without storing PII (1.7375ms)
+✔ a crashed request lease expires and its late cleanup cannot delete a newer active request (0.7225ms)
+✔ a concurrent cold instance cannot repeat an active provider call but can consult again after it finishes (1.9024ms)
+✔ legacy ten-minute charge guards do not block a new request (1.9056ms)
+✔ a lease cleanup failure does not discard paid images or cause an automatic retry (1.3772ms)
+✔ base64 line wrapping does not discard valid provider images (0.3194ms)
+✔ client lookup normalizes DNI values and falls back to the Firestore document ID (2.9269ms)
+✔ queryOperational ignores searches shorter than 3 chars without Firestore reads (10.305ms)
+✔ queryOperational default load uses capped reads and fills recent client names (212.2116ms)
+✔ queryOperational exact DNI/IMEI searches use targeted limited queries (268.8609ms)
+✔ indexed history search finds clients and movements beyond the former scan window (116.778ms)
+✔ exact history lookup supports legacy clients whose DNI exists only as document ID (1.0619ms)
+✔ checkRegisteredImeis finds old registrations with bounded exact queries (1.0724ms)
+✔ client hydration and indexed history searches do not truncate old records (48.871ms)
+✔ API runtime rate limiting distributes only sensitive endpoints (4.1111ms)
+✔ APPLE receipt lookup stays server-mediated, remote and bounded (11.53ms)
+✔ registro por DNI encuentra equipos antiguos sin depender de las referencias locales ni de searchTerms (133.9036ms)
+✔ registro por DNI reconstruye equipos de ventas y registros sin exponer equipos de otros clientes (2.385ms)
+✔ registro por DNI pagina las tres fuentes sin omitir equipos ni repetir documentos (9.9284ms)
+✔ registro por DNI respeta locks y registros antiguos de otro titular para el mismo IMEI (1.2177ms)
+✔ registro por DNI rechaza documentos y cursores invalidos antes de leer Firebase (1.637ms)
+✔ registro por DNI nunca afirma disponibilidad si el historial IMEI excede el limite seguro (7.3229ms)
+✔ agrupar equipos conserva los dos IMEI sin fusionar equipos solo por modelo o serie (0.5713ms)
+✔ floating navigation uses a transform-driven matte frosted active indicator (103.2468ms)
+✔ Gemini validates image size, canonical base64 and actual image signature (7.5606ms)
+✔ Gemini accepts PNG and WebP signatures with matching MIME (0.8062ms)
+✔ Gemini normalizes the nine fields without involving the trainable verifier (1.7606ms)
+✔ Gemini never repairs or truncates invalid IMEIs, including checksum and repeated digits (1.4621ms)
+✔ Gemini rejects a duplicate secondary IMEI, preserves serial punctuation and requires numeric GB (0.5645ms)
+✔ Gemini rejects blank, malformed, truncated or blocked extraction responses (4.4835ms)
+✔ Gemini ignores thought parts and tolerates a JSON code fence without executing content (1.0802ms)
+✔ Gemini REST request uses a server-only key header, inline image and structured fields (73.8306ms)
+✔ Gemini handles missing configuration without sending a request (1.918ms)
+✔ Gemini errors never expose provider responses, key values or network exception details (8.1604ms)
+✔ Gemini bounds malformed and excessive upstream responses (8.9215ms)
+✔ Gemini recognizes invalid/expired keys reported as HTTP 400 without leaking details (4.7508ms)
+{"timestamp":"2026-10-06T04:54:01.980Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"658ca8c0-d53d-4902-957d-ce97b35f16bd","functionName":"gemini","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T04:54:01.985Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"658ca8c0-d53d-4902-957d-ce97b35f16bd","functionName":"gemini","method":"POST","path":"","origin":"","ipAddress":"","durationMs":5,"statusCode":401,"errorName":"Error","errorMessage":"No autorizado"}
+{"timestamp":"2026-10-06T04:54:01.985Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"b9723d8a-80f9-4de7-be7d-62a79c97e430","functionName":"gemini","method":"GET","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T04:54:01.986Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"b9723d8a-80f9-4de7-be7d-62a79c97e430","functionName":"gemini","method":"GET","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":405,"errorName":"Error","errorMessage":"Metodo no permitido"}
+{"timestamp":"2026-10-06T04:54:01.986Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"c807865b-b0da-4540-b861-f3d924430101","functionName":"gemini","method":"OPTIONS","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T04:54:01.986Z","level":"info","event":"request.success","service":"netlify-functions","requestId":"c807865b-b0da-4540-b861-f3d924430101","functionName":"gemini","method":"OPTIONS","path":"","origin":"","ipAddress":"","durationMs":0,"statusCode":204}
+✔ Gemini timeout also covers reading a stalled response body (82.4218ms)
+✔ Gemini endpoint requires Firebase authentication, POST and disables caching (8.1888ms)
+✔ browser compresses a copy asynchronously as JPEG without changing the source (2.378ms)
+✔ browser lowers quality and dimensions for large images and rejects oversized output (46.593ms)
+✔ browser requests only image extraction and returns review data without saving training (1.3754ms)
+✔ browser has a deadline and aborts pending requests on unmount (29.4994ms)
+✔ cancelling during asynchronous image preparation never sends a request (2.5473ms)
+✔ the deadline also covers image preparation (14.0482ms)
+✔ cancelled requests ignore late results and a fresh scan can finish (1.39ms)
+✔ active scanner bypasses local OCR and all learning read/write controls (3.1573ms)
+✔ scanner autofill validates exact IMEIs without repairing or guessing digits (2.4957ms)
+✔ scanner fills fields directly but preserves manual edits made while waiting (0.6146ms)
+✔ scanner never mixes data if the operator changed device identifiers during extraction (0.2799ms)
+✔ scanning a different box clears unreadable fields instead of retaining the old device identifiers (0.2846ms)
+✔ each successful login request emits a fresh launch event (2.7713ms)
+✔ launch animation can be stopped and is scheduled every 30 minutes (0.578ms)
+✔ launch animation is due after 30 minutes outside the app (2.9696ms)
+✔ reduced motion uses the short launch duration (0.6216ms)
+✔ login and root wire the launch event after authentication (54.0191ms)
+✔ the launch version applies frosted styling to the glyphs without a container (3.0403ms)
+{"timestamp":"2026-10-06T04:54:04.147Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"dfabe9d6-16a9-4ef6-8843-bc71fe1c6d3c","functionName":"legalConsent","method":"POST","path":"","origin":"http://localhost:5173","ipAddress":"","durationMs":1}
+{"timestamp":"2026-10-06T04:54:04.151Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"dfabe9d6-16a9-4ef6-8843-bc71fe1c6d3c","functionName":"legalConsent","method":"POST","path":"","origin":"http://localhost:5173","ipAddress":"","durationMs":5,"statusCode":401,"errorName":"Error","errorMessage":"No autorizado"}
+✔ shared branding and legal config load in the Node API runtime (2.571ms)
+✔ legal consent endpoint reaches authentication without an import-time failure (7.4532ms)
+✔ reusable model learns a cross-field phrase transfer and generalizes it (7.1835ms)
+✔ reusable model cannot modify protected identifiers (2.3819ms)
+✔ training sanitizer removes sensitive fields and 15-digit values (0.6833ms)
+✔ registro form model validates customer and equipment independently (3.6698ms)
+✔ registro form model accepts a complete draft without IMEI 2 (3.6182ms)
+✔ registro form model blocks duplicate IMEI and invalid Apple evidence (20.6965ms)
+✔ registro form model supports a custom brand and requires Samsung origin (2.4874ms)
+✔ dual Samsung registration requires both IMEIs and a different second phone (0.5824ms)
+✔ registration evidence PDF plan keeps two pages and required evidence slots (4.536ms)
+✔ Apple PDF plan uses the Apple layout without mutating shared slots (0.4429ms)
+✔ Apple receipt uses the canonical Apple Store letter content (181.6818ms)
+✔ shared single Samsung registration omits store or external origin (2.9237ms)
+✔ shared non-Samsung registration keeps its general type (0.7961ms)
+✔ dual Samsung requests share both IMEIs and their distinct phone numbers (1.1826ms)
+✔ dual blocked Samsung requests use the whitelist-unlock detail (0.5141ms)
+✔ ninguna evidencia fotografica es obligatoria (3.8667ms)
+✔ un registro no bloqueado inicia con solicitud pendiente (24.0956ms)
+✔ tienda y pase no bloqueados aceptan precio cero con IMEI, marca y nombre comercial obligatorios (2.0872ms)
+✔ la marca es obligatoria y Samsung exige origen de tienda o externo (6.6877ms)
+✔ el backend valida el registro Samsung doble y los dos celulares distintos (4.8861ms)
+✔ el registro Samsung doble produce dos solicitudes consecutivas con IMEI y celular propios (21.0142ms)
+✔ la transaccion Samsung doble persiste ambas solicitudes, contactos y locks juntos (21.7906ms)
+✔ el IMEI a registrar debe pertenecer a los dos IMEI editables del equipo (2.6853ms)
+✔ precio cero sigue rechazado fuera de tienda no bloqueada (1.7061ms)
+✔ un registro bloqueado no acepta estado de solicitud (3.9569ms)
+✔ un equipo bloqueado pasa a realizado cuando se desbloquea (0.4578ms)
+✔ los filtros separan registrados, pendientes y bloqueados (0.437ms)
+✔ la accion masiva incluye pendientes y registros antiguos, pero excluye bloqueados y realizados (0.2824ms)
+✔ la accion rapida solo acepta PENDIENTE o REALIZADO (1.2327ms)
+✔ RENIEC expone solo documento y nombre al formulario (6.8531ms)
+✔ roles normalize email and expose a safe public profile (3.6783ms)
+✔ roles resolve fallback superadmin and configured DB users (1.4672ms)
+✔ roles reject disabled or insufficient users (2.2296ms)
+✔ usuarios validates emails and role documents (2.9275ms)
+✔ search indexes normalize accents and include useful name prefixes (5.5026ms)
+✔ equipment and movement indexes include IMEI, document number and client name (3.0392ms)
+✔ updating a client always refreshes its search index (1.7762ms)
+✔ solicitudes publicas hashes token and validates DNI (9.8902ms)
+✔ solicitudes publicas validates Luhn IMEI values (0.8881ms)
+✔ solicitudes publicas normalizes public payload (9.0847ms)
+✔ solicitudes publicas accepts public payload without second IMEI and optional model (2.7691ms)
+✔ solicitudes publicas rejects duplicated IMEIs and invalid completion (1.3776ms)
+✔ solicitudes publicas only accepts hashed ids for link deletion (2.6801ms)
+✔ solicitudes publicas validates lookup payload and limits public equipment fields (1.093ms)
+✔ solicitud publica attaches Apple receipt before completing registration (65.7262ms)
+✔ registro accepts preverified Apple receipt for the selected IMEI without a second lookup (1.3868ms)
+✔ solicitud publica model sanitizes and validates client form (1.8302ms)
+✔ solicitudes publicas pulls client name from RENIEC when creating a link (11.4965ms)
+✔ solicitudes publicas completes old empty links from RENIEC on load and throttles failures (1.6822ms)
+✔ solicitud publica builds a registro draft with direccion and provincia separated (1.2191ms)
+✔ solicitudes publicas validates completion with an existing registro payload (0.8826ms)
+✔ solicitudes publicas list prunes completed links whose registro code no longer exists (62.2303ms)
+ℹ tests 160
+ℹ suites 0
+ℹ pass 160
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15858.4288
+[verify] test: VERIFICADO
+[verify] Ejecutando npm run build
+
+> comunicate@7.0.0 build
+> npm run prepare:ocr-assets && vite build
+
+
+> comunicate@7.0.0 prepare:ocr-assets
+> node scripts/copy-ocr-assets.mjs
+
+Recursos OCR locales preparados: 5 archivos.
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2177 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                    1.31 kB │ gzip:   0.57 kB
+dist/assets/index-CqNTe0Q5.css                   103.05 kB │ gzip:  19.01 kB
+dist/assets/pdfLibraries-D-KqWQVC.js               0.15 kB │ gzip:   0.14 kB
+dist/assets/imei-CqHHPp6L.js                       0.18 kB │ gzip:   0.17 kB
+dist/assets/documentos-CbhCTrc9.js                 0.74 kB │ gzip:   0.38 kB
+dist/assets/StateView-BKadbSYZ.js                  1.03 kB │ gzip:   0.52 kB
+dist/assets/PageHeader-vh8zhQOS.js                 1.22 kB │ gzip:   0.51 kB
+dist/assets/ConfiguracionLogo-CF-ZdtpY.js          2.64 kB │ gzip:   1.26 kB
+dist/assets/Dashboard-C8Mrk4Fg.js                  3.84 kB │ gzip:   1.42 kB
+dist/assets/ventaPdf-m8T-_VNY.js                   4.26 kB │ gzip:   2.16 kB
+dist/assets/DniFotosPage-DWP30EpQ.js               5.51 kB │ gzip:   2.38 kB
+dist/assets/UsuariosSistema-DIiglndI.js            5.82 kB │ gzip:   2.06 kB
+dist/assets/SolicitudesPublicas-CFsWq9Fn.js        7.73 kB │ gzip:   2.80 kB
+dist/assets/PublicSolicitudRegistro-DjAoIokC.js   10.45 kB │ gzip:   3.51 kB
+dist/assets/EscanerCaja-B39JzQfn.js               12.68 kB │ gzip:   4.96 kB
+dist/assets/VentasList-7Aacm-Sh.js                15.70 kB │ gzip:   4.05 kB
+dist/assets/ProblemasApp-Bn7C1qjd.js              16.00 kB │ gzip:   4.19 kB
+dist/assets/ClientesList-B-Ql7rR6.js              18.41 kB │ gzip:   4.90 kB
+dist/assets/RegistrosList-DrlyEXKc.js             19.39 kB │ gzip:   6.24 kB
+dist/assets/VentaForm-DtZoI9DV.js                 22.92 kB │ gzip:   6.59 kB
+dist/assets/vendor-dompurify-Cz4mVeUR.js          28.98 kB │ gzip:  10.87 kB
+dist/assets/vendor-barcode-CJtHTs8Y.js            68.09 kB │ gzip:  14.60 kB
+dist/assets/RegistroForm-BpZp8cIv.js              71.31 kB │ gzip:  23.06 kB
+dist/assets/index-DQFNCu6u.js                     89.88 kB │ gzip:  28.83 kB
+dist/assets/vendor-html2canvas-DXEQVQnt.js       201.04 kB │ gzip:  47.43 kB
+dist/assets/vendor-react--5npSeuU.js             207.78 kB │ gzip:  65.94 kB
+dist/assets/vendor-jspdf-Cw25YfYw.js             338.49 kB │ gzip: 110.52 kB
+dist/assets/vendor-DddvaE9a.js                   354.23 kB │ gzip: 113.48 kB
+dist/assets/vendor-firebase-Bd0VBfl8.js          396.92 kB │ gzip: 117.75 kB
+✓ built in 16.48s
+[verify] build: VERIFICADO

@@ -1,0 +1,42 @@
+
+> comunicate@7.0.0 evaluate:box-verifier
+> node packages/local-field-verifier/training/evaluate.mjs --input packages/local-field-verifier/training/evaluation-examples.json
+
+{
+  "modelVersion": "1.0.0",
+  "examples": 6,
+  "exactMatch": 1,
+  "baselineExactMatch": 0,
+  "fields": {
+    "marca": {
+      "total": 0,
+      "baseline": 0,
+      "verified": 0
+    },
+    "modelo": {
+      "total": 0,
+      "baseline": 0,
+      "verified": 0
+    },
+    "nombreComercial": {
+      "total": 6,
+      "baseline": 0,
+      "verified": 6
+    },
+    "ram": {
+      "total": 0,
+      "baseline": 0,
+      "verified": 0
+    },
+    "memoria": {
+      "total": 0,
+      "baseline": 0,
+      "verified": 0
+    },
+    "color": {
+      "total": 6,
+      "baseline": 0,
+      "verified": 6
+    }
+  }
+}

@@ -150,6 +150,9 @@ git add netlify.toml netlify/tests/baselineRouting.test.mjs packages/local-field
 git commit -m 'chore: stabilize baseline routing and verification'
 git add docs/BASELINE.md docs/BASELINE_BUGS.md docs/REGRESSION_CHECKLIST.md docs/BASELINE_COMMANDS.md docs/baseline-evidence
 git commit -m 'docs: record project baseline and regression evidence'
+git add -f docs/baseline-evidence/verify.log docs/baseline-evidence/evaluator.log
+git add docs/BASELINE_COMMANDS.md
+git commit -m 'docs: preserve baseline validation logs'
 git status --short
 git branch --show-current
 git log --oneline -3
