@@ -1,6 +1,6 @@
 # Checklist de release — NO autorizado para ejecución
 
-Estado actual: bloqueada por cero asignaciones y cero administradores válidos. Esta lista describe una release futura, después de aprobar y ejecutar separadamente la migración documentada. No se ejecutó push/deploy ni se preparó un comando de publicación.
+Estado actualizado: migración aplicada anteriormente; dos asignaciones activas y dos administradores válidos, incluido un superadmin. Esta lista describe una release futura. Ver FINAL_RELEASE_PRECHECK_REPORT y FINAL_RELEASE_MANUAL_CHECKS para la evidencia final y pendientes. No se ejecutó push/deploy.
 
 ## PRE-DEPLOY
 
@@ -10,11 +10,11 @@ Estado actual: bloqueada por cero asignaciones y cero administradores válidos. 
 - [ ] Integración PASS: `npm run test:rules`, JRE 21 portable documentado en STABILIZATION_REPORT.
 - [ ] Build PASS: `npm run verify`.
 - [ ] Artefactos Netlify locales regenerados y comprobados en la misma revisión.
-- [ ] Release precheck PASS: `npm run release:precheck` (ahora debe terminar exit 1).
+- [ ] Release precheck YES: `npm run release:precheck`; exit 0 = YES, 1 = NO, 2 = CONDITIONAL. CONDITIONAL conserva pendientes manuales y no autoriza deploy.
 - [ ] Administrador activo confirmado y superadmin disponible para gestión/recuperación.
 - [ ] Roles activos confirmados; U-003/U-006 conservan acceso; exclusiones revisadas.
 - [ ] Firestore Rules verificadas en emuladores y comparación con política productiva actual revisada.
-- [ ] Variables de producción verificadas por nombre en Netlify: FIREBASE_SERVICE_ACCOUNT **o** FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY; RENIEC_TOKEN; GEMINI_API_KEY; ALLOWED_ORIGINS. GEMINI_MODEL y APPLE_RECEIPTS_API_* según servicio/defaults. No publicar valores.
+- [ ] Variables de producción verificadas por nombre/contexto/scope en Netlify; lista exacta en FINAL_RELEASE_MANUAL_CHECKS. No publicar valores ni inferir configuración remota desde `.env`.
 - [ ] VITE_BACKEND_BASE_URL vacío/same-origin, o backend explícito validado con CORS; dominio principal comunicate-registros-v2.netlify.app y dominios Google autorizados comprobados.
 - [ ] Versiones Node build/runtime de Netlify comprobadas; empaquetado local usa Node 22. `.env` local no demuestra variables del hosting.
 - [ ] IDs del último deploy exitoso Netlify y ruleset anterior guardados; backups y credenciales de recuperación accesibles al operador.
@@ -34,7 +34,7 @@ npm run release:precheck
 
 ZIPs y manifest local: `.netlify/release-artifacts` (ignorado por Git). Frontend: `dist`. Vite no genera los ZIP de funciones; ambos artefactos se requieren. El precheck compara ZIP usuarios y hashes de fuentes/dependencias/configuración para rechazar evidencia obsoleta. No verifica credenciales por requests productivos autenticados: rate limiting podría escribir.
 
-Para que el gate manual pase, el operador registra `.netlify/release-gates.json` (ignorado; sin secretos) tras comprobaciones reales. No generar constancias falsas. Es una declaración del operador, no una autorización de deploy ni prueba automática de servicios externos. `checkedAt` debe ser ISO UTC de menos de 24 horas; `packageSha256` hash de package-lock.json y `rulesSha256` hash de firestore.rules. Cada propiedad `firestoreBackup`, `productionEnvironment`, `googleAuth`, `productionRollback` debe contener `{ "verified": true, "evidence": "<referencia privada al resultado real>" }`. Sin archivo, evidencia, vigencia o hashes coincidentes el precheck falla.
+Para que los gates manuales pasen, el operador registra `.netlify/release-gates.json` (ignorado; sin secretos) tras comprobaciones reales. No generar constancias falsas. Es una declaración del operador, no una autorización de deploy ni prueba automática de servicios externos. `checkedAt` debe ser ISO UTC de menos de 24 horas; `packageSha256` hash de package-lock.json y `rulesSha256` hash de firestore.rules. Cada propiedad `productionEnvironment`, `googleAuth`, `productionRollback` debe contener `{ "verified": true, "evidence": "<referencia privada al resultado real>" }`. Sin archivo, evidencia, vigencia o hashes coincidentes el resultado queda MANUAL REQUIRED/CONDITIONAL, salvo fallo técnico o manual confirmado. El backup completo se genera con `npm run release:backup` y se comprueba automáticamente por scope/conteos/hash/vigencia; la restauración sigue necesitando ensayo aislado.
 
 ## DEPLOY (solo tras autorización)
 

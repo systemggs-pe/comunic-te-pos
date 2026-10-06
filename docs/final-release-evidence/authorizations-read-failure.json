@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-10-06T07:28:38.047Z",
+  "readBack": "FAIL",
+  "code": 8,
+  "message": "RESOURCE_EXHAUSTED: Quota exceeded",
+  "productionWrites": 0,
+  "lastSuccessfulEvidence": "production-read.json"
+}

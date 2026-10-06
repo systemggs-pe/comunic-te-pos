@@ -1,0 +1,29 @@
+{
+  "verify": "PASS",
+  "tests": {
+    "pass": 212,
+    "fail": 0
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 6
+  },
+  "build": {
+    "status": "PASS",
+    "seconds": 16.49
+  },
+  "integration": {
+    "rules": 14,
+    "authorizationMigration": 7,
+    "fail": 0,
+    "environment": "isolated demo-comunicate emulators"
+  },
+  "productionAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  }
+}

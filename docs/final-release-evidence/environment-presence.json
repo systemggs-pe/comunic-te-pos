@@ -1,0 +1,116 @@
+{
+  "remoteStatus": "MANUAL VERIFICATION REQUIRED",
+  "reason": "No Netlify API credentials in environment or CLI config; no Netlify connector available",
+  "variables": [
+    {
+      "name": "FIREBASE_SERVICE_ACCOUNT",
+      "localConfigured": true,
+      "remoteConfigured": null
+    },
+    {
+      "name": "FIREBASE_PROJECT_ID",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "FIREBASE_CLIENT_EMAIL",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "FIREBASE_PRIVATE_KEY",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "VITE_BACKEND_BASE_URL",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "VITE_APP_VERSION",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "RENIEC_TOKEN",
+      "localConfigured": true,
+      "remoteConfigured": null
+    },
+    {
+      "name": "RENIEC_TIMEOUT_MS",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "CODART_TOKEN",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "CODART_TIMEOUT_MS",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "CODART_MAX_IMAGE_BYTES",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "GEMINI_API_KEY",
+      "localConfigured": true,
+      "remoteConfigured": null
+    },
+    {
+      "name": "GEMINI_MODEL",
+      "localConfigured": true,
+      "remoteConfigured": null
+    },
+    {
+      "name": "GEMINI_TIMEOUT_MS",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "APPLE_RECEIPTS_API_URL",
+      "localConfigured": true,
+      "remoteConfigured": null
+    },
+    {
+      "name": "APPLE_RECEIPTS_API_KEY",
+      "localConfigured": true,
+      "remoteConfigured": null
+    },
+    {
+      "name": "APPLE_RECEIPTS_TIMEOUT_MS",
+      "localConfigured": true,
+      "remoteConfigured": null
+    },
+    {
+      "name": "ALLOWED_ORIGINS",
+      "localConfigured": true,
+      "remoteConfigured": null
+    },
+    {
+      "name": "URL",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "DEPLOY_PRIME_URL",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "RATE_LIMIT_COLLECTION",
+      "localConfigured": false,
+      "remoteConfigured": null
+    },
+    {
+      "name": "FIREBASE_API_KEY",
+      "localConfigured": true,
+      "remoteConfigured": null
+    }
+  ]
+}

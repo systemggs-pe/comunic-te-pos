@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-10-06T07:14:13.340Z",
+  "rows": [
+    {
+      "user": "U-003",
+      "role": "superadmin",
+      "status": "active",
+      "enabled": true,
+      "verified": true
+    },
+    {
+      "user": "U-006",
+      "role": "admin",
+      "status": "active",
+      "enabled": true,
+      "verified": true
+    }
+  ],
+  "admins": 2,
+  "superadmins": 1,
+  "lockout": false,
+  "roleDocuments": 2,
+  "ruleset": "projects/comunicate-tacna/rulesets/6823ec22-3aec-4c10-a7c7-bc48678fe86c",
+  "rulesSha256": "4ea7dd18938b5762e5aac9629d3361ae1fbc92595c7edc8dbf3c18538c2e80e5",
+  "privateRulesCopy": ".netlify/rollback/firestore.rules",
+  "netlify": {
+    "status": "MANUAL VERIFICATION REQUIRED",
+    "deployId": null,
+    "commit": null,
+    "domain": "comunicate-registros-v2.netlify.app"
+  }
+}

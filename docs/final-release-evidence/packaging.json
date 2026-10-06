@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-10-06T07:13:20.131Z",
+  "packager": "@netlify/zip-it-and-ship-it@16.3.0",
+  "nodeVersion": "22",
+  "functions": [
+    "analizarCajaGemini",
+    "clientes",
+    "comprobanteApple",
+    "dniFotos",
+    "legalConsent",
+    "registros",
+    "reniec",
+    "solicitudesPublicas",
+    "usuarios",
+    "ventas",
+    "_appleReceiptsApi",
+    "_clientesShared",
+    "_comprobanteApple",
+    "_firebaseAdmin",
+    "_imeiLocks",
+    "_observability",
+    "_rateLimit",
+    "_registroCliente",
+    "_roles",
+    "_searchIndex",
+    "_shared",
+    "_validators"
+  ],
+  "usuariosSha256": "e2cb14238ad9d6ce4943b96f3b88a09584770fec9bff6336fe926ddff8dafa76",
+  "inputCount": 922,
+  "packageSha256": "71989734acc7ea8260616c0d27a03b2a5909727bdf39442701d408a190cca95f",
+  "published": false
+}

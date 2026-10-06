@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "timestamp": "2026-10-06T07:13:20.131Z",
+  "mismatches": [],
+  "detail": "ZIP y 922 inputs coinciden; generado 2026-10-06T07:13:20.131Z",
+  "handlerLoaded": true,
+  "unauthenticatedStatus": 401,
+  "contentType": "application/json; charset=utf-8",
+  "published": false
+}

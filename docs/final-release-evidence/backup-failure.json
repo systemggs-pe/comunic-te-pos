@@ -1,0 +1,9 @@
+{
+  "code": 8,
+  "name": "Error",
+  "message": "8 RESOURCE_EXHAUSTED: Quota exceeded",
+  "timestamp": "2026-10-06T07:26:04.736Z",
+  "completed": false,
+  "productionWrites": 0,
+  "partialExportCertified": false
+}

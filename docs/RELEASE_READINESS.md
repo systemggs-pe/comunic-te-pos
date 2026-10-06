@@ -1,5 +1,7 @@
 # Release readiness — BLOQUEADA
 
+**Informe histórico anterior a la migración.** El estado actualizado y la evidencia de esta fase están en [FINAL_RELEASE_PRECHECK_REPORT.md](FINAL_RELEASE_PRECHECK_REPORT.md). Los dos roles fueron creados en una fase posterior autorizada; no reutilizar los conteos de cero de este documento como estado actual. El cierre actual distingue fallos técnicos de verificaciones manuales pendientes.
+
 Auditoría de solo lectura, 2026-10-06 UTC, rama `chore/baseline-stabilization`, inicio `32301d6`. **READY TO DEPLOY: NO**.
 
 ## Bloqueo documentado antes de preparar un despliegue

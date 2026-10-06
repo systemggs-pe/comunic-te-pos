@@ -1,13 +1,17 @@
 import {readFileSync, existsSync} from 'node:fs';
-import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {loadEnvFile} from 'node:process';
 import {auditAuthorizations} from './release-authorization.mjs';
+import {inspectArtifact, inspectBackup, manualCheck, readiness, fileHash} from './release-readiness.mjs';
 
 // No production mutations. Child commands are only the repository's local tests/build.
 if (existsSync('.env')) loadEnvFile('.env');
 const checks = [];
-const check = (name, pass, reason = '') => {checks.push({name, pass, reason}); console.log(`${name}: ${pass ? 'PASS' : 'FAIL'}${reason ? ` — ${reason}` : ''}`);};
+const check = (name, pass, reason = '') => {
+  const status = typeof pass === 'string' ? pass : pass ? 'PASS' : 'FAIL';
+  checks.push({name, status, reason});
+  console.log(`${name}: ${status}${reason ? ` — ${reason}` : ''}`);
+};
 console.log('RELEASE PRECHECK');
 const credentialNames = process.env.FIREBASE_SERVICE_ACCOUNT ? ['FIREBASE_SERVICE_ACCOUNT']
   : ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
@@ -15,7 +19,7 @@ const required = [...credentialNames, 'RENIEC_TOKEN', 'GEMINI_API_KEY', 'ALLOWED
 const missing = required.filter(name => !process.env[name]);
 check('Variables locales', !missing.length, missing.length ? `Faltan: ${missing.join(', ')}` : 'Solo presencia; valores no mostrados');
 try {
-  const timer = setTimeout(() => {console.error('Firebase: TIMEOUT; READY FOR RELEASE: NO'); process.exit(1);}, 60000);
+  const timer = setTimeout(() => {console.error('Firebase: TIMEOUT; TECHNICAL CHECKS: FAIL; READY FOR DEPLOY: NO'); process.exit(1);}, 60000);
   let audit;
   try {audit = await auditAuthorizations();} finally {clearTimeout(timer);}
   check('Firebase', true, `Lectura de Auth y Firestore: ${audit.users} identidades, ${audit.roleDocuments} asignaciones`);
@@ -38,12 +42,10 @@ const routing = routes.every(name => {
 check('Netlify / rutas API', routing && config.includes('directory = "netlify/functions"') && config.includes('node_bundler = "esbuild"') && config.includes('publish = "dist"'));
 const rules = readFileSync('firestore.rules', 'utf8');
 check('Configuración de permisos', rules.includes("data.status == 'active'") && !rules.includes('request.auth.token.email in [') && !rules.includes("request.auth.token.email == '"), 'Comprobación estática complementada por test:rules');
-try {
-  const artifact = JSON.parse(readFileSync('.netlify/release-artifacts/manifest.json', 'utf8'));
-  const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex');
-  check('API usuarios / artefacto Netlify', artifact.functions.includes('usuarios') && artifact.inputs.every(file => hash(file.path) === file.sha256)
-    && hash('.netlify/release-artifacts/usuarios.zip') === artifact.usuariosSha256, 'ZIP local vigente; no publicado');
-} catch {check('API usuarios / artefacto Netlify', false, 'Ejecutar release:package con el empaquetador Netlify indicado en RELEASE_CHECKLIST');}
+const artifact = inspectArtifact();
+check('API usuarios / artefacto Netlify', artifact.status, artifact.detail);
+const backup = inspectBackup();
+check('Backup completo', backup.status, backup.detail);
 for (const name of ['test', 'build']) {
   const result = spawnSync(process.execPath, [process.env.npm_execpath, 'run', name], {stdio: 'ignore', timeout: 180000});
   check(name === 'test' ? 'Tests' : 'Build', !result.error && result.status === 0, 'Ejecutado en esta comprobación; detalles en npm run verify');
@@ -52,13 +54,12 @@ for (const name of ['test', 'build']) {
 // by this script. They do not authorize or perform a deploy.
 let gates = {};
 try {gates = JSON.parse(readFileSync('.netlify/release-gates.json', 'utf8'));} catch { /* Fail closed below. */ }
-const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex');
-const fresh = Date.now() - Date.parse(gates.checkedAt) >= 0 && Date.now() - Date.parse(gates.checkedAt) < 86400000;
-const matching = gates.packageSha256 === hash('package-lock.json') && gates.rulesSha256 === hash('firestore.rules');
-const operational = ['firestoreBackup', 'productionEnvironment', 'googleAuth', 'productionRollback'];
-check('Gates operativos de producción', fresh && matching && operational.every(name => gates[name]?.verified === true && Boolean(gates[name]?.evidence)),
-  'MANUAL TEST REQUIRED: constancias del operador (<24h), backup completo, variables Netlify, Google Auth y rollback; ver RELEASE_CHECKLIST');
-const ready = checks.every(item => item.pass);
-console.log(`READY FOR RELEASE: ${ready ? 'YES' : 'NO'}`);
-for (const item of checks.filter(item => !item.pass)) console.log(`RAZÓN: ${item.name} — ${item.reason || 'Comprobación fallida'}`);
-process.exitCode = ready ? 0 : 1;
+const hashes = {package: fileHash('package-lock.json'), rules: fileHash('firestore.rules')};
+for (const [name, title] of [['productionEnvironment', 'Netlify variables'], ['googleAuth', 'Google Auth'], ['productionRollback', 'Rollback productivo']]) {
+  const result = manualCheck(gates, name, hashes);
+  check(title, result.status, result.detail);
+}
+const result = readiness(checks);
+console.log(`TECHNICAL CHECKS: ${result.technical}\nMANUAL CHECKS: ${result.manual}\nREADY FOR DEPLOY: ${result.ready}`);
+for (const item of checks.filter(item => item.status !== 'PASS')) console.log(`${item.status === 'FAIL' ? 'RAZÓN' : 'PENDIENTE'}: ${item.name} — ${item.reason}`);
+process.exitCode = result.exitCode;

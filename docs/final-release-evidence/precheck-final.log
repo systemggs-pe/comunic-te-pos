@@ -1,0 +1,24 @@
+
+> comunicate@7.0.0 release:precheck
+> node scripts/release-precheck.mjs
+
+RELEASE PRECHECK
+Variables locales: PASS — Solo presencia; valores no mostrados
+Firebase: FAIL — Lectura no disponible; revisar configuración/IAM sin publicar credenciales
+Netlify / rutas API: PASS
+Configuración de permisos: PASS — Comprobación estática complementada por test:rules
+API usuarios / artefacto Netlify: PASS — ZIP y 922 inputs coinciden; generado 2026-10-06T07:13:20.131Z
+Backup completo: FAIL — Backup no completado: Firestore 8 RESOURCE_EXHAUSTED / Quota exceeded; revisar cuota antes de repetir
+Tests: PASS — Ejecutado en esta comprobación; detalles en npm run verify
+Build: PASS — Ejecutado en esta comprobación; detalles en npm run verify
+Netlify variables: MANUAL REQUIRED — Sin constancia vigente de productionEnvironment; ver FINAL_RELEASE_MANUAL_CHECKS.md
+Google Auth: MANUAL REQUIRED — Sin constancia vigente de googleAuth; ver FINAL_RELEASE_MANUAL_CHECKS.md
+Rollback productivo: MANUAL REQUIRED — Sin constancia vigente de productionRollback; ver FINAL_RELEASE_MANUAL_CHECKS.md
+TECHNICAL CHECKS: FAIL
+MANUAL CHECKS: PENDING
+READY FOR DEPLOY: NO
+RAZÓN: Firebase — Lectura no disponible; revisar configuración/IAM sin publicar credenciales
+RAZÓN: Backup completo — Backup no completado: Firestore 8 RESOURCE_EXHAUSTED / Quota exceeded; revisar cuota antes de repetir
+PENDIENTE: Netlify variables — Sin constancia vigente de productionEnvironment; ver FINAL_RELEASE_MANUAL_CHECKS.md
+PENDIENTE: Google Auth — Sin constancia vigente de googleAuth; ver FINAL_RELEASE_MANUAL_CHECKS.md
+PENDIENTE: Rollback productivo — Sin constancia vigente de productionRollback; ver FINAL_RELEASE_MANUAL_CHECKS.md
