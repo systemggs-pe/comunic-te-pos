@@ -1,0 +1,27 @@
+[
+  {
+    "collection": "clientes",
+    "read": "VERIFICADO",
+    "documentsReturned": 1
+  },
+  {
+    "collection": "equipos",
+    "read": "VERIFICADO",
+    "documentsReturned": 1
+  },
+  {
+    "collection": "registros",
+    "read": "VERIFICADO",
+    "documentsReturned": 1
+  },
+  {
+    "collection": "ventas",
+    "read": "VERIFICADO",
+    "documentsReturned": 1
+  },
+  {
+    "collection": "userRoles",
+    "read": "VERIFICADO",
+    "documentsReturned": 0
+  }
+]

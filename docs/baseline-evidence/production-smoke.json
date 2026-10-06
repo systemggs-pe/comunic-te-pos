@@ -1,0 +1,52 @@
+[
+  {
+    "frontend": "https://comunicate-tacna.web.app",
+    "status": "NO VERIFICADO",
+    "error": "TimeoutError"
+  },
+  {
+    "url": "https://comunicate-tacna.web.app/",
+    "method": "GET",
+    "origin": "",
+    "status": 200,
+    "contentType": "text/html; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": false
+  },
+  {
+    "url": "https://comunicate-tacna.web.app/api/usuarios",
+    "method": "POST",
+    "origin": "",
+    "status": 200,
+    "contentType": "text/html; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": false
+  },
+  {
+    "url": "https://comunicate-tacna.web.app/api/registros",
+    "method": "OPTIONS",
+    "origin": "https://comunicate-tacna.web.app",
+    "status": 200,
+    "contentType": "text/html; charset=UTF-8",
+    "allowOrigin": null,
+    "requestIdPresent": false
+  },
+  {
+    "url": "https://comunicate-tacna.web.app/api/registros",
+    "method": "OPTIONS",
+    "origin": "https://baseline-invalid.example",
+    "status": 200,
+    "contentType": "text/html; charset=UTF-8",
+    "allowOrigin": null,
+    "requestIdPresent": false
+  },
+  {
+    "url": "https://comunicate-tacna.web.app/api/health",
+    "method": "GET",
+    "origin": "",
+    "status": 200,
+    "contentType": "text/html; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": false
+  }
+]

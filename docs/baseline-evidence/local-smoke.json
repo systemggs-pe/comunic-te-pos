@@ -1,0 +1,128 @@
+[
+  {
+    "url": "http://127.0.0.1:43102/",
+    "method": "GET",
+    "origin": "",
+    "status": 200,
+    "contentType": "text/html",
+    "allowOrigin": null,
+    "requestIdPresent": false
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/analizarCajaGemini",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/clientes",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/comprobanteApple",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/dniFotos",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/legalConsent",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/registros",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/reniec",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/usuarios",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/solicitudesPublicas",
+    "method": "POST",
+    "origin": "",
+    "status": 400,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/ventas",
+    "method": "POST",
+    "origin": "",
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/registros",
+    "method": "OPTIONS",
+    "origin": "http://localhost:5173",
+    "status": 204,
+    "contentType": "",
+    "allowOrigin": "http://localhost:5173",
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/registros",
+    "method": "OPTIONS",
+    "origin": "https://baseline-invalid.example",
+    "status": 204,
+    "contentType": "",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  },
+  {
+    "url": "http://127.0.0.1:43101/api/health",
+    "method": "GET",
+    "origin": "",
+    "status": 404,
+    "contentType": "application/json; charset=utf-8",
+    "allowOrigin": null,
+    "requestIdPresent": true
+  }
+]
