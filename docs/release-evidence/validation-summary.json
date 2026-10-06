@@ -1,0 +1,35 @@
+{
+  "verify": {
+    "exit": 0,
+    "tests": 184,
+    "passed": 184,
+    "lintErrors": 0,
+    "lintWarnings": 6,
+    "build": true
+  },
+  "integration": {
+    "exit": 0,
+    "tests": 14,
+    "passed": 14
+  },
+  "auditProduction": {
+    "exit": 0,
+    "vulnerabilities": 0
+  },
+  "auditFull": {
+    "exit": 1,
+    "high": 5,
+    "moderate": 2,
+    "total": 7
+  },
+  "precheck": {
+    "expectedExit": 1,
+    "ready": false
+  },
+  "privacy": "Emails redacted from logs; authorization report pseudonymized; no credential values",
+  "mutations": {
+    "production": false,
+    "push": false,
+    "deploy": false
+  }
+}

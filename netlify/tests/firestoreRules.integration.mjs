@@ -107,6 +107,22 @@ test('disabling a role revokes access even with the same authenticated context',
   await assertFails(getDoc(doc(db, `${path}/clientes/fixture`)));
 });
 
+test('role recovery permits the existing authenticated context again', async () => {
+  const email = 'recovery@example.com';
+  await seed(email, 'admin', 'disabled');
+  const db = userDb(email);
+  await assertFails(getDoc(doc(db, `${path}/clientes/fixture`)));
+  await seed(email, 'admin', 'active');
+  await assertSucceeds(getDoc(doc(db, `${path}/clientes/fixture`)));
+});
+
+test('backend-normalized email and noncanonical role values do not bypass exact rules', async () => {
+  await seed('operator@example.com', 'admin', 'active');
+  await assertFails(getDoc(doc(userDb('Operator@example.com'), `${path}/clientes/fixture`)));
+  await seed('operator@example.com', 'ADMIN', 'active');
+  await assertFails(getDoc(doc(userDb('operator@example.com'), `${path}/clientes/fixture`)));
+});
+
 test('backup reads every operational collection through real paginated Firestore queries', async () => {
   const email = 'backup@example.com';
   await seed(email, 'admin', 'active');

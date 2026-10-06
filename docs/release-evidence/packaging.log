@@ -1,0 +1,32 @@
+
+> comunicate@7.0.0 release:package
+> node scripts/release-package.mjs C:\Users\COMUNI~1\AppData\Local\Temp/comunicate-release-packager-16.3.0/node_modules/@netlify/zip-it-and-ship-it/dist/main.js
+
+{
+  "functions": [
+    "analizarCajaGemini",
+    "clientes",
+    "comprobanteApple",
+    "dniFotos",
+    "legalConsent",
+    "registros",
+    "reniec",
+    "solicitudesPublicas",
+    "usuarios",
+    "ventas",
+    "_appleReceiptsApi",
+    "_clientesShared",
+    "_comprobanteApple",
+    "_firebaseAdmin",
+    "_imeiLocks",
+    "_observability",
+    "_rateLimit",
+    "_registroCliente",
+    "_roles",
+    "_searchIndex",
+    "_shared",
+    "_validators"
+  ],
+  "usuariosSha256": "e2cb14238ad9d6ce4943b96f3b88a09584770fec9bff6336fe926ddff8dafa76",
+  "inputCount": 922
+}

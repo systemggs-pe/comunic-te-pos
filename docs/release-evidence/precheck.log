@@ -1,0 +1,24 @@
+
+> comunicate@7.0.0 release:precheck
+> node scripts/release-precheck.mjs
+
+RELEASE PRECHECK
+Variables locales: PASS — Solo presencia; valores no mostrados
+Firebase: PASS — Lectura de Auth y Firestore: 7 identidades, 0 asignaciones
+Usuarios activos: PASS — 5 habilitados y verificados
+Roles activos: FAIL — 0 asignaciones reconocidas activas
+Administrador válido: FAIL — 0 con acceso simultáneo a API y Rules
+Superadministrador de recuperación: FAIL — 0; requerido para gestionar /api/usuarios
+Conservación de acceso: FAIL — 2 identidades perderían acceso directo
+Netlify / rutas API: PASS
+Configuración de permisos: PASS — Comprobación estática complementada por test:rules
+API usuarios / artefacto Netlify: PASS — ZIP local vigente; no publicado
+Tests: PASS — Ejecutado en esta comprobación; detalles en npm run verify
+Build: PASS — Ejecutado en esta comprobación; detalles en npm run verify
+Gates operativos de producción: FAIL — MANUAL TEST REQUIRED: constancias del operador (<24h), backup completo, variables Netlify, Google Auth y rollback; ver RELEASE_CHECKLIST
+READY FOR RELEASE: NO
+RAZÓN: Roles activos — 0 asignaciones reconocidas activas
+RAZÓN: Administrador válido — 0 con acceso simultáneo a API y Rules
+RAZÓN: Superadministrador de recuperación — 0; requerido para gestionar /api/usuarios
+RAZÓN: Conservación de acceso — 2 identidades perderían acceso directo
+RAZÓN: Gates operativos de producción — MANUAL TEST REQUIRED: constancias del operador (<24h), backup completo, variables Netlify, Google Auth y rollback; ver RELEASE_CHECKLIST

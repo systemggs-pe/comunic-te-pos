@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-10-06T05:44:50.407Z",
+  "project": "comunicate-tacna",
+  "users": 7,
+  "roleDocuments": 0,
+  "activeUsers": 5,
+  "activeRoles": 0,
+  "admins": 0,
+  "superadmins": 0,
+  "orphanAssignments": 0,
+  "rows": [
+    {
+      "user": "U-001",
+      "role": "SIN ROL VÁLIDO",
+      "userActive": true,
+      "verified": false,
+      "roleActive": false,
+      "access": false,
+      "admin": false,
+      "superadmin": false,
+      "reason": "Identidad desactivada, sin email o no verificada",
+      "classification": "REQUIERE CORRECCIÓN",
+      "currentRulesAccess": false
+    },
+    {
+      "user": "U-002",
+      "role": "SIN ROL VÁLIDO",
+      "userActive": true,
+      "verified": false,
+      "roleActive": false,
+      "access": false,
+      "admin": false,
+      "superadmin": false,
+      "reason": "Identidad desactivada, sin email o no verificada",
+      "classification": "REQUIERE CORRECCIÓN",
+      "currentRulesAccess": false
+    },
+    {
+      "user": "U-003",
+      "role": "SIN ROL VÁLIDO",
+      "userActive": true,
+      "verified": true,
+      "roleActive": false,
+      "access": false,
+      "admin": false,
+      "superadmin": false,
+      "reason": "Falta documento userRoles",
+      "classification": "RIESGO DE LOCKOUT",
+      "currentRulesAccess": true
+    },
+    {
+      "user": "U-004",
+      "role": "SIN ROL VÁLIDO",
+      "userActive": true,
+      "verified": true,
+      "roleActive": false,
+      "access": false,
+      "admin": false,
+      "superadmin": false,
+      "reason": "Falta documento userRoles",
+      "classification": "REQUIERE CORRECCIÓN",
+      "currentRulesAccess": false
+    },
+    {
+      "user": "U-005",
+      "role": "SIN ROL VÁLIDO",
+      "userActive": true,
+      "verified": true,
+      "roleActive": false,
+      "access": false,
+      "admin": false,
+      "superadmin": false,
+      "reason": "Falta documento userRoles",
+      "classification": "REQUIERE CORRECCIÓN",
+      "currentRulesAccess": false
+    },
+    {
+      "user": "U-006",
+      "role": "SIN ROL VÁLIDO",
+      "userActive": true,
+      "verified": true,
+      "roleActive": false,
+      "access": false,
+      "admin": false,
+      "superadmin": false,
+      "reason": "Falta documento userRoles",
+      "classification": "RIESGO DE LOCKOUT",
+      "currentRulesAccess": true
+    },
+    {
+      "user": "U-007",
+      "role": "SIN ROL VÁLIDO",
+      "userActive": true,
+      "verified": true,
+      "roleActive": false,
+      "access": false,
+      "admin": false,
+      "superadmin": false,
+      "reason": "Falta documento userRoles",
+      "classification": "REQUIERE CORRECCIÓN",
+      "currentRulesAccess": false
+    }
+  ],
+  "deployedRules": {
+    "status": "VERIFICADO",
+    "ruleset": "projects/comunicate-tacna/rulesets/6823ec22-3aec-4c10-a7c7-bc48678fe86c",
+    "matchesBaseline": false,
+    "sha256": "4ea7dd18938b5762e5aac9629d3361ae1fbc92595c7edc8dbf3c18538c2e80e5",
+    "matchesLocal": false,
+    "knownLegacyAllowlist": true
+  },
+  "currentAccessComparison": "SIMULACIÓN ESTÁTICA de Rules desplegadas; sin sesiones productivas"
+}

@@ -1,0 +1,86 @@
+
+> comunicate@7.0.0 lint
+> eslint .
+
+
+C:\Users\COMUNICATE\Documents\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\comunicate\src\features\registros\RegistroForm.jsx
+  105:7   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  103 |         ? ''
+  104 |         : (initialData.tipo || 'TIENDA');
+> 105 |       setContactosClienteReg({celulares, correos});
+      |       ^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  106 |       setFormData({
+  107 |         tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: initialData.nombreCliente || cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', celular2: '', celularRef: initialData.celularRef || cliente.celularRef || initialData.celularCliente || cliente.celular || '', correo: initialData.correoCliente || correos[0] || '', direccion: direccionCliente.direccion, departamento: departamentoCliente, imei1: imeiPrincipal, imei: imeiRegistrado, imei2: imeiSecundario, sn: initialData.sn || eq.sn || '', ...seleccionMarca, modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', color: initialData.colorEquipo || eq.color || '', memoria: initialData.memoriaEquipo || eq.memoria || '', ram: initialData.ramEquipo || eq.ram || '', registrarAmbosImeis: false, estado: initialData.estado || 'NO BLOQUEADO', estadoSolicitud: initialData.estado === 'BLOQUEADO' ? '' : (initialData.estadoSolicitud || 'PENDIENTE'), operador: initialData.operador || 'BITEL', tipo: tipoRegistro, tieneCaja: normalizarTieneCaja(initialData.tieneCaja) || 'NO', precio: initialData.precio || '0', fecha: toLocalDatetimeValue(initialData.fecha)
+  108 |       });  react-hooks/set-state-in-effect
+  191:15  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  189 |     if (formData.imei1.length === 15 && !initialData) {
+  190 |       const eq = equiposCliente.find(e => e.idEquipo === formData.imei1 || e.imei2 === formData.imei1);
+> 191 |       if (eq) setFormData(prev => {
+      |               ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  192 |         const marca = prev.marca || normalizarMarcaRegistro(eq.marca);
+  193 |         return {
+  194 |           ...prev, imei1: eq.idEquipo, imei: prev.imei || formData.imei1,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/set-state-in-effect
+
+C:\Users\COMUNICATE\Documents\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\comunicate\src\features\ventas\VentaForm.jsx
+   55:7   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  53 |       const celulares = opcionesCelulares(cliente);
+  54 |       const correos = opcionesContacto(cliente, 'correo', 'correos');
+> 55 |       setContactosClienteV({celulares, correos});
+     |       ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |       setFormData({ tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', correo: correos[0] || '', imei1: initialData.imeiEquipo || '', imei2: initialData.imei2Equipo || '', sn: initialData.sn || '', nombreComercial: initialData.nombreComercial || '', ram: initialData.ram || '', memoria: initialData.memoria || '', marca: initialData.marcaEquipo || '', modelo: initialData.modeloEquipo || '', color: initialData.color || '', precio: initialData.precioEquipo || initialData.precio || '', medioPago: initialData.medioPago || 'EFECTIVO', origenEquipo: initialData.origenEquipo || 'TIENDA', proveedorPase: initialData.proveedorPase || '', fecha: toLocalDatetimeValue(initialData.fecha) });
+  57 |       setItemsAdicionales(Array.isArray(initialData.itemsAdicionales)
+  58 |         ? initialData.itemsAdicionales.map(item => ({...createAccessoryItem(), ...item}))  react-hooks/set-state-in-effect
+  127:9   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  125 |         const celulares = opcionesCelulares(c);
+  126 |         const correos = opcionesContacto(c, 'correo', 'correos');
+> 127 |         setContactosClienteV({celulares, correos});
+      |         ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  128 |         setDniStatusV({type: 'db', text: 'Cliente COMUNIC@TE'});
+  129 |         setFormData(prev => ({
+  130 |           ...prev,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        react-hooks/set-state-in-effect
+  144:6   warning  React Hook useEffect has a missing dependency: 'buscarReniecV'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+  149:14  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  147 |     if (formData.imei1.length >= 14 && !initialData) {
+  148 |       const e = equipos.find(e => e.idEquipo === formData.imei1);
+> 149 |       if (e) setFormData(prev => ({
+      |              ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  150 |         ...prev,
+  151 |         imei2:           prev.imei2           || e.imei2 || '',
+  152 |         marca:           prev.marca           || e.marca || '',                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-hooks/set-state-in-effect
+
+✖ 6 problems (0 errors, 6 warnings)

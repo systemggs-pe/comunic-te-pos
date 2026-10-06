@@ -1,0 +1,7 @@
+{
+  "artifact": "usuarios.zip",
+  "handler": "function",
+  "status": 401,
+  "json": true,
+  "productionWrites": false
+}
