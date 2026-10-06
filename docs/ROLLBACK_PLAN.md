@@ -4,6 +4,8 @@
 
 Git: aabd2bd existe; bundle `C:\Users\COMUNICATE\.codex\backups\comunicate\baseline-2026-10-05-b2088dd.bundle` verificado en baseline y preserva el trabajo previo (b2088dd). El historial local conserva estabilización y readiness. **Rollback de código disponible: YES**.
 
+Se creó además `C:\Users\COMUNICATE\.codex\backups\comunicate\release-readiness-2026-10-06.bundle` con historia completa y se ejecutó `git bundle verify`: PASS. Este bundle sí conserva aabd2bd, estabilización y readiness. Puede clonarse en una carpeta nueva y seleccionar aabd2bd en detached HEAD para recuperación offline, sin modificar la rama actual.
+
 Producción: no se identificó el ID del último deploy exitoso de Netlify ni se comprobó backup administrativo completo de Firestore. aabd2bd no se ha identificado como el commit desplegado. Rules productivas leídas: `projects/comunicate-tacna/rulesets/6823ec22-3aec-4c10-a7c7-bc48678fe86c`, hash en evidencia de autorización; distintas de aabd2bd y del código actual. **Rollback productivo completo verificado: NO** hasta confirmar esos recursos.
 
 ## Git: recuperación exacta de fuente
