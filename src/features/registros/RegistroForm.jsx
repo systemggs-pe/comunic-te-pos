@@ -474,6 +474,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           }, evidenciasParaPdf, opcionesPdf);
         }
         showToast('Actualizado exitosamente');
+        await (onSave || onCancel)?.(saved);
       } else {
         const saved = registroSamsungDual
           ? await crearRegistroSamsungDual({
@@ -498,8 +499,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
           }, evidenciasParaPdf, opcionesPdf);
         }
         showToast(registroSamsungDual ? 'Se crearon las dos solicitudes Samsung' : 'Guardado exitosamente');
+        await (onSave || onCancel)?.(saved);
       }
-      (onSave || onCancel)();
     } catch (error) {
       console.error(error);
       showToast(obtenerMensajeErrorFuncion(error, 'Error al guardar'), 'error');

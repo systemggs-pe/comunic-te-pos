@@ -6,7 +6,8 @@ import {
   logRequestSuccess,
 } from './_observability.mjs';
 import {enforceMemoryRateLimit, enforcePersistentRateLimit} from './_rateLimit.mjs';
-import {getAdminAuth} from './_firebaseAdmin.mjs';
+import {getAdminAuth, getAdminDb} from './_firebaseAdmin.mjs';
+import {resolveUserAccess} from './_roles.mjs';
 
 export const DEFAULT_MAX_BODY_BYTES = 256 * 1024;
 export const DEFAULT_EXTERNAL_TIMEOUT_MS = 10 * 1000;
@@ -22,26 +23,6 @@ const allowedOrigins = [
   process.env.DEPLOY_PRIME_URL,
   ...(process.env.ALLOWED_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean),
 ].filter(Boolean);
-const DEFAULT_ALLOWED_EMAILS = [
-  'brand050103@gmail.com',
-  'lauryruyz50@gmail.com',
-];
-
-function getAllowedEmails() {
-  const configured = (process.env.ALLOWED_EMAILS || '')
-    .split(',')
-    .map(email => email.trim().toLowerCase())
-    .filter(Boolean);
-  return new Set(configured.length ? configured : DEFAULT_ALLOWED_EMAILS);
-}
-
-function requireAllowedUser(user) {
-  const email = String(user.email || '').trim().toLowerCase();
-  if (!email || !user.emailVerified || !getAllowedEmails().has(email)) {
-    throw Object.assign(new Error('No autorizado'), {status: 403});
-  }
-}
-
 export function corsHeaders(event) {
   const origin = event.headers?.origin || event.headers?.Origin || '';
   const headers = {
@@ -118,8 +99,7 @@ export async function requireFirebaseUser(event) {
       email: decoded.email || '',
       emailVerified: Boolean(decoded.email_verified),
     };
-    requireAllowedUser(user);
-    return user;
+    return await resolveUserAccess(getAdminDb(), user);
   } catch (error) {
     if (error?.status === 403 || error?.status === 500) throw error;
     throw Object.assign(new Error('Sesion invalida'), {status: 401});

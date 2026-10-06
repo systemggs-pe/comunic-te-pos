@@ -5,6 +5,7 @@ import {normalizeImeiList, releaseImeiLocks, syncImeiLocks} from './_imeiLocks.m
 import {queueAuditEvent} from './_observability.mjs';
 import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex.mjs';
 import {parseIdPayload, parseVentaPayload} from './_validators.mjs';
+import {assertRole} from './_roles.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
@@ -281,7 +282,10 @@ async function dispatchVentas(body, user, context) {
   const action = String(body?.action || '');
   if (action === 'create') return createVenta(db, body, context);
   if (action === 'update') return updateVenta(db, body, context);
-  if (action === 'delete') return deleteVenta(db, body, context);
+  if (action === 'delete') {
+    assertRole(user, 'admin');
+    return deleteVenta(db, body, context);
+  }
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 

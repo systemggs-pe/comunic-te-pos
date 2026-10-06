@@ -242,6 +242,11 @@ export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor'
   if (error?.message === 'API_LOCAL_NO_DISPONIBLE') return 'La API local no esta disponible. Ejecuta npm run dev';
   if (VALIDATION_MESSAGES[error?.message]) return VALIDATION_MESSAGES[error.message];
   if (error?.message === 'BACKEND_ERROR') return fallback;
+  if (error?.message === 'PERMISO_INSUFICIENTE') return 'Tu usuario no tiene permisos para esta accion';
+  if (error?.message === 'USUARIO_DESHABILITADO') return 'Tu usuario esta deshabilitado';
+  if (error?.message === 'ROL_INVALIDO') return 'El rol elegido no es valido';
+  if (error?.message === 'NO_EDITAR_PROPIO_ROL') return 'No puedes cambiar tu propio rol';
+  if (error?.message === 'NO_ELIMINAR_PROPIO_ROL') return 'No puedes eliminar tu propio acceso';
   if (error?.message === 'BACKEND_INVALID_RESPONSE') return 'Respuesta invalida de Netlify Functions';
   if (error?.message === 'BACKEND_NOT_DEPLOYED') return 'Funciones Netlify no desplegadas';
   if (error?.message === 'CUERPO_MUY_GRANDE') return 'La solicitud supera el limite permitido';
@@ -398,6 +403,10 @@ export function terminarSolicitudPublica(payload) {
   return runClientMutation('solicitudesPublicas', {action: 'complete', ...payload});
 }
 
+export function marcarSolicitudPublicaRegistroTerminado(payload) {
+  return runClientMutation('solicitudesPublicas', {action: 'completeExisting', ...payload});
+}
+
 export function eliminarSolicitudPublica(id) {
   return runClientMutation('solicitudesPublicas', {action: 'delete', id: String(id)});
 }
@@ -482,4 +491,20 @@ export function consultarHistorialOperativo(payload = {}) {
 
 export function registrarConsentimientoLegal(payload) {
   return llamarFuncionSegura('legalConsent', payload);
+}
+
+export function obtenerSesionUsuario() {
+  return llamarFuncionSegura('usuarios', {action: 'me'});
+}
+
+export function listarUsuariosSistema() {
+  return llamarFuncionSegura('usuarios', {action: 'list'});
+}
+
+export function guardarUsuarioSistema(payload) {
+  return llamarFuncionSegura('usuarios', {action: 'save', ...payload});
+}
+
+export function eliminarUsuarioSistema(email) {
+  return llamarFuncionSegura('usuarios', {action: 'delete', email: String(email)});
 }

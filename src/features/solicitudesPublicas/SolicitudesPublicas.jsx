@@ -8,8 +8,8 @@ import {
   eliminarSolicitudPublica,
   listarSolicitudesPublicas,
   obtenerMensajeErrorFuncion,
-  terminarSolicitudPublica,
 } from '../../services/functionsClient.js';
+import {publicSolicitudToRegistroDraft} from './publicSolicitudRegistroDraft.js';
 
 const INITIAL_OPERACION = {
   tramite: 'REGISTRO',
@@ -42,12 +42,11 @@ function Detail({label, value}) {
   );
 }
 
-export function SolicitudesPublicas({showToast, onCompleted}) {
+export function SolicitudesPublicas({showToast, onReviewRegistro}) {
   const [dni, setDni] = useState('');
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [completingId, setCompletingId] = useState('');
   const [deletingId, setDeletingId] = useState('');
   const [operaciones, setOperaciones] = useState({});
 
@@ -111,17 +110,7 @@ export function SolicitudesPublicas({showToast, onCompleted}) {
 
   const completar = async solicitud => {
     const operacion = operacionFor(solicitud);
-    setCompletingId(solicitud.id);
-    try {
-      const data = await terminarSolicitudPublica({id: solicitud.id, operacion});
-      showToast(`Registro terminado: ${data.registro?.nRegistro || 'creado'}`, 'success');
-      onCompleted?.();
-      await load();
-    } catch (error) {
-      showToast(obtenerMensajeErrorFuncion(error, 'No se pudo terminar el registro'), 'error');
-    } finally {
-      setCompletingId('');
-    }
+    onReviewRegistro?.(publicSolicitudToRegistroDraft(solicitud, operacion));
   };
 
   const copyLink = async url => {
@@ -261,8 +250,8 @@ export function SolicitudesPublicas({showToast, onCompleted}) {
                     <span>Precio registro</span>
                     <input value={operacion.precio} onChange={event => updateOperacion(solicitud.id, 'precio', event.target.value)} inputMode="decimal" />
                   </label>
-                  <Button onClick={() => completar(solicitud)} loading={completingId === solicitud.id} loadingLabel="Terminando...">
-                    <FileCheck2 size={16} /> TERMINAR registro
+                  <Button onClick={() => completar(solicitud)}>
+                    <FileCheck2 size={16} /> Revisar y adjuntar evidencias
                   </Button>
                 </div>
               )}

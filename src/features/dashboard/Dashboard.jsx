@@ -2,12 +2,14 @@ import React from 'react';
 import {AlertTriangle, ArrowRight, ClipboardList, ImagePlus, Plus, Settings, ShoppingCart, Users} from 'lucide-react';
 import {Button} from '../../components/ui/Button.jsx';
 import {PageHeader} from '../../components/ui/PageHeader.jsx';
+import {puedeUsuario, ROLES_USUARIO} from '../../config/auth.js';
 
 export function Dashboard({stats, setCurrentView, user}) {
   const nombre = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuario';
   const hora = new Date().getHours();
   const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
   const fecha = new Intl.DateTimeFormat('es-PE', {weekday: 'long', day: '2-digit', month: 'long'}).format(new Date());
+  const isAdmin = puedeUsuario(user, ROLES_USUARIO.ADMIN);
 
   const kpis = [
     {label: 'Registros', value: stats.registros, detail: 'Equipos en seguimiento', Icon: ClipboardList, view: 'registros_list'},
@@ -18,7 +20,7 @@ export function Dashboard({stats, setCurrentView, user}) {
     {title: 'Registros de equipos', detail: 'IMEI, operador, estado y constancias', Icon: ClipboardList, view: 'registros_list'},
     {title: 'Ventas de tienda', detail: 'Equipos vendidos, comprobantes e historial', Icon: ShoppingCart, view: 'ventas_list'},
     {title: 'Clientes', detail: 'Documentos, contacto e historial asociado', Icon: Users, view: 'clientes_list'},
-    {title: 'Foto DNI', detail: 'Captura y gestión de fotografías documentarias', Icon: ImagePlus, view: 'foto_dni'},
+    ...(isAdmin ? [{title: 'Foto DNI', detail: 'Captura y gestión de fotografías documentarias', Icon: ImagePlus, view: 'foto_dni'}] : []),
   ];
 
   return (
@@ -66,7 +68,7 @@ export function Dashboard({stats, setCurrentView, user}) {
       </section>
       <section className="dashboard-mobile-settings" aria-label="Herramientas del sistema">
         <button type="button" onClick={() => setCurrentView('problemas_app')}><AlertTriangle size={18} /><span>Problemas</span><ArrowRight size={16} /></button>
-        <button type="button" onClick={() => setCurrentView('configuracion')}><Settings size={18} /><span>Configuración</span><ArrowRight size={16} /></button>
+        {isAdmin && <button type="button" onClick={() => setCurrentView('configuracion')}><Settings size={18} /><span>Configuración</span><ArrowRight size={16} /></button>}
       </section>
     </div>
   );

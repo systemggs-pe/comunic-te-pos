@@ -4,6 +4,7 @@ import {withContactHistory} from './_clientesShared.mjs';
 import {queueAuditEvent} from './_observability.mjs';
 import {parseClienteUpdatePayload, parseDniPayload} from './_validators.mjs';
 import {buscarClienteParaRegistro} from './_registroCliente.mjs';
+import {assertRole} from './_roles.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
@@ -618,7 +619,10 @@ async function dispatchClientes(body, user, context) {
   if (action === 'queryOperational') return queryOperationalClientes(db, body);
   if (action === 'queryHistory') return queryHistory(db, body);
   if (action === 'update') return updateCliente(db, body, context);
-  if (action === 'delete') return deleteCliente(db, body, context);
+  if (action === 'delete') {
+    assertRole(user, 'admin');
+    return deleteCliente(db, body, context);
+  }
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 

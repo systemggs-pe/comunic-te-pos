@@ -7,6 +7,7 @@ import {
   sanitizePublicSolicitudField,
   validatePublicSolicitudForm,
 } from '../../src/features/solicitudesPublicas/publicSolicitudModel.js';
+import {publicSolicitudToRegistroDraft} from '../../src/features/solicitudesPublicas/publicSolicitudRegistroDraft.js';
 
 const validToken = 'abcdefghijklmnopqrstuvwxyzABCDEF1234567890';
 const validImei1 = '490154203237518';
@@ -73,6 +74,14 @@ class FakeDocRef {
 
   async get() {
     return new FakeDocSnapshot(this, this.db.store.get(this.path));
+  }
+
+  async set(value, options = {}) {
+    if (options?.merge) {
+      this.db.store.set(this.path, {...(this.db.store.get(this.path) || {}), ...value});
+    } else {
+      this.db.store.set(this.path, value);
+    }
   }
 }
 
@@ -381,6 +390,125 @@ test('solicitud publica model sanitizes and validates client form', () => {
   assert.match(validatePublicSolicitudForm({...form, imeiRegistrado: ''}), /Elige/);
   assert.match(validatePublicSolicitudForm({...form, imeiRegistradoBloqueado: true}), /ya esta registrado/);
   assert.equal(validatePublicSolicitudForm({...form, imei2: '', imeiRegistrado: validImei1, modelo: ''}), null);
+});
+
+test('solicitudes publicas pulls client name from RENIEC when creating a link', async () => {
+  const db = new FakeDb();
+  let reniecCalls = 0;
+
+  const result = await __test.createLink(db, {dni: '12345678'}, {
+    uid: 'operator-1',
+    email: 'operator@example.test',
+  }, {ipAddress: '127.0.0.1'}, {
+    headers: {origin: 'https://app.example.test'},
+  }, {
+    consultarReniecDniSeguro: async dni => {
+      reniecCalls += 1;
+      assert.equal(dni, '12345678');
+      return {success: true, result: {full_name: 'PEREZ LOPEZ ANA MARIA'}};
+    },
+  });
+
+  assert.equal(result.nombreCliente, 'PEREZ LOPEZ ANA MARIA');
+  assert.equal(reniecCalls, 1);
+  const stored = [...db.store.entries()].find(([path]) => path.includes('/solicitudesPublicas/'))?.[1];
+  assert.equal(stored.nombreCliente, 'PEREZ LOPEZ ANA MARIA');
+  assert.equal(stored.nombreClienteSource, 'reniec');
+});
+
+test('solicitudes publicas completes old empty links from RENIEC on load and throttles failures', async () => {
+  const tokenId = __test.tokenHash(validToken);
+  const solicitudPath = `${basePath}/solicitudesPublicas/${tokenId}`;
+  const db = new FakeDb({
+    [solicitudPath]: {
+      dni: '12345678',
+      nombreCliente: '',
+      status: 'CREADA',
+      publicUrl: 'https://example.test/solicitud',
+      createdAtIso: '2026-01-01T00:00:00.000Z',
+    },
+  });
+  let reniecCalls = 0;
+
+  const loaded = await __test.loadPublic(db, {token: validToken}, {
+    consultarReniecDniSeguro: async () => {
+      reniecCalls += 1;
+      return {success: true, result: {full_name: 'GARCIA ROJAS LUIS'}};
+    },
+  });
+
+  assert.equal(loaded.nombres, 'GARCIA ROJAS LUIS');
+  assert.equal(reniecCalls, 1);
+  assert.equal(db.store.get(solicitudPath).nombreClienteSource, 'reniec');
+
+  const failingToken = 'ZYXWVUTSRQPONMLKJIHGFEDCBA9876543210abcd';
+  db.store.set(`${basePath}/solicitudesPublicas/${__test.tokenHash(failingToken)}`, {
+    dni: '87654321',
+    nombreCliente: '',
+    status: 'CREADA',
+    reniecLookup: {lastAttemptAt: new Date().toISOString(), status: 'ERROR', error: 'RENIEC_UPSTREAM_ERROR'},
+  });
+  await __test.loadPublic(db, {token: failingToken}, {
+    consultarReniecDniSeguro: async () => {
+      throw new Error('SHOULD_NOT_RETRY_IMMEDIATELY');
+    },
+  });
+});
+
+test('solicitud publica builds a registro draft with direccion and provincia separated', () => {
+  const draft = publicSolicitudToRegistroDraft({
+    id: 'public-id-1',
+    dni: '12345678',
+    nombreCliente: 'CLIENTE PRUEBA',
+    submission: {
+      ...validSubmission.data,
+      dni: '12345678',
+      nombres: 'CLIENTE PRUEBA',
+      direccion: 'AV SIEMPRE VIVA 123',
+      provincia: 'TACNA',
+      imei1: validImei1,
+      imei2: validImei2,
+      imeiRegistrado: validImei2,
+      nombreEquipo: 'IPHONE 15 PRO',
+      marca: 'APPLE',
+    },
+  }, {
+    tramite: 'REGISTRO',
+    tipo: 'TIENDA',
+    operador: 'BITEL',
+    precio: '0',
+    imeiRegistrado: validImei2,
+  });
+
+  assert.equal(draft.solicitudPublicaId, 'public-id-1');
+  assert.equal(draft.direccionCliente, 'AV SIEMPRE VIVA 123');
+  assert.equal(draft.departamentoCliente, 'TACNA');
+  assert.equal(draft.imeiRegistrado, validImei2);
+  assert.equal(draft.estado, 'NO BLOQUEADO');
+});
+
+test('solicitudes publicas validates completion with an existing registro payload', () => {
+  const parsed = __test.parseCompleteExistingPayload({
+    id: 'public-id-1',
+    registroId: 'registro-id-1',
+    nRegistro: 'RECO-00010',
+    operacion: {
+      tramite: 'REGISTRO',
+      tipo: 'TIENDA',
+      operador: 'BITEL',
+      precio: '0',
+      imeiRegistrado: validImei1,
+    },
+  });
+  assert.equal(parsed.id, 'public-id-1');
+  assert.equal(parsed.registroId, 'registro-id-1');
+  assert.equal(parsed.nRegistro, 'RECO-00010');
+  assert.equal(parsed.operacion.imeiRegistrado, validImei1);
+  assert.throws(() => __test.parseCompleteExistingPayload({
+    id: 'public-id-1',
+    registroId: '../bad',
+    operacion: {imeiRegistrado: validImei1},
+  }), /VALIDATION_ERROR/);
 });
 
 test('solicitudes publicas list prunes completed links whose registro code no longer exists', async () => {

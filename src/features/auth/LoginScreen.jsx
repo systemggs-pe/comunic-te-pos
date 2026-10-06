@@ -19,7 +19,7 @@ function GoogleIcon() {
   );
 }
 
-export function LoginScreen({showToast, EMAILS_PERMITIDOS, auth}) {
+export function LoginScreen({showToast, auth}) {
   const [isLoading, setIsLoading] = useState(false);
   const year = new Date().getFullYear();
   const consentStorageKey = `comunicate_legal_acceptance_${LEGAL_DOCUMENT_VERSION}`;
@@ -41,12 +41,7 @@ export function LoginScreen({showToast, EMAILS_PERMITIDOS, auth}) {
     setIsLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      if (!EMAILS_PERMITIDOS.includes(result.user.email)) {
-        await signOut(auth);
-        showToast('Acceso denegado. Tu correo no está autorizado.', 'error');
-        return;
-      }
+      await signInWithPopup(auth, provider);
       requestLaunchAnimation(window);
       await registrarConsentimientoLegal({
         accepted: true,
@@ -66,6 +61,7 @@ export function LoginScreen({showToast, EMAILS_PERMITIDOS, auth}) {
       else if (error.code === 'auth/popup-blocked') showToast('El navegador bloqueó la ventana de Google. Permite ventanas emergentes o usa Chrome.', 'error');
       else if (error.code === 'auth/popup-closed-by-user') showToast('La ventana de Google se cerró antes de completar el acceso.', 'error');
       else if (error.message === 'AUTH_REQUIRED') showToast('La sesión de Google no quedó disponible para registrar el consentimiento.', 'error');
+      else if (error.message === 'No autorizado' || error.message === 'USUARIO_DESHABILITADO') showToast('Acceso denegado. Tu correo no está autorizado.', 'error');
       else showToast('No se pudo registrar el consentimiento legal. Revisa la conexión y vuelve a intentar.', 'error');
     } finally {
       setIsLoading(false);

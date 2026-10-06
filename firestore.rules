@@ -5,10 +5,42 @@ service cloud.firestore {
     function isAllowedUser() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email in [
+        && (
+          request.auth.token.email in [
+            'brand050103@gmail.com',
+            'lauryruyz50@gmail.com'
+          ]
+          || userRoleRank() >= 1
+        );
+    }
+
+    function userRoleDoc() {
+      return /databases/$(database)/documents/artifacts/comunicate-pos/users/shared/userRoles/$(request.auth.token.email);
+    }
+
+    function userRoleRank() {
+      return request.auth != null
+        && exists(userRoleDoc())
+        && get(userRoleDoc()).data.status == 'active'
+        ? (
+          get(userRoleDoc()).data.role == 'superadmin' ? 3 :
+          get(userRoleDoc()).data.role == 'admin' ? 2 :
+          get(userRoleDoc()).data.role == 'usuario' ? 1 : 0
+        )
+        : 0;
+    }
+
+    function isAdmin() {
+      return isAllowedUser()
+        && (request.auth.token.email in [
           'brand050103@gmail.com',
           'lauryruyz50@gmail.com'
-        ];
+        ] || userRoleRank() >= 2);
+    }
+
+    function isSuperadmin() {
+      return isAllowedUser()
+        && (request.auth.token.email == 'brand050103@gmail.com' || userRoleRank() >= 3);
     }
 
     function isSharedApp(appId, scope) {
@@ -297,8 +329,8 @@ service cloud.firestore {
 
     match /artifacts/{appId}/users/{scope}/configuracion/logoVentas {
       allow read: if canUseSharedData(appId, scope);
-      allow create, update: if canUseSharedData(appId, scope) && validLogo();
-      allow delete: if canUseSharedData(appId, scope);
+      allow create, update: if canUseSharedData(appId, scope) && isAdmin() && validLogo();
+      allow delete: if canUseSharedData(appId, scope) && isAdmin();
     }
 
     match /artifacts/{appId}/users/{scope}/configuracion/contadorBoletas {
@@ -323,6 +355,11 @@ service cloud.firestore {
 
     match /artifacts/{appId}/users/{scope}/boletasExtranjeras/{boletaId} {
       allow read, write: if false;
+    }
+
+    match /artifacts/{appId}/users/{scope}/userRoles/{email} {
+      allow read: if canUseSharedData(appId, scope) && isSuperadmin();
+      allow write: if false;
     }
 
     match /{document=**} {

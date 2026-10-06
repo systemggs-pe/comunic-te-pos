@@ -8,6 +8,7 @@ import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex
 import {parseEstadoSolicitudPayload, parseIdPayload, parseRegistroPayload, parseRegistroSamsungDualPayload} from './_validators.mjs';
 import {verifyRemoteComprobanteApple} from './_appleReceiptsApi.mjs';
 import {getImeisComprobanteApple} from './_comprobanteApple.mjs';
+import {assertRole} from './_roles.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
@@ -589,10 +590,19 @@ async function dispatchRegistros(body, user, context, options = {}) {
   if (action === 'create') return createRegistro(db, body, context, options);
   if (action === 'createSamsungDual') return createSamsungDualRegistro(db, body, context);
   if (action === 'update') return updateRegistro(db, body, context, options);
-  if (action === 'delete') return deleteRegistro(db, body, context);
-  if (action === 'unlock') return unlockRegistro(db, body, context);
+  if (action === 'delete') {
+    assertRole(user, 'admin');
+    return deleteRegistro(db, body, context);
+  }
+  if (action === 'unlock') {
+    assertRole(user, 'admin');
+    return unlockRegistro(db, body, context);
+  }
   if (action === 'updateRequestStatus') return updateEstadoSolicitud(db, body, context);
-  if (action === 'completeAllRequestStatuses') return completeAllRequestStatuses(db, context);
+  if (action === 'completeAllRequestStatuses') {
+    assertRole(user, 'admin');
+    return completeAllRequestStatuses(db, context);
+  }
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 

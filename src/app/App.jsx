@@ -1,8 +1,8 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo } from 'react';
-import { X, Home, ShoppingCart, ClipboardList, Search, CheckCircle2, AlertCircle, AlertTriangle, Users, UploadCloud, LogOut, Settings, ImagePlus, ChevronRight, Link2 } from 'lucide-react';
+import { X, Home, ShoppingCart, ClipboardList, Search, CheckCircle2, AlertCircle, AlertTriangle, Users, UploadCloud, LogOut, Settings, ImagePlus, ChevronRight, Link2, UserCog } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { onSnapshot, setDoc, deleteDoc, getDocs } from 'firebase/firestore';
-import { EMAILS_PERMITIDOS } from '../config/auth.js';
+import { puedeUsuario, ROLES_USUARIO } from '../config/auth.js';
 import { PRODUCT_BRAND, SOFTWARE_BRAND } from '../config/branding.js';
 import { auth, db, appId } from '../lib/firebase.js';
 import { LoginScreen } from '../features/auth/LoginScreen.jsx';
@@ -19,12 +19,13 @@ import { isLegalPath, slugFromPath } from '../features/legal/legalRouting.js';
 import {clientLogger} from '../utils/logger.js';
 import {normalizeSearchTerm, registroMatchesSearch, ventaMatchesSearch} from '../utils/searchRecords.js';
 import {indexClientesByDni, mapClienteDocument, normalizeDni} from '../utils/clientes.js';
-import {consultarEstadosRegistroImeis, consultarHistorialOperativo} from '../services/functionsClient.js';
+import {consultarEstadosRegistroImeis, consultarHistorialOperativo, marcarSolicitudPublicaRegistroTerminado, obtenerMensajeErrorFuncion, obtenerSesionUsuario} from '../services/functionsClient.js';
 import {createFirestoreRepository, mapSnapshotDocs} from '../repositories/firestoreRepository.js';
 
 const lazyNamed = (loader, name) => lazy(() => loader().then(module => ({default: module[name]})));
 const Dashboard = lazyNamed(() => import('../features/dashboard/Dashboard.jsx'), 'Dashboard');
 const ConfiguracionLogo = lazyNamed(() => import('../features/settings/ConfiguracionLogo.jsx'), 'ConfiguracionLogo');
+const UsuariosSistema = lazyNamed(() => import('../features/settings/UsuariosSistema.jsx'), 'UsuariosSistema');
 const RegistrosList = lazyNamed(() => import('../features/registros/RegistrosList.jsx'), 'RegistrosList');
 const RegistroForm = lazyNamed(() => import('../features/registros/RegistroForm.jsx'), 'RegistroForm');
 const VentasList = lazyNamed(() => import('../features/ventas/VentasList.jsx'), 'VentasList');
@@ -51,6 +52,7 @@ const VIEW_LABELS = {
   problemas_app: 'Problemas de la aplicación',
   configuracion: 'Configuración',
   solicitudes_publicas: 'Solicitudes públicas',
+  usuarios_sistema: 'Usuarios y roles',
 };
 
 function SearchResultIcon({type}) {
@@ -178,6 +180,16 @@ function App() {
   }, [currentView, ventas]);
 
   useEffect(() => {
+    if (!user) return;
+    const blocked = (currentView === 'usuarios_sistema' && !puedeUsuario(user, ROLES_USUARIO.SUPERADMIN))
+      || (currentView === 'configuracion' && !puedeUsuario(user, ROLES_USUARIO.ADMIN))
+      || (currentView === 'foto_dni' && !puedeUsuario(user, ROLES_USUARIO.ADMIN));
+    if (!blocked) return undefined;
+    const timer = window.setTimeout(() => setCurrentView('dashboard'), 0);
+    return () => window.clearTimeout(timer);
+  }, [currentView, user]);
+
+  useEffect(() => {
     if (!user || !ventasImeiStatusKey) return;
     let active = true;
     consultarEstadosRegistroImeis(ventasImeiStatusKey.split('|'))
@@ -235,9 +247,11 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        if (EMAILS_PERMITIDOS.includes(currentUser.email)) {
-          setUser(currentUser);
-        } else {
+        try {
+          const session = await obtenerSesionUsuario();
+          setUser({...currentUser, ...(session.user || {})});
+        } catch (error) {
+          showToast(obtenerMensajeErrorFuncion(error, 'Acceso denegado. Tu correo no esta autorizado.'), 'error');
           await signOut(auth);
           setUser(null);
         }
@@ -247,7 +261,7 @@ function App() {
       setAuthLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [showToast]);
 
   // ── SUSCRIPCIONES LAZY POR MÓDULO ──
   // clientes + equipos: se activan solo al abrir módulos que los necesitan
@@ -672,13 +686,15 @@ function App() {
 
   const buscandoBusquedaGlobal = buscandoHistorial.registros || buscandoHistorial.ventas;
   const currentSectionLabel = VIEW_LABELS[currentView] || SOFTWARE_BRAND;
+  const isAdmin = puedeUsuario(user, ROLES_USUARIO.ADMIN);
+  const isSuperadmin = puedeUsuario(user, ROLES_USUARIO.SUPERADMIN);
   const primaryNavigationItems = [
     {id: 'dashboard', label: 'Inicio', Icon: Home, active: currentView === 'dashboard', onSelect: () => navegarA('dashboard')},
     {id: 'registros', label: 'Registros', Icon: ClipboardList, active: currentView.startsWith('registros'), onSelect: () => navegarA('registros_list')},
     {id: 'ventas', label: 'Ventas', Icon: ShoppingCart, active: currentView.startsWith('ventas'), onSelect: () => navegarA('ventas_list')},
     {id: 'clientes', label: 'Clientes', Icon: Users, active: currentView === 'clientes_list', onSelect: () => navegarA('clientes_list')},
   ];
-  const moreNavigationActive = ['foto_dni', 'problemas_app', 'configuracion', 'solicitudes_publicas'].includes(currentView);
+  const moreNavigationActive = ['foto_dni', 'problemas_app', 'configuracion', 'solicitudes_publicas', 'usuarios_sistema'].includes(currentView);
 
   const abrirResultadoBusqueda = (resultado) => {
     setBusquedaGlobal('');
@@ -686,6 +702,34 @@ function App() {
     if (resultado.tipo === 'registro') navegarA('registros_list');
     else if (resultado.tipo === 'venta') navegarA('ventas_list');
     else navegarA('clientes_list');
+  };
+
+  const revisarSolicitudPublicaEnRegistro = (draft) => {
+    setEditingData(draft);
+    setFormDirty(false);
+    navegarA('registros_new');
+  };
+
+  const handleRegistroGuardado = async (saved) => {
+    const solicitudPublicaId = editingData?.solicitudPublicaId;
+    const operacion = editingData?.solicitudPublicaOperacion;
+    if (solicitudPublicaId && operacion && saved?.id) {
+      try {
+        await marcarSolicitudPublicaRegistroTerminado({
+          id: solicitudPublicaId,
+          operacion,
+          registroId: saved.id,
+          nRegistro: saved.registro?.nRegistro || '',
+        });
+        showToast('Solicitud pública terminada');
+      } catch (error) {
+        showToast(obtenerMensajeErrorFuncion(error, 'El registro se guardó, pero no se pudo cerrar la solicitud pública'), 'error');
+      }
+    }
+    setEditingData(null);
+    setFormDirty(false);
+    refrescarTotales();
+    setCurrentView(solicitudPublicaId ? 'solicitudes_publicas' : 'registros_list');
   };
 
   const searchResultsPanel = mostrarBusqueda && busquedaGlobal.trim().length >= 2 ? (
@@ -751,7 +795,7 @@ function App() {
   if (!user) {
     return (
       <>
-        <LoginScreen showToast={showToast} EMAILS_PERMITIDOS={EMAILS_PERMITIDOS} auth={auth} />
+        <LoginScreen showToast={showToast} auth={auth} />
         <CookieConsentBanner />
         {toast.show && (
           <div className={`ui-toast ui-toast--${toast.type === 'success' ? 'success' : 'error'}`} role={toast.type === 'success' ? 'status' : 'alert'}>
@@ -823,20 +867,22 @@ function App() {
           {currentView === 'dashboard' && <Dashboard stats={totales} setCurrentView={navegarA} user={user} />}
 
           {currentView === 'registros_list' && <RegistrosList data={registros} cargando={cargandoRegistros} clientes={clientes} equipos={equipos} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('registros_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('registros_edit'); }} showToast={showToast} onDeleted={quitarRegistroLocal} onLoadMore={cargarMasRegistros} hasMore={hayMasRegistros} loadingMore={cargandoMasRegistros} total={totales.registros} onSearchAll={buscarRegistrosEnHistorial} searchingAll={buscandoHistorial.registros} />}
-          {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={editingData} onCancel={() => { setEditingData(null); setFormDirty(false); navegarA('registros_list'); }} onSave={() => { setEditingData(null); setFormDirty(false); refrescarTotales(); setCurrentView('registros_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
+          {(currentView === 'registros_new' || currentView === 'registros_edit') && <RegistroForm user={user} clientes={clientes} equipos={equipos} registros={registros} initialData={editingData} onCancel={() => { setEditingData(null); setFormDirty(false); navegarA('registros_list'); }} onSave={handleRegistroGuardado} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
           {currentView === 'ventas_list' && <VentasList data={ventas} cargando={cargandoVentas} clientes={clientes} equipos={equipos} registeredImeis={imeisRegistradosVentas.key === ventasImeiStatusKey ? imeisRegistradosVentas.values : null} logoVentas={logoVentas} onNew={() => {setEditingData(null); setFormDirty(false); navegarA('ventas_new');}} onEdit={(data) => { setEditingData(data); setFormDirty(false); navegarA('ventas_edit'); }} showToast={showToast} onDeleted={quitarVentaLocal} onLoadMore={cargarMasVentas} hasMore={hayMasVentas} loadingMore={cargandoMasVentas} total={totales.ventas} onSearchAll={buscarVentasEnHistorial} searchingAll={buscandoHistorial.ventas} />}
           {(currentView === 'ventas_new' || currentView === 'ventas_edit') && <VentaForm user={user} clientes={clientes} equipos={equipos} logoVentas={logoVentas} initialData={currentView === 'ventas_edit' ? editingData : null} onCancel={() => { setFormDirty(false); navegarA('ventas_list'); }} onSave={() => { setFormDirty(false); refrescarTotales(); setCurrentView('ventas_list'); }} onDirty={() => setFormDirty(true)} showToast={showToast} />}
 
           {currentView === 'clientes_list' && <ClientesList showToast={showToast} />}
 
-          {currentView === 'foto_dni' && <DniFotosPage showToast={showToast} />}
+          {currentView === 'foto_dni' && isAdmin && <DniFotosPage showToast={showToast} />}
 
           {currentView === 'problemas_app' && <ProblemasApp user={user} showToast={showToast} />}
 
-          {currentView === 'solicitudes_publicas' && <SolicitudesPublicas showToast={showToast} onCompleted={refrescarTotales} />}
+          {currentView === 'solicitudes_publicas' && <SolicitudesPublicas showToast={showToast} onReviewRegistro={revisarSolicitudPublicaEnRegistro} />}
 
-          {currentView === 'configuracion' && (
+          {currentView === 'usuarios_sistema' && isSuperadmin && <UsuariosSistema currentUser={user} showToast={showToast} />}
+
+          {currentView === 'configuracion' && isAdmin && (
             <ConfiguracionLogo
               logoVentas={logoVentas}
               onLogoChange={async (dataUrl) => {
@@ -862,20 +908,21 @@ function App() {
           <>
               <div className="app-more-account">
                 <span className="app-more-account__avatar" aria-hidden="true">{user.email?.slice(0, 2).toUpperCase()}</span>
-                <span className="min-w-0"><strong>Sesión activa</strong><small>{user.email}</small></span>
+                <span className="min-w-0"><strong>Sesión activa</strong><small>{user.email} · {user.role || 'usuario'}</small></span>
               </div>
 
               <div className="app-more-group">
                 <p className="app-more-group__label">Módulos</p>
-                <MoreMenuItem Icon={ImagePlus} title="Foto DNI" description="Consultar imágenes documentarias" active={currentView === 'foto_dni'} onClick={() => navegarA('foto_dni')} />
+                {isAdmin && <MoreMenuItem Icon={ImagePlus} title="Foto DNI" description="Consultar imágenes documentarias" active={currentView === 'foto_dni'} onClick={() => navegarA('foto_dni')} />}
                 <MoreMenuItem Icon={Link2} title="Solicitudes públicas" description="Links de registro para clientes" active={currentView === 'solicitudes_publicas'} onClick={() => navegarA('solicitudes_publicas')} />
                 <MoreMenuItem Icon={AlertTriangle} title="Problemas" description="Incidencias y cambios resueltos" active={currentView === 'problemas_app'} tone="warning" onClick={() => navegarA('problemas_app')} />
-                <MoreMenuItem Icon={Settings} title="Configuración" description="Logo y preferencias del sistema" active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} />
+                {isAdmin && <MoreMenuItem Icon={Settings} title="Configuración" description="Logo y preferencias del sistema" active={currentView === 'configuracion'} onClick={() => navegarA('configuracion')} />}
+                {isSuperadmin && <MoreMenuItem Icon={UserCog} title="Usuarios y roles" description="Jerarquía y accesos" active={currentView === 'usuarios_sistema'} onClick={() => navegarA('usuarios_sistema')} />}
               </div>
 
               <div className="app-more-group">
                 <p className="app-more-group__label">Sistema</p>
-                <MoreMenuItem Icon={UploadCloud} title="Descargar respaldo" description="Exportar los datos operativos" value="JSON" onClick={descargarRespaldoCompleto} />
+                {isAdmin && <MoreMenuItem Icon={UploadCloud} title="Descargar respaldo" description="Exportar los datos operativos" value="JSON" onClick={descargarRespaldoCompleto} />}
                 <ThemeToggle presentation="menu" />
                 <MoreMenuItem Icon={LogOut} title="Cerrar sesión" description="Salir de esta cuenta" tone="danger" showChevron={false} onClick={() => signOut(auth)} />
               </div>

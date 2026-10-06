@@ -13,6 +13,7 @@ const routeModules = {
   '/api/legalConsent': '../netlify/functions/legalConsent.mjs',
   '/api/registros': '../netlify/functions/registros.mjs',
   '/api/reniec': '../netlify/functions/reniec.mjs',
+  '/api/usuarios': '../netlify/functions/usuarios.mjs',
   '/api/solicitudesPublicas': '../netlify/functions/solicitudesPublicas.mjs',
   '/api/ventas': '../netlify/functions/ventas.mjs',
 };

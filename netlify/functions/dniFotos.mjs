@@ -2,6 +2,7 @@ import {createHmac, randomUUID} from 'node:crypto';
 import {handlePost, valueOrEmpty} from './_shared.mjs';
 import {getAdminDb} from './_firebaseAdmin.mjs';
 import {parseDniPayload} from './_validators.mjs';
+import {assertRole} from './_roles.mjs';
 
 export const DNI_PHOTO_TYPES = {
   azul: {
@@ -262,7 +263,10 @@ async function dispatchDniFotos(body) {
 }
 
 export const handler = async event => {
-  const response = await handlePost(event, dispatchDniFotos, {
+  const response = await handlePost(event, (body, user) => {
+    assertRole(user, 'admin');
+    return dispatchDniFotos(body);
+  }, {
     rateLimit: {name: 'dniFotos', max: 10, windowMs: 60 * 1000, distributed: true},
   });
   return {

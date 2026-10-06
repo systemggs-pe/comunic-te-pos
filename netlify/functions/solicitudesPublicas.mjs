@@ -7,14 +7,17 @@ import {getAdminDb} from './_firebaseAdmin.mjs';
 import {createRegistro, deleteRegistro} from './registros.mjs';
 import {findRemoteComprobanteAppleByImei} from './_appleReceiptsApi.mjs';
 import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex.mjs';
+import {consultarReniecDniSeguro} from './reniec.mjs';
+import {assertRole} from './_roles.mjs';
 
 const APP_ID = 'comunicate-pos';
 const SCOPE = 'shared';
 const TOKEN_BYTES = 32;
 const PUBLIC_MAX_BODY_BYTES = 24 * 1024;
 const LINK_EXPIRATION_DAYS = 14;
+const RENIEC_PUBLIC_RETRY_MS = 10 * 60 * 1000;
 const PUBLIC_ACTIONS = new Set(['load', 'submit', 'lookupImei']);
-const AUTH_ACTIONS = new Set(['createLink', 'list', 'complete', 'delete']);
+const AUTH_ACTIONS = new Set(['createLink', 'list', 'complete', 'completeExisting', 'delete']);
 
 function baseRef(db) {
   return db.collection('artifacts').doc(APP_ID).collection('users').doc(SCOPE);
@@ -183,6 +186,14 @@ function parseCompletePayload(body) {
   return {id, operacion: {tramite, tipo, operador, imeiRegistrado, precio}};
 }
 
+function parseCompleteExistingPayload(body) {
+  const parsed = parseCompletePayload(body);
+  const registroId = clean(body?.registroId);
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(registroId)) validationError([{path: 'registroId', message: 'ID_INVALIDO'}]);
+  const nRegistro = clean(body?.nRegistro).slice(0, 40);
+  return {...parsed, registroId, nRegistro};
+}
+
 async function attachAppleReceiptForPublicRegistro(registro, context, options = {}) {
   if (String(registro?.marcaEquipo || '').toUpperCase() !== 'APPLE') return null;
   if (registro.boletaExtranjeraId) return null;
@@ -229,6 +240,25 @@ function sanitizeLink(doc) {
     completedNRegistro: data.completedNRegistro || '',
     submission: data.submission || null,
   };
+}
+
+async function resolveNombreCliente(base, dni, options = {}) {
+  const clienteSnap = await base.collection('clientes').doc(dni).get();
+  const dbName = upper(clienteSnap.data()?.nombre || '');
+  if (dbName) return {nombreCliente: dbName, source: 'db'};
+  try {
+    const reniec = await (options.consultarReniecDniSeguro || consultarReniecDniSeguro)(dni);
+    const reniecName = upper(reniec?.result?.full_name || '');
+    return reniecName
+      ? {nombreCliente: reniecName, source: 'reniec'}
+      : {nombreCliente: '', source: 'none'};
+  } catch (error) {
+    return {
+      nombreCliente: '',
+      source: 'none',
+      reniecError: error?.message || 'RENIEC_ERROR',
+    };
+  }
 }
 
 async function findLinkByToken(db, token) {
@@ -315,19 +345,27 @@ async function lookupPublicImei(db, body) {
   };
 }
 
-async function createLink(db, body, user, context, event) {
+async function createLink(db, body, user, context, event, options = {}) {
   const {dni} = parseCreateLinkPayload(body);
   const base = baseRef(db);
   const token = generateToken();
   const tokenId = tokenHash(token);
-  const clienteSnap = await base.collection('clientes').doc(dni).get();
-  const nombreCliente = upper(clienteSnap.data()?.nombre || '');
+  const resolvedClient = await resolveNombreCliente(base, dni, options);
+  const {nombreCliente} = resolvedClient;
   const publicUrl = publicUrlFromEvent(event, token);
   const nowIso = new Date().toISOString();
   const ref = base.collection('solicitudesPublicas').doc(tokenId);
   await ref.set({
     dni,
     nombreCliente,
+    nombreClienteSource: resolvedClient.source,
+    ...(resolvedClient.reniecError ? {
+      reniecLookup: {
+        lastAttemptAt: nowIso,
+        status: 'ERROR',
+        error: resolvedClient.reniecError,
+      },
+    } : {}),
     status: 'CREADA',
     publicUrl,
     createdAt: FieldValue.serverTimestamp(),
@@ -341,7 +379,7 @@ async function createLink(db, body, user, context, event) {
     entityType: 'solicitudPublica',
     entityId: tokenId,
     action: 'create-link',
-    metadata: {dni, hasKnownClient: Boolean(nombreCliente)},
+    metadata: {dni, hasKnownClient: Boolean(nombreCliente), nombreClienteSource: resolvedClient.source},
   });
   await batch.commit();
   return {id: tokenId, dni, nombreCliente, publicUrl, status: 'CREADA'};
@@ -397,16 +435,32 @@ async function findCompletedRegistro(base, solicitud) {
   return {exists: false, id: '', data: null};
 }
 
-async function loadPublic(db, body) {
+async function loadPublic(db, body, options = {}) {
   const {token} = parseTokenPayload(body);
-  const {data} = await findLinkByToken(db, token);
+  const {ref, data} = await findLinkByToken(db, token);
   const expired = data.expiresAt && Date.now() > Date.parse(data.expiresAt);
   if (expired && data.status !== 'COMPLETADA') {
     throw Object.assign(new Error('LINK_EXPIRADO'), {status: 410});
   }
+  let nombreCliente = upper(data.nombreCliente || '');
+  const lastReniecAttemptMs = Date.parse(data.reniecLookup?.lastAttemptAt || '');
+  const canRetryReniec = !lastReniecAttemptMs || Date.now() - lastReniecAttemptMs >= RENIEC_PUBLIC_RETRY_MS;
+  if (!nombreCliente && data.dni && canRetryReniec) {
+    const nowIso = new Date().toISOString();
+    const resolvedClient = await resolveNombreCliente(baseRef(db), data.dni, options);
+    nombreCliente = resolvedClient.nombreCliente;
+    await ref.set({
+      ...(nombreCliente ? {nombreCliente, nombreClienteSource: resolvedClient.source} : {}),
+      reniecLookup: {
+        lastAttemptAt: nowIso,
+        status: nombreCliente ? 'OK' : 'ERROR',
+        ...(resolvedClient.reniecError ? {error: resolvedClient.reniecError} : {}),
+      },
+    }, {merge: true});
+  }
   return {
     dni: data.dni || '',
-    nombres: data.nombreCliente || '',
+    nombres: nombreCliente,
     status: data.status || 'CREADA',
     submitted: data.status === 'COMPLETADA' || data.status === 'TERMINADA',
   };
@@ -459,7 +513,7 @@ async function completeRequest(db, body, user, context) {
     celular: data.celular,
     celularRef: '',
     correo: data.correo,
-    direccion: `${data.direccion}, ${data.provincia}`,
+    direccion: data.direccion,
     celulares: [data.celular],
     correos: [data.correo],
   };
@@ -484,7 +538,7 @@ async function completeRequest(db, body, user, context) {
     celularCliente: data.celular,
     celularRef: '',
     correoCliente: data.correo,
-    direccionCliente: cliente.direccion,
+    direccionCliente: data.direccion,
     imeiEquipo: data.imei1,
     imeiRegistrado: operacion.imeiRegistrado,
     imei2Equipo: data.imei2,
@@ -523,6 +577,58 @@ async function completeRequest(db, body, user, context) {
     ].slice(0, 80),
   }, {merge: true});
   return {ok: true, solicitudId: id, registro: result.registro};
+}
+
+async function completeExistingRequest(db, body, user, context) {
+  const {id, operacion, registroId, nRegistro} = parseCompleteExistingPayload(body);
+  const base = baseRef(db);
+  const ref = base.collection('solicitudesPublicas').doc(id);
+  const registroRef = base.collection('registros').doc(registroId);
+  const [snap, registroSnap] = await Promise.all([ref.get(), registroRef.get()]);
+  if (!snap.exists) throw Object.assign(new Error('SOLICITUD_NO_ENCONTRADA'), {status: 404});
+  if (!registroSnap.exists) throw Object.assign(new Error('REGISTRO_NOT_FOUND'), {status: 404});
+  const solicitud = snap.data() || {};
+  if (solicitud.status !== 'COMPLETADA') throw Object.assign(new Error('SOLICITUD_NO_LISTA'), {status: 409});
+  const data = solicitud.submission || {};
+  const registro = registroSnap.data() || {};
+  const imeis = [data.imei1, data.imei2].filter(Boolean);
+  if (!imeis.includes(operacion.imeiRegistrado)) validationError([{path: 'imeiRegistrado', message: 'IMEI_REGISTRADO_NO_PERTENECE'}]);
+  if (registro.dniCliente !== data.dni) validationError([{path: 'registroId', message: 'DNI_NO_COINCIDE'}]);
+  if ((registro.imeiRegistrado || registro.imeiEquipo) !== operacion.imeiRegistrado) {
+    validationError([{path: 'registroId', message: 'IMEI_NO_COINCIDE'}]);
+  }
+
+  await ref.set({
+    status: 'TERMINADA',
+    completedAt: new Date().toISOString(),
+    completedByUid: user.uid,
+    completedByEmail: user.email,
+    completedRegistroId: registroId,
+    completedNRegistro: nRegistro || registro.nRegistro || '',
+    completedOperacion: operacion,
+    searchTerms: [
+      ...buildEquipoSearchTerms({
+        idEquipo: data.imei1,
+        imei2: data.imei2,
+        marca: data.marca,
+        modelo: data.modelo,
+        nombreComercial: data.nombreEquipo,
+        ram: data.ram,
+        memoria: data.memoria,
+        color: data.color,
+      }, data.nombres),
+      ...buildMovimientoSearchTerms(registro, data.nombres),
+    ].slice(0, 80),
+  }, {merge: true});
+  const batch = db.batch();
+  queueAuditEvent(batch, base, context, {
+    entityType: 'solicitudPublica',
+    entityId: id,
+    action: 'complete-existing',
+    metadata: {registroId, nRegistro: nRegistro || registro.nRegistro || '', imeiRegistrado: operacion.imeiRegistrado},
+  });
+  await batch.commit();
+  return {ok: true, solicitudId: id, registroId, nRegistro: nRegistro || registro.nRegistro || ''};
 }
 
 async function deleteLink(db, body, user, context) {
@@ -611,7 +717,11 @@ async function dispatch(body, user, context, event) {
   if (action === 'lookupImei') return lookupPublicImei(db, body);
   if (action === 'submit') return submitPublic(db, body, context);
   if (action === 'complete') return completeRequest(db, body, user, context);
-  if (action === 'delete') return deleteLink(db, body, user, context);
+  if (action === 'completeExisting') return completeExistingRequest(db, body, user, context);
+  if (action === 'delete') {
+    assertRole(user, 'admin');
+    return deleteLink(db, body, user, context);
+  }
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 
@@ -620,9 +730,13 @@ export const __test = {
   parseCreateLinkPayload,
   parsePublicSubmission,
   parseCompletePayload,
+  parseCompleteExistingPayload,
   parseDeletePayload,
   parseLookupImeiPayload,
   attachAppleReceiptForPublicRegistro,
+  resolveNombreCliente,
+  createLink,
+  loadPublic,
   findCompletedRegistro,
   listLinks,
   deleteLink,
