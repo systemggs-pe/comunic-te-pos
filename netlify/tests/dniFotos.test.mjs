@@ -49,12 +49,12 @@ async function withMockedCodart(mockFetch, callback) {
   }
 }
 
-function successfulProviderResponse() {
+function successfulProviderResponse(dni = '12345678') {
   return new Response(JSON.stringify({
     success: true,
     source: 'CODART_X_API_V1',
     data: {
-      dni: '12345678',
+      dni,
       nombres: 'NOMBRE',
       apellidos: 'APELLIDO',
       images: [{data_uri: 'data:image/png;base64,aGVsbG8='}],
@@ -119,6 +119,14 @@ test('normalizeDniPhotosResponse accepts CODART alternate image fields and raw b
   assert.equal(normalized.data.images.length, 2);
   assert.equal(normalized.data.images[0].mime, 'image/png');
   assert.equal(normalized.data.images[0].dataUri, `data:image/png;base64,${tinyPngBase64()}`);
+  assert.equal(normalized.data.images[0].side, 'front');
+  assert.equal(normalized.data.images[1].side, 'back');
+  const backOnly = normalizeDniPhotosResponse({data: {reverso: tinyPngBase64()}}, '12345678');
+  assert.equal(backOnly.data.images[0].side, 'back');
+  const portrait = normalizeDniPhotosResponse({data: {foto: tinyPngBase64()}}, '12345678');
+  assert.equal(portrait.data.images[0].side, 'front');
+  const fallback = normalizeDniPhotosResponse({data: {front: 'https://invalid.example/photo', anverso: tinyPngBase64()}}, '12345678');
+  assert.equal(fallback.data.images[0].side, 'front');
 });
 
 test('fetchDniFotos sends the documented CODART request and normalizes images', async () => {
@@ -151,7 +159,7 @@ test('fetchDniFotos deduplicates simultaneous and immediate repeated CODART call
   let calls = 0;
   await withMockedCodart(async () => {
     calls += 1;
-    return successfulProviderResponse();
+    return successfulProviderResponse('22222222');
   }, async () => {
     const [first, second] = await Promise.all([
       fetchPhotos('22222222', 'azul'),
@@ -246,14 +254,14 @@ test('slow CODART success after the old ten-second deadline returns images with 
   });
 });
 
-test('timeout during image body download releases the request and allows an explicit retry without automatic calls', async () => {
+test('body download timeouts exhaust two attempts, release the lease and allow a later manual retry', async () => {
   const originalTimeout = process.env.CODART_TIMEOUT_MS;
   process.env.CODART_TIMEOUT_MS = '20';
   let calls = 0;
   try {
     await withMockedCodart(async (_url, {signal}) => {
       calls++;
-      if (calls > 1) return successfulProviderResponse();
+      if (calls > 2) return successfulProviderResponse();
       return {
         ok: true,
         json: () => new Promise((_resolve, reject) => {
@@ -262,11 +270,11 @@ test('timeout during image body download releases the request and allows an expl
       };
     }, async () => {
       await assert.rejects(fetchPhotos('12345678', 'azul'), /DNI_FOTOS_TIMEOUT/);
-      assert.equal(calls, 1);
+      assert.equal(calls, 2);
       assert.equal(guardDb.docs.size, 0);
       const retry = await fetchPhotos('12345678', 'azul');
       assert.equal(retry.success, true);
-      assert.equal(calls, 2);
+      assert.equal(calls, 3);
       assert.equal(guardDb.docs.size, 0);
     });
   } finally {
@@ -394,4 +402,65 @@ test('a lease cleanup failure does not discard paid images or cause an automatic
 test('base64 line wrapping does not discard valid provider images', () => {
   const result = normalizeDniPhotosResponse({data: {images: [{data_uri: 'data:image/png;base64,\niVBORw0K\r\nGgo='}]}}, '12345678');
   assert.equal(result.data.images[0].dataUri, `data:image/png;base64,${tinyPngBase64()}`);
+});
+
+test('valid personal data without photographs remains usable; unsafe URLs are never returned', async () => {
+  await withMockedCodart(async () => new Response(JSON.stringify({success: true, data: {dni: '12345678', nombres: 'PRUEBA', foto: 'https://invalid.example/photo'}})), async () => {
+    const result = await fetchPhotos('12345678', 'azul');
+    assert.equal(result.success, true); assert.equal(result.data.nombres, 'PRUEBA'); assert.deepEqual(result.data.images, []);
+  });
+});
+
+test('invalid, not-found, permanent auth, credits and rate limit without short Retry-After never retry', async () => {
+  for (const [status, code] of [[400,'DNI_INVALIDO'],[404,'DNI_FOTOS_NOT_FOUND'],[401,'CODART_TOKEN_INVALID'],[403,'CODART_TOKEN_INVALID'],[402,'CODART_CREDITOS_INSUFICIENTES'],[429,'CODART_RATE_LIMIT']]) {
+    let calls = 0;
+    await withMockedCodart(async () => {calls++; return new Response('private provider body', {status});}, async () => {
+      await assert.rejects(__test.fetchDniFotosFromProvider('12345678','azul',{sleep: async () => {}}), error => error.message === code);
+      assert.equal(calls, 1);
+    });
+  }
+});
+
+test('temporary 500 retries once successfully and exhausted 503 stops at two attempts', async () => {
+  for (const succeeds of [true, false]) {
+    let calls = 0; const delays = [];
+    await withMockedCodart(async () => {calls++; return succeeds && calls === 2 ? successfulProviderResponse() : new Response('',{status: succeeds ? 500 : 503});}, async () => {
+      const request = __test.fetchDniFotosFromProvider('12345678','azul',{sleep: async delay => delays.push(delay)});
+      if (succeeds) assert.equal((await request).success, true); else await assert.rejects(request,/DNI_FOTOS_UPSTREAM_ERROR/);
+      assert.equal(calls, 2); assert.deepEqual(delays,[500]);
+    });
+  }
+});
+
+test('rate limit retries only with a short provider wait instruction', async () => {
+  let calls = 0; const delays = [];
+  await withMockedCodart(async () => {calls++; return calls === 1 ? new Response('',{status: 429, headers: {'Retry-After':'1'}}) : successfulProviderResponse();}, async () => {
+    assert.equal((await __test.fetchDniFotosFromProvider('12345678','azul',{sleep: async delay => delays.push(delay)})).success,true);
+    assert.equal(calls,2); assert.deepEqual(delays,[1000]);
+  });
+  calls = 0;
+  await withMockedCodart(async () => {calls++; return new Response('',{status: 429, headers: {'Retry-After':'30'}});}, async () => {
+    await assert.rejects(__test.fetchDniFotosFromProvider('12345678','azul'),/CODART_RATE_LIMIT/); assert.equal(calls,1);
+  });
+});
+
+test('temporary network failure is retried but private details never escape final errors or logs', async () => {
+  let calls = 0; const logs = []; const warn = console.warn; console.warn = value => logs.push(value);
+  try {
+    await withMockedCodart(async () => {calls++; throw new TypeError('fetch failed token=private dni=12345678');}, async () => {
+      await assert.rejects(__test.fetchDniFotosFromProvider('12345678','azul',{sleep: async () => {}}),/DNI_FOTOS_UNAVAILABLE/); assert.equal(calls,2);
+    });
+    assert.ok(logs.every(log => !log.includes('12345678') && !log.includes('private')));
+    assert.equal(JSON.parse(logs[1]).attempt,2);
+  } finally {console.warn = warn;}
+});
+
+test('server cache expires rather than retaining photos indefinitely', async () => {
+  let calls = 0; const now = Date.now; let clock = now(); Date.now = () => clock;
+  try {
+    await withMockedCodart(async () => {calls++; return successfulProviderResponse();},async () => {
+      await fetchPhotos('12345678','azul'); await fetchPhotos('12345678','azul'); assert.equal(calls,1);
+      clock += 600_001; await fetchPhotos('12345678','azul'); assert.equal(calls,2);
+    });
+  } finally {Date.now = now;}
 });

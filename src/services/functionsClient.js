@@ -24,7 +24,7 @@ export async function llamarFuncionSegura(nombre, payload, {signal} = {}) {
 
   const text = await resp.text();
   const requestId = resp.headers.get('x-request-id') || '';
-  if (resp.status === 404) {
+  if (resp.status === 404 && nombre !== 'dniFotos') {
     const error = new Error('BACKEND_NOT_DEPLOYED');
     error.requestId = requestId;
     throw error;
@@ -321,8 +321,24 @@ export function consultarReniecDni(dni, options = {}) {
   return llamarFuncionSegura('reniec', {dni: String(dni)}, options);
 }
 
-export function consultarDniFotos(dni, tipo = 'azul', {refresh = false} = {}) {
-  return llamarFuncionSegura('dniFotos', {dni: String(dni), tipo, ...(refresh ? {refresh: true} : {})});
+export async function consultarDniFotos(dni, tipo = 'azul', {refresh = false} = {}) {
+  const controller = new AbortController();
+  let timer;
+  const deadline = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('DNI_FOTOS_TIMEOUT'));
+    }, 65_000);
+  });
+  try {
+    return await Promise.race([
+      llamarFuncionSegura('dniFotos', {dni: String(dni), tipo, ...(refresh ? {refresh: true} : {})}, {signal: controller.signal}),
+      deadline,
+    ]);
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('DNI_FOTOS_TIMEOUT');
+    throw error;
+  } finally {clearTimeout(timer);}
 }
 
 export async function consultarComprobanteApplePorImei(imei) {

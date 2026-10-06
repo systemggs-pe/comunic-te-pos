@@ -86,29 +86,23 @@ function normalizeImage(image, index) {
 
 export function normalizeDniPhotosResponse(data, dni, tipo = 'azul') {
   const result = data?.data || data?.result || data || {};
-  const rawImages = Array.isArray(result.images)
-    ? result.images
+  const firstUsableImage = (candidates, index) => {
+    for (const candidate of candidates) {
+      const image = normalizeImage(candidate, index);
+      if (image) return image;
+    }
+    return null;
+  };
+  const images = Array.isArray(result.images)
+    ? result.images.map(normalizeImage).filter(Boolean).slice(0, 2)
     : [
-      result.front,
-      result.back,
-      result.anverso,
-      result.reverso,
-      result.foto_anverso,
-      result.foto_reverso,
-      result.fotoAnverso,
-      result.fotoReverso,
-      result.foto,
-      result.imagen,
-      result.image,
-      result.base64,
+      firstUsableImage([result.front, result.anverso, result.foto_anverso, result.fotoAnverso,
+        result.foto, result.imagen, result.image, result.base64], 0),
+      firstUsableImage([result.back, result.reverso, result.foto_reverso, result.fotoReverso], 1),
     ].filter(Boolean);
-  const images = rawImages
-    .map(normalizeImage)
-    .filter(Boolean)
-    .slice(0, 2);
 
   return {
-    success: Boolean((data?.success ?? true) && images.length),
+    success: Boolean((data?.success ?? true) && (images.length || valueOrEmpty(result.nombres) || valueOrEmpty(result.apellidos) || result.dni === dni)),
     source: String(data?.source || 'CODART_X_API_V1').slice(0, 80),
     data: {
       tipo,
@@ -145,51 +139,76 @@ function pruneDniPhotoCache(nowMs = Date.now()) {
   }
 }
 
-async function fetchDniFotosFromProvider(dni, tipo) {
+async function fetchDniFotosFromProvider(dni, tipo, {sleep = ms => new Promise(resolve => setTimeout(resolve, ms))} = {}) {
   const config = DNI_PHOTO_TYPES[tipo];
-  const controller = new AbortController();
   const configuredTimeout = Number(process.env.CODART_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
-    ? Math.min(configuredTimeout, DEFAULT_PHOTO_TIMEOUT_MS) : DEFAULT_PHOTO_TIMEOUT_MS;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(`${config.url}/${dni}`, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${getCodartToken()}`,
-      },
-    });
-    if (!response.ok) {
-      const errorCode = response.status === 402
-        ? 'CODART_CREDITOS_INSUFICIENTES'
-        : [401, 403].includes(response.status)
-          ? 'CODART_TOKEN_INVALID'
-          : response.status === 429
-            ? 'CODART_RATE_LIMIT'
-            : 'DNI_FOTOS_UPSTREAM_ERROR';
-      throw Object.assign(new Error(errorCode), {
-        status: response.status === 429 ? 429 : 502,
-        payload: {upstreamStatus: response.status},
+    ? Math.min(configuredTimeout, DEFAULT_PHOTO_TIMEOUT_MS) : 25_000;
+  const started = Date.now();
+  const deadline = started + DEFAULT_PHOTO_TIMEOUT_MS;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Math.max(1, Math.min(timeoutMs, deadline - Date.now())));
+    let upstreamStatus;
+    try {
+      const response = await fetch(`${config.url}/${dni}`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getCodartToken()}`,
+        },
       });
-    }
+      upstreamStatus = response.status;
+      if (!response.ok) {
+        const errorCode = response.status === 404 ? 'DNI_FOTOS_NOT_FOUND' : response.status === 400 ? 'DNI_INVALIDO' : response.status === 402
+          ? 'CODART_CREDITOS_INSUFICIENTES'
+          : [401, 403].includes(response.status)
+            ? 'CODART_TOKEN_INVALID'
+            : response.status === 429
+              ? 'CODART_RATE_LIMIT'
+              : 'DNI_FOTOS_UPSTREAM_ERROR';
+        throw Object.assign(new Error(errorCode), {
+          status: response.status === 404 ? 404 : response.status === 400 ? 400 : response.status === 429 ? 429 : 502,
+          payload: {upstreamStatus: response.status},
+          retryAfter: response.headers?.get('retry-after'),
+        });
+      }
 
-    // Keep the deadline active until the complete image payload has arrived.
-    const data = await response.json();
-    const result = normalizeDniPhotosResponse(data, dni, tipo);
-    if (!result.success) throw Object.assign(new Error('DNI_FOTOS_INVALID_RESPONSE'), {status: 502});
-    return result;
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw Object.assign(new Error('DNI_FOTOS_TIMEOUT'), {status: 504});
+      // Keep the deadline active until the complete image payload has arrived.
+      const data = await response.json();
+      if (!data || typeof data !== 'object' || Array.isArray(data)) throw Object.assign(new Error('DNI_FOTOS_INVALID_RESPONSE'), {status: 502});
+      if (data.success === false && /not.found|no.encontr|no.existe|inexistente|sin.result/i.test(String(data.error || data.message || ''))) {
+        throw Object.assign(new Error('DNI_FOTOS_NOT_FOUND'), {status: 404});
+      }
+      const result = normalizeDniPhotosResponse(data, dni, tipo);
+      if (!result.success || result.data.dni !== dni) throw Object.assign(new Error('DNI_FOTOS_INVALID_RESPONSE'), {status: 502});
+      return result;
+    } catch (cause) {
+      let error = cause;
+      if (controller.signal.aborted) {
+        error = Object.assign(new Error('DNI_FOTOS_TIMEOUT'), {status: 504});
+      } else if (cause instanceof SyntaxError) {
+        error = Object.assign(new Error('DNI_FOTOS_INVALID_RESPONSE'), {status: 502});
+      } else if (cause instanceof TypeError || ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND'].includes(cause.code || cause.cause?.code)) {
+        error = Object.assign(new Error('DNI_FOTOS_UNAVAILABLE'), {status: 503});
+      } else if (!cause.status) {
+        error = Object.assign(new Error('DNI_FOTOS_INTERNAL_ERROR'), {status: 500});
+      }
+      console.warn(JSON.stringify({event: 'dni.provider.error', provider: 'CODART', endpoint: 'dniFotos',
+        type: error.message, attempt, durationMs: Date.now() - started, ...(upstreamStatus ? {httpStatus: upstreamStatus} : {})}));
+      const retryAfterMs = error.retryAfter == null ? NaN : /^\d+$/.test(error.retryAfter)
+        ? Number(error.retryAfter) * 1000 : Date.parse(error.retryAfter) - Date.now();
+      const transient = ['DNI_FOTOS_TIMEOUT', 'DNI_FOTOS_UNAVAILABLE'].includes(error.message)
+        || (error.message === 'DNI_FOTOS_UPSTREAM_ERROR' && upstreamStatus >= 500)
+        || (error.message === 'CODART_RATE_LIMIT' && Number.isFinite(retryAfterMs) && retryAfterMs >= 0 && retryAfterMs <= 2000);
+      const delay = error.message === 'CODART_RATE_LIMIT' ? Math.max(500, retryAfterMs) : 500 * attempt;
+      if (!transient || attempt === 2 || Date.now() + delay >= deadline) throw error;
+      clearTimeout(timeout);
+      await sleep(delay);
+    } finally {
+      clearTimeout(timeout);
     }
-    if (error instanceof SyntaxError) {
-      throw Object.assign(new Error('DNI_FOTOS_INVALID_RESPONSE'), {status: 502});
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
@@ -223,10 +242,15 @@ async function claimDniPhotoRequest(dni, tipo, {db = getAdminDb(), nowMs = Date.
 async function fetchDniFotos(dni, tipo, {refresh = false, claim = claimDniPhotoRequest} = {}) {
   const key = dniPhotoCacheKey(dni, tipo);
   const nowMs = Date.now();
+  const expired = dniPhotoRequestCache.get(key)?.expiresAt <= nowMs;
   pruneDniPhotoCache(nowMs);
   const cached = dniPhotoRequestCache.get(key);
   if (cached?.promise) return cloneResponse(await cached.promise);
-  if (!refresh && cached?.result && cached.expiresAt > nowMs) return cloneResponse(cached.result);
+  if (!refresh && cached?.result && cached.expiresAt > nowMs) {
+    console.info(JSON.stringify({event: 'dni.cache', endpoint: 'dniFotos', state: 'HIT'}));
+    return cloneResponse(cached.result);
+  }
+  console.info(JSON.stringify({event: 'dni.cache', endpoint: 'dniFotos', state: expired ? 'EXPIRED' : 'MISS'}));
 
   const promise = (async () => {
     getCodartToken();
