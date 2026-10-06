@@ -7,7 +7,6 @@ import {queueAuditEvent} from './_observability.mjs';
 import {buildEquipoSearchTerms, buildMovimientoSearchTerms} from './_searchIndex.mjs';
 import {parseEstadoSolicitudPayload, parseIdPayload, parseRegistroPayload, parseRegistroSamsungDualPayload} from './_validators.mjs';
 import {verifyRemoteComprobanteApple} from './_appleReceiptsApi.mjs';
-import {getImeisComprobanteApple} from './_comprobanteApple.mjs';
 import {assertRole} from './_roles.mjs';
 
 const APP_ID = 'comunicate-pos';
@@ -32,19 +31,11 @@ function resolveEstadoSolicitud(current, next) {
 }
 
 async function assertComprobanteApple(registro, options = {}) {
-  if (String(registro?.marcaEquipo || '').toUpperCase() !== 'APPLE') return;
-  const expectedImei = registro.imeiRegistrado || registro.imeiEquipo;
-  const preverified = options.preverifiedAppleReceipt;
-  if (
-    preverified?.id
-    && preverified.id === registro.boletaExtranjeraId
-    && getImeisComprobanteApple(preverified).includes(expectedImei)
-  ) {
-    registro.marcaEquipo = 'APPLE';
-    registro.boletaExtranjeraId = preverified.id;
-    registro.boletaExtranjeraNro = String(preverified.nBoleta || '');
+  if (String(registro?.marcaEquipo || '').toUpperCase() !== 'APPLE') {
+    delete registro.expectedReceiptFingerprint;
     return;
   }
+  const expectedImei = registro.imeiRegistrado || registro.imeiEquipo;
   const comprobante = await verifyRemoteComprobanteApple(
     registro.boletaExtranjeraId,
     expectedImei,
@@ -56,9 +47,17 @@ async function assertComprobanteApple(registro, options = {}) {
       payload: {imei: registro.imeiRegistrado || registro.imeiEquipo},
     });
   }
+  const expected = registro.expectedReceiptFingerprint || options.preverifiedAppleReceipt?.receiptFingerprint
+    || (options.discoverReceipt ? comprobante.receiptFingerprint : '');
+  if (!/^[a-f0-9]{64}$/.test(expected || '')) throw Object.assign(new Error('APPLE_RECEIPTS_FINGERPRINT_REQUIRED'), {status: 409});
+  if (expected !== comprobante.receiptFingerprint) throw Object.assign(new Error('APPLE_RECEIPTS_CHANGED'), {status: 409});
+  delete registro.expectedReceiptFingerprint;
+  registro.receiptFingerprint = comprobante.receiptFingerprint;
+  registro.receiptUpdatedAt = comprobante.updatedAt;
   registro.marcaEquipo = 'APPLE';
   registro.boletaExtranjeraId = comprobante.id;
   registro.boletaExtranjeraNro = String(comprobante.nBoleta || '');
+  return comprobante;
 }
 
 async function hasOther(collectionRef, field, value, excludeId, transaction) {
@@ -127,8 +126,10 @@ function getNextFromExisting(snapshot, field, prefix) {
 }
 
 export async function createRegistro(db, payload, context, options = {}) {
-  const {cliente, equipo, registro} = parseRegistroPayload(payload);
-  await assertComprobanteApple(registro, options);
+  // Internal discovery marker only satisfies input shape; final lookup replaces it before any write.
+  const input = options.discoverReceipt ? {...payload, registro: {...payload.registro, boletaExtranjeraId: '__server_lookup__'}} : payload;
+  const {cliente, equipo, registro} = parseRegistroPayload(input);
+  const appleReceipt = await assertComprobanteApple(registro, options);
   const base = baseRef(db);
   const counterRef = db.collection('_counters').doc('registros');
   const registroRef = base.collection('registros').doc();
@@ -188,7 +189,7 @@ export async function createRegistro(db, payload, context, options = {}) {
       },
     });
 
-    return {id: registroRef.id, registro: {id: registroRef.id, ...registroData}};
+    return {id: registroRef.id, registro: {id: registroRef.id, ...registroData}, ...(appleReceipt ? {boletaApple: appleReceipt} : {})};
   });
 }
 
@@ -308,7 +309,7 @@ async function createSamsungDualRegistro(db, payload, context) {
 async function updateRegistro(db, payload, context, options = {}) {
   const {id} = parseIdPayload(payload);
   const {cliente, equipo, registro} = parseRegistroPayload(payload);
-  await assertComprobanteApple(registro, options);
+  const appleReceipt = await assertComprobanteApple(registro, options);
 
   const base = baseRef(db);
   const registrosRef = base.collection('registros');
@@ -399,7 +400,7 @@ async function updateRegistro(db, payload, context, options = {}) {
       },
     });
 
-    return {id, registro: {id, ...registroData}};
+    return {id, registro: {id, ...registroData}, ...(appleReceipt ? {boletaApple: appleReceipt} : {})};
   });
 }
 
@@ -606,7 +607,7 @@ async function dispatchRegistros(body, user, context, options = {}) {
   throw Object.assign(new Error('ACTION_INVALIDA'), {status: 400});
 }
 
-export const __test = {assertComprobanteApple, checkRegisteredImeis, createSamsungDualRegistro, resolveEstadoSolicitud, shouldCompleteRequestStatus};
+export const __test = {assertComprobanteApple, checkRegisteredImeis, createSamsungDualRegistro, updateRegistro, resolveEstadoSolicitud, shouldCompleteRequestStatus};
 
 export const handler = event => handlePost(event, (body, user, context) => dispatchRegistros(body, user, context, {
   authorization: event.headers?.authorization || event.headers?.Authorization || '',

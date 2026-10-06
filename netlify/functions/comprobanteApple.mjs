@@ -1,5 +1,5 @@
 import {handlePost} from './_shared.mjs';
-import {findRemoteComprobanteAppleByImei} from './_appleReceiptsApi.mjs';
+import {findRemoteComprobanteAppleByImei, getAppleReceiptsApiConfig} from './_appleReceiptsApi.mjs';
 import {luhnImeiApple, normalizarImeiApple} from './_comprobanteApple.mjs';
 
 async function buscarComprobanteApple(body, options = {}) {
@@ -9,7 +9,7 @@ async function buscarComprobanteApple(body, options = {}) {
   }
 
   const boleta = await findRemoteComprobanteAppleByImei(imei, options);
-  return boleta ? {found: true, boleta} : {found: false, boleta: null};
+  return boleta ? {found: true, boleta} : {found: false, boleta: null, receiptAppUrl: new URL(getAppleReceiptsApiConfig(options.env).apiUrl).origin};
 }
 
 export const handler = event => handlePost(event, body => buscarComprobanteApple(body, {

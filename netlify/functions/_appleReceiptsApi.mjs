@@ -4,6 +4,9 @@ import {
   normalizarImeiApple,
   serializeComprobanteAppleData,
 } from './_comprobanteApple.mjs';
+import {APPLE_RECEIPT_MESSAGES, validateAppleReceipt} from '../../src/features/registros/appleReceiptValidation.js';
+
+import {receiptFingerprint} from './_receiptFingerprint.mjs';
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -45,6 +48,7 @@ async function readBoundedJson(response) {
   if (!reader) {
     const text = await response.text();
     if (Buffer.byteLength(text, 'utf8') > MAX_RESPONSE_BYTES) throw serviceError('APPLE_RECEIPTS_INVALID_RESPONSE');
+    if (!text.trim()) throw serviceError('APPLE_RECEIPTS_EMPTY_RESPONSE');
     try {
       return JSON.parse(text);
     } catch {
@@ -65,32 +69,51 @@ async function readBoundedJson(response) {
   } finally {
     reader.releaseLock();
   }
+  const text = Buffer.concat(chunks).toString('utf8');
+  if (!text.trim()) throw serviceError('APPLE_RECEIPTS_EMPTY_RESPONSE');
   try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return JSON.parse(text);
   } catch {
     throw serviceError('APPLE_RECEIPTS_INVALID_RESPONSE');
   }
 }
 
 function receiptCandidates(payload) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
-  if (payload.found === false) return [];
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw serviceError('APPLE_RECEIPTS_INVALID_RESPONSE');
+  if (payload.error || payload.success === false) throw serviceError('APPLE_RECEIPTS_INVALID_RESPONSE');
+  if (payload.found === false) {
+    if (payload.boleta || payload.boletas?.length || payload.data?.boleta || payload.data?.boletas?.length) throw serviceError('APPLE_RECEIPTS_INVALID_RESPONSE');
+    return [];
+  }
   if (Array.isArray(payload.boletas)) return payload.boletas;
   if (payload.boleta && typeof payload.boleta === 'object') return [payload.boleta];
   if (Array.isArray(payload.data?.boletas)) return payload.data.boletas;
   if (payload.data?.boleta && typeof payload.data.boleta === 'object') return [payload.data.boleta];
-  return payload.id ? [payload] : [];
+  if (payload.id) return [payload];
+  throw serviceError('APPLE_RECEIPTS_INVALID_RESPONSE');
 }
 
 export function normalizeRemoteComprobanteApple(payload, expectedImei) {
   const imei = normalizarImeiApple(expectedImei);
-  if (!imei) return null;
-  for (const candidate of receiptCandidates(payload).slice(0, 20)) {
-    const boleta = serializeComprobanteAppleData(candidate, candidate?.id);
-    if (!boleta.id) continue;
-    if (getImeisComprobanteApple(boleta).includes(imei)) return boleta;
+  if (!imei || !luhnImeiApple(imei)) throw serviceError('IMEI_INVALIDO', 400);
+  const candidates = receiptCandidates(payload);
+  if (candidates.length > 50) throw serviceError('APPLE_RECEIPTS_INVALID_RESPONSE');
+  if (!candidates.length) {
+    if (payload.found === true) throw serviceError('APPLE_RECEIPTS_INCOMPLETE', 409);
+    return null;
   }
-  return null;
+  const matching = candidates.filter(candidate => getImeisComprobanteApple(candidate || {}).includes(imei));
+  if (!matching.length) throw serviceError('APPLE_RECEIPTS_MISMATCH', 409);
+  if (matching.length !== 1) throw serviceError('APPLE_RECEIPTS_CONFLICT', 409);
+  const validation = validateAppleReceipt(matching[0], imei);
+  if (!validation.valid) throw serviceError(validation.code, 409);
+  const currentFingerprint = receiptFingerprint(matching[0]);
+  if (matching[0].receiptFingerprint !== currentFingerprint) throw serviceError('APPLE_RECEIPTS_CHANGED', 409);
+  const receipt = serializeComprobanteAppleData(matching[0], matching[0].id);
+  receipt.receiptFingerprint = currentFingerprint;
+  const sanitizedValidation = validateAppleReceipt(receipt, imei);
+  if (!sanitizedValidation.valid) throw serviceError(sanitizedValidation.code, 409);
+  return receipt;
 }
 
 export async function findRemoteComprobanteAppleByImei(rawImei, options = {}) {
@@ -103,6 +126,8 @@ export async function findRemoteComprobanteAppleByImei(rawImei, options = {}) {
     : '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+  let upstreamStatus;
 
   try {
     const response = await fetchImpl(apiUrl, {
@@ -121,32 +146,43 @@ export async function findRemoteComprobanteAppleByImei(rawImei, options = {}) {
         imei,
       }),
     });
+    upstreamStatus = response.status;
 
     if (response.status === 404) {
-      await response.body?.cancel?.();
+      const missing = await readBoundedJson(response);
+      if (receiptCandidates(missing).length || !(missing.found === false || Array.isArray(missing.boletas) || Array.isArray(missing.data?.boletas))) throw serviceError('APPLE_RECEIPTS_UPSTREAM_ERROR');
+      console.info(JSON.stringify({event: 'apple.receipt.lookup', endpoint: 'comprobanteApple', httpStatus: 404, durationMs: Date.now() - startedAt, attempt: 1, result: 'not_found'}));
       return null;
     }
     if (!response.ok) {
       await response.body?.cancel?.();
       if ([401, 403].includes(response.status)) throw serviceError('APPLE_RECEIPTS_ACCESS_DENIED', 503);
+      if (response.status === 400) throw serviceError('APPLE_RECEIPTS_BAD_REQUEST', 400);
+      if (response.status === 409) throw serviceError('APPLE_RECEIPTS_CONFLICT', 409);
       if (response.status === 429) throw serviceError('APPLE_RECEIPTS_RATE_LIMIT', 429);
       throw serviceError('APPLE_RECEIPTS_UPSTREAM_ERROR');
     }
 
     const payload = await readBoundedJson(response);
-    return normalizeRemoteComprobanteApple(payload, imei);
+    const receipt = normalizeRemoteComprobanteApple(payload, imei);
+    console.info(JSON.stringify({event: 'apple.receipt.lookup', endpoint: 'comprobanteApple', httpStatus: response.status, durationMs: Date.now() - startedAt, attempt: 1, result: receipt ? 'valid' : 'not_found'}));
+    return receipt;
   } catch (error) {
-    if (controller.signal.aborted) throw serviceError('UPSTREAM_TIMEOUT', 504);
-    if (error?.message?.startsWith('APPLE_RECEIPTS_') || error?.message === 'IMEI_INVALIDO') throw error;
-    throw serviceError('APPLE_RECEIPTS_UPSTREAM_ERROR');
+    const safe = controller.signal.aborted ? serviceError('APPLE_RECEIPTS_TIMEOUT', 504)
+      : Object.hasOwn(APPLE_RECEIPT_MESSAGES, error?.message) ? serviceError(error.message, error.status || 502)
+        : serviceError('APPLE_RECEIPTS_NETWORK_ERROR', 503);
+    console.warn(JSON.stringify({event: 'apple.receipt.error', endpoint: 'comprobanteApple', code: safe.message, httpStatus: upstreamStatus || safe.status, durationMs: Date.now() - startedAt, attempt: 1, result: 'rejected'}));
+    throw safe;
   } finally {
     clearTimeout(timeoutId);
   }
 }
 
 export async function verifyRemoteComprobanteApple(rawId, rawImei, options = {}) {
-  const expectedId = String(rawId || '').trim().slice(0, 180);
-  if (!expectedId || expectedId.includes('/')) return null;
+  const expectedId = String(rawId || '').trim();
+  if (options.discoverReceipt) return findRemoteComprobanteAppleByImei(rawImei, options);
+  if (!expectedId) return null;
+  if (expectedId.length > 180 || expectedId.includes('/')) throw serviceError('APPLE_RECEIPTS_INVALID_RECEIPT', 409);
   const boleta = await findRemoteComprobanteAppleByImei(rawImei, options);
   return boleta?.id === expectedId ? boleta : null;
 }

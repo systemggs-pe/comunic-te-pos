@@ -1,25 +1,12 @@
+import {luhn, normalizeImei} from '../../src/utils/imei.js';
 const MAX_VENTAS = 20;
 
 export function normalizarImeiApple(value) {
-  const imei = String(value || '').replace(/\D/g, '');
-  return /^\d{15}$/.test(imei) ? imei : '';
+  return normalizeImei(value);
 }
 
 export function luhnImeiApple(value) {
-  const imei = normalizarImeiApple(value);
-  if (!imei) return false;
-  let sum = 0;
-  let shouldDouble = false;
-  for (let index = imei.length - 1; index >= 0; index -= 1) {
-    let digit = Number(imei[index]);
-    if (shouldDouble) {
-      digit *= 2;
-      if (digit > 9) digit -= 9;
-    }
-    sum += digit;
-    shouldDouble = !shouldDouble;
-  }
-  return sum % 10 === 0;
+  return luhn(normalizarImeiApple(value));
 }
 
 function cleanText(value, max = 300) {
@@ -137,21 +124,26 @@ function sanitizeBoletaData(value = {}) {
     equiposMap,
     totalClp: cleanMoney(value.totalClp),
     fechaHora: cleanText(value.fechaHora, 40),
-    nBoleta: Number.isFinite(Number(value.nBoleta)) ? Number(value.nBoleta) : null,
+    nBoleta: value.nBoleta != null && value.nBoleta !== '' && Number.isFinite(Number(value.nBoleta)) ? Number(value.nBoleta) : null,
     emisor: sanitizeEmisor(value.emisor),
   };
 }
 
 export function serializeComprobanteAppleData(rawData = {}, fallbackId = '') {
   const data = rawData && typeof rawData === 'object' && !Array.isArray(rawData) ? rawData : {};
+  const number = data.nBoleta ?? data.boletaData?.nBoleta;
   return {
     id: cleanText(data.id || fallbackId, 180),
-    nBoleta: Number.isFinite(Number(data.nBoleta)) ? Number(data.nBoleta) : null,
+    estado: ['ACTIVA', 'ANULADA'].includes(data.estado) ? data.estado : null,
+    updatedAt: cleanText(data.updatedAt, 80),
+    receiptFingerprint: cleanText(data.receiptFingerprint, 64),
+    nBoleta: number != null && number !== '' && Number.isFinite(Number(number)) ? Number(number) : null,
     clienteDni: cleanText(data.clienteDni, 20),
     clienteNombre: cleanText(data.clienteNombre, 180),
     totalPen: cleanMoney(data.totalPen),
     totalClp: cleanMoney(data.totalClp),
-    fechaHora: cleanText(data.fechaHora, 40),
+    fechaHora: cleanText(data.fechaHora || data.boletaData?.fechaHora, 40),
+    origen: cleanText(data.origen, 20),
     formato: [1, 2, 3, 4, 5, 6, 7].includes(Number(data.formato)) ? Number(data.formato) : 1,
     boletaEquipoKeys: getImeisComprobanteApple(data),
     boletaData: sanitizeBoletaData(data.boletaData),

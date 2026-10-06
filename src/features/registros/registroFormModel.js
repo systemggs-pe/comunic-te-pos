@@ -127,6 +127,7 @@ export function validateRegistroDraft(form, {
   imeiYaRegistrado,
   esApple,
   comprobanteAppleValido,
+  comprobanteApplePendiente = false,
   permitePrecioCero,
 } = {}) {
   const customerError = validateCustomerStep(form, direccionFinalCliente);
@@ -138,7 +139,7 @@ export function validateRegistroDraft(form, {
     return 'Indica si el equipo Samsung es de TIENDA o EXTERNO';
   }
   if (!esRegistroSamsungDual(form) && ![clean(form.imei1), clean(form.imei2)].includes(clean(form.imei))) return 'Selecciona el IMEI que se va a registrar';
-  if (esApple && !comprobanteAppleValido) return 'Primero verifica que el IMEI tenga una boleta extranjera';
+  if (esApple && !comprobanteAppleValido && !comprobanteApplePendiente) return 'Primero verifica que el IMEI tenga una boleta extranjera';
   if (!normalizarTieneCaja(form.tieneCaja)) return 'Indica si el cliente tiene la caja del equipo';
   const precio = clean(form.precio);
   if (!MONEY_RE.test(precio) || Number(precio) < 0 || (!permitePrecioCero && Number(precio) === 0)) {

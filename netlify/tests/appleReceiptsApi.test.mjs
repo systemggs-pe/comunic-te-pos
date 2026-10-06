@@ -7,6 +7,7 @@ import {
   verifyRemoteComprobanteApple,
 } from '../functions/_appleReceiptsApi.mjs';
 
+import {receiptFingerprint} from '../functions/_receiptFingerprint.mjs';
 const PRIMARY_IMEI = '490154203237518';
 const SECONDARY_IMEI = '356938035643809';
 const TEST_ENV = {
@@ -16,9 +17,11 @@ const TEST_ENV = {
 };
 
 function remoteBoleta(id = 'receipt-1042', imeis = [PRIMARY_IMEI]) {
-  return {
+  const receipt = {
+    estado: 'ACTIVA',
     id,
     nBoleta: 1042,
+    fechaHora: "2026-10-01T12:00:00.000Z",
     boletaEquipoKeys: imeis,
     boletaData: {
       cliente: {nombre: 'CLIENTE APPLE', dni: '12345678'},
@@ -26,6 +29,7 @@ function remoteBoleta(id = 'receipt-1042', imeis = [PRIMARY_IMEI]) {
       equiposMap: {[imeis[0]]: {imei2: imeis[1] || '', marca: 'APPLE'}},
     },
   };
+  return {...receipt, receiptFingerprint: receiptFingerprint(receipt)};
 }
 
 test('remote Apple lookup uses the server-only key and exact IMEI query', async () => {
@@ -52,7 +56,7 @@ test('remote Apple lookup uses the server-only key and exact IMEI query', async 
 });
 
 test('remote Apple lookup rejects unrelated or mismatched receipt data', async () => {
-  assert.equal(normalizeRemoteComprobanteApple({boletas: [remoteBoleta()]}, SECONDARY_IMEI), null);
+  assert.throws(() => normalizeRemoteComprobanteApple({boletas: [remoteBoleta()]}, SECONDARY_IMEI), {message: 'APPLE_RECEIPTS_MISMATCH'});
   assert.equal(normalizeRemoteComprobanteApple({found: false}, PRIMARY_IMEI), null);
 
   const fetchImpl = async () => new Response(JSON.stringify({boletas: [remoteBoleta()]}), {status: 200});

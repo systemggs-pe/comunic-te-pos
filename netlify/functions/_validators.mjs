@@ -135,6 +135,7 @@ const registroSchema = z.object({
   fecha: dateSchema,
   boletaExtranjeraId: optionalText(180),
   boletaExtranjeraNro: optionalText(30),
+  expectedReceiptFingerprint: optionalText(64),
   pdfDniUrl: optionalText(1200),
   pdfCajaUrl: optionalText(1200),
   pdfReciboUrl: optionalText(1200),

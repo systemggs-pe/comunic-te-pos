@@ -2,6 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, Home, ShoppingCart, ClipboardList, Plus, Search, Edit, Trash2, Printer, Copy, Eye, CheckCircle2, AlertCircle, Users, ScanBarcode, UploadCloud, ChevronDown, ChevronUp, LogOut, Share2, Settings, ImagePlus } from 'lucide-react';
 import { actualizarRegistro, consultarComprobanteApplePorImei, crearRegistro, crearRegistroSamsungDual, obtenerMensajeErrorFuncion } from '../../services/functionsClient.js';
 import { luhn } from '../../utils/imei.js';
+import {canDeferStoredAppleReceipt} from './appleReceiptLookup.js';
+import {createAppleReceiptAutomation, receiptFlowCompatibility} from './appleReceiptAutomation.js';
+import {createAppleReceiptDraftHandoff} from './appleReceiptDraft.js';
+import {validateAppleReceipt} from './appleReceiptValidation.js';
 import {TIPOS_DOCUMENTO, etiquetaDocumento, limpiarDocumento, placeholderDocumento, validarDocumento} from '../../utils/documentos.js';
 import {PERU_DEPARTAMENTOS, separarDireccionDepartamento, unirDireccionDepartamento} from '../../utils/peruDepartamentos.js';
 import { ImageCropModal } from '../../components/ui/ImageCropModal.jsx';
@@ -18,7 +22,6 @@ import {
   createInitialRegistroForm,
   debeSincronizarCelularRef,
   descomponerMarcaRegistro,
-  emptyComprobanteApple,
   EMAIL_RE,
   esRegistroSamsungDual,
   marcaFinalRegistro,
@@ -68,7 +71,32 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   }));
   const [evidenciasProcesando, setEvidenciasProcesando] = useState({});
   const [recorteEvidencia, setRecorteEvidencia] = useState(null);
-  const [comprobanteApple, setComprobanteApple] = useState(() => emptyComprobanteApple());
+  const [appleFlow, setAppleFlow] = useState({state: 'IDLE', imei: '', boleta: null});
+  const comprobanteApple = receiptFlowCompatibility(appleFlow);
+  const applePending = appleFlow.state === 'SEARCHING';
+  const appleLookupRef = React.useRef(null);
+  if (appleLookupRef.current === null) appleLookupRef.current = createAppleReceiptAutomation(consultarComprobanteApplePorImei, {onChange: setAppleFlow});
+  const loadedRecordRef = React.useRef(null);
+  const draftHandoffRef = React.useRef(null);
+  const appleMountedRef = React.useRef(false);
+  const saveBusyRef = React.useRef(false);
+  const invalidateAppleReceipt = React.useCallback(() => {
+    draftHandoffRef.current?.invalidate();
+    appleLookupRef.current.invalidate();
+  }, []);
+  useEffect(() => {
+    const lookup = createAppleReceiptAutomation(consultarComprobanteApplePorImei, {onChange: setAppleFlow});
+    appleLookupRef.current = lookup;
+    draftHandoffRef.current = createAppleReceiptDraftHandoff(window);
+    appleMountedRef.current = true;
+    return () => {appleMountedRef.current = false; draftHandoffRef.current?.invalidate(); lookup.dispose();};
+  }, []);
+  useEffect(() => {
+    if (!comprobanteApple.expiresAt) return;
+    const timer = setTimeout(invalidateAppleReceipt, Math.max(0, comprobanteApple.expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [comprobanteApple.expiresAt, invalidateAppleReceipt]);
+
   const [contactosClienteReg, setContactosClienteReg] = useState({celulares: [], correos: []});
   const direccionFinalCliente = useMemo(() => unirDireccionDepartamento(formData.direccion, formData.departamento), [formData.direccion, formData.departamento]);
   const marcaFinal = marcaFinalRegistro(formData);
@@ -79,13 +107,27 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   const comprobanteAppleValido = esApple
     && comprobanteApple.status === 'found'
     && comprobanteApple.imei === formData.imei
-    && Boolean(comprobanteApple.boleta?.id);
+    && validateAppleReceipt(comprobanteApple.boleta, formData.imei).valid;
+  const comprobanteApplePendiente = canDeferStoredAppleReceipt(initialData, {
+    imei: formData.imei, imei1: formData.imei1, imei2: formData.imei2, marca: marcaFinal,
+  }, comprobanteApple);
+  useEffect(() => {
+    const automation = appleLookupRef.current;
+    let active = true;
+    queueMicrotask(() => {if (active) automation.update(formData, {record: initialData});});
+    return () => {active = false;};
+  }, [formData, initialData]);
+
+  useEffect(() => {draftHandoffRef.current?.sync(appleFlow.draft);}, [appleFlow.draft]);
+
   const camposEvidenciaVisibles = esApple
     ? APPLE_EVIDENCIA_ORDER.map(key => REGISTRO_EVIDENCIA_FIELDS.find(field => field.key === key)).filter(Boolean)
     : REGISTRO_EVIDENCIA_FIELDS;
 
   useEffect(() => {
-    if (initialData) {
+    if (initialData && loadedRecordRef.current !== initialData) {
+      loadedRecordRef.current = initialData;
+      invalidateAppleReceipt();
       const cliente = clientes.find(c => c.dni === initialData.dniCliente) || {};
       const eq = equipos.find(e => e.idEquipo === initialData.imeiEquipo || e.imei2 === initialData.imeiRegistrado) || {};
       const direccionCliente = separarDireccionDepartamento(initialData.direccionCliente || cliente.direccion || '');
@@ -106,16 +148,9 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       setFormData({
         tipoDocumento: initialData.tipoDocumentoCliente || cliente.tipoDocumento || 'DNI', dni: initialData.dniCliente || '', nombre: initialData.nombreCliente || cliente.nombre || '', celular: initialData.celularCliente || cliente.celular || celulares[0] || '', celular2: '', celularRef: initialData.celularRef || cliente.celularRef || initialData.celularCliente || cliente.celular || '', correo: initialData.correoCliente || correos[0] || '', direccion: direccionCliente.direccion, departamento: departamentoCliente, imei1: imeiPrincipal, imei: imeiRegistrado, imei2: imeiSecundario, sn: initialData.sn || eq.sn || '', ...seleccionMarca, modelo: initialData.modeloEquipo || '', nombreComercial: initialData.nombreComercialEquipo || '', color: initialData.colorEquipo || eq.color || '', memoria: initialData.memoriaEquipo || eq.memoria || '', ram: initialData.ramEquipo || eq.ram || '', registrarAmbosImeis: false, estado: initialData.estado || 'NO BLOQUEADO', estadoSolicitud: initialData.estado === 'BLOQUEADO' ? '' : (initialData.estadoSolicitud || 'PENDIENTE'), operador: initialData.operador || 'BITEL', tipo: tipoRegistro, tieneCaja: normalizarTieneCaja(initialData.tieneCaja) || 'NO', precio: initialData.precio || '0', fecha: toLocalDatetimeValue(initialData.fecha)
       });
-      if (initialData.boletaExtranjeraId) {
-        setComprobanteApple({
-          imei: imeiRegistrado,
-          status: 'found',
-          boleta: {id: initialData.boletaExtranjeraId, nBoleta: initialData.boletaExtranjeraNro || ''},
-        });
-      }
       setShowManualEqForm(true);
     }
-  }, [initialData, clientes, equipos]);
+  }, [initialData, clientes, equipos, invalidateAppleReceipt]);
 
 
 
@@ -151,7 +186,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   const onEscaneo = (datos, {warnings = []} = {}) => {
     setMostrarEscaner(false);
     setEscaneoProcesando(false);
-    setComprobanteApple(emptyComprobanteApple());
+    invalidateAppleReceipt();
     onDirty?.();
     const baseline = scanBaseline.current;
     setFormData(prev => {
@@ -208,7 +243,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     setMostrarEscaner(false);
     setEscaneoProcesando(false);
     setScanNotice('');
-    setComprobanteApple(emptyComprobanteApple());
+    invalidateAppleReceipt();
     onDirty?.();
     const marca = normalizarMarcaRegistro(eq.marca);
     setFormData(prev => ({
@@ -232,6 +267,14 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   const handleChange = (e) => {
     const { name, value } = e.target;
     let val = value;
+    if (esApple && ['imei1', 'imei2', 'imei'].includes(name)) {
+      val = value.replace(/\s/g, '');
+      if (!/^\d*$/.test(val) || val.length > 15) {
+        invalidateAppleReceipt();
+        showToast('Ingresa un IMEI válido de 15 dígitos.', 'error');
+        return;
+      }
+    }
     if (name === 'tipoDocumento' || name === 'dni') {
       onDirty?.();
       setDniStatusReg(null);
@@ -239,7 +282,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       setMostrarEscaner(false);
       setEscaneoProcesando(false);
       setScanNotice('');
-      setComprobanteApple(emptyComprobanteApple());
+      invalidateAppleReceipt();
       setShowManualEqForm(true);
       setFormData(prev => {
         const tipoDocumento = name === 'tipoDocumento' ? value : prev.tipoDocumento;
@@ -263,8 +306,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       setEvidencias(prev => ({...prev, cajaEquipo: null}));
       if (recorteEvidencia?.key === 'cajaEquipo') setRecorteEvidencia(null);
     }
-    if (name === 'imei1' || name === 'imei2' || name === 'imei' || name === 'marca' || name === 'marcaOtra') {
-      setComprobanteApple(emptyComprobanteApple());
+    if (['imei1', 'imei2', 'imei', 'marca', 'marcaOtra'].includes(name) && val !== formData[name]) {
+      invalidateAppleReceipt();
     }
     onDirty?.();
     setFormData(prev => {
@@ -302,6 +345,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       imeiYaRegistrado,
       esApple,
       comprobanteAppleValido,
+      comprobanteApplePendiente,
       permitePrecioCero,
     });
     if (message) showToast(message, 'error');
@@ -386,10 +430,13 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
   };
 
   const guardarRegistro = async () => {
+    if (saveBusyRef.current) return;
+    if (!validarFormularioCompleto()) return;
     if (mostrarEscaner) {
       showToast('Espera a que termine el escaneo o cancélalo antes de guardar el registro.', 'error');
       return;
     }
+    saveBusyRef.current = true;
     setConfirmarGuardado(false);
     setLoading(true);
     try {
@@ -419,6 +466,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
         tipo: formData.tipo, tieneCaja: formData.tieneCaja === 'SI', precio: formData.precio,
         boletaExtranjeraId: esApple ? (comprobanteApple.boleta?.id || '') : '',
         boletaExtranjeraNro: esApple ? String(comprobanteApple.boleta?.nBoleta || '') : '',
+        expectedReceiptFingerprint: esApple ? (comprobanteApple.boleta?.receiptFingerprint || '') : '',
         fecha: new Date(formData.fecha).toISOString(),
       };
       const evidenciasParaPdf = formData.tieneCaja === 'SI'
@@ -471,7 +519,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             correoCliente: clienteData.correo,
             celularCliente: clienteData.celular,
             celularRef: clienteData.celularRef,
-          }, evidenciasParaPdf, opcionesPdf);
+          }, evidenciasParaPdf, {...opcionesPdf, ...(saved.boletaApple ? {boletaExtranjera: saved.boletaApple} : {})});
         }
         showToast('Actualizado exitosamente');
         await (onSave || onCancel)?.(saved);
@@ -496,7 +544,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
             correoCliente: clienteData.correo,
             celularCliente: clienteData.celular,
             celularRef: clienteData.celularRef,
-          }, evidenciasParaPdf, opcionesPdf);
+          }, evidenciasParaPdf, {...opcionesPdf, ...(saved.boletaApple ? {boletaExtranjera: saved.boletaApple} : {})});
         }
         showToast(registroSamsungDual ? 'Se crearon las dos solicitudes Samsung' : 'Guardado exitosamente');
         await (onSave || onCancel)?.(saved);
@@ -504,7 +552,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     } catch (error) {
       console.error(error);
       showToast(obtenerMensajeErrorFuncion(error, 'Error al guardar'), 'error');
-    } finally { setLoading(false); }
+    } finally { saveBusyRef.current = false; setLoading(false); }
   };
 
   const [paso, setPaso] = useState(1);
@@ -546,7 +594,8 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
     }
     return true;
   };
-  const validarPaso2 = async () => {
+  const validarPaso2 = async ({refresh = false} = {}) => {
+    if (appleLookupRef.current.isBusy()) return false;
     if (!luhn(clean(formData.imei1))) {
       showToast('El IMEI 1 no es valido; verifica los digitos', 'error'); return false;
     }
@@ -570,22 +619,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
       showToast(`El IMEI ${formData.imei} ya tiene un registro activo`, 'error'); return false;
     }
     if (esApple) {
-      if (comprobanteAppleValido) return true;
-      setComprobanteApple({imei: formData.imei, status: 'loading', boleta: null});
-      try {
-        const result = await consultarComprobanteApplePorImei(formData.imei);
-        if (!result?.found || !result.boleta?.id) {
-          setComprobanteApple({imei: formData.imei, status: 'not_found', boleta: null});
-          showToast('No existe una boleta extranjera para este IMEI APPLE', 'error');
-          return false;
-        }
-        setComprobanteApple({imei: formData.imei, status: 'found', boleta: result.boleta});
-        showToast(`Boleta extranjera N° ${result.boleta.nBoleta || '-'} encontrada`, 'success');
-      } catch (error) {
-        setComprobanteApple({imei: formData.imei, status: 'error', boleta: null});
-        showToast(obtenerMensajeErrorFuncion(error, 'No se pudo buscar la boleta extranjera'), 'error');
-        return false;
-      }
+      if (comprobanteApplePendiente && !refresh) return true;
+      if (comprobanteAppleValido && !refresh) return true;
+      const expectedId = !refresh && comprobanteApple.status === 'saved' ? comprobanteApple.boleta?.id : '';
+      return appleLookupRef.current.search(formData, {expectedId, refresh});
     }
     return true;
   };
@@ -776,11 +813,11 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">IMEI 1 *</label>
-                  <input name="imei1" value={formData.imei1} onChange={handleChange} inputMode="numeric" maxLength={15} className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('imei1')} ${formData.imei1.length === 15 ? (luhn(formData.imei1) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} placeholder={placeholderEscaneo('imei1', '15 dígitos')} />
+                  <input name="imei1" value={formData.imei1} onChange={handleChange} inputMode="numeric" maxLength={esApple ? undefined : 15} className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('imei1')} ${formData.imei1.length === 15 ? (luhn(formData.imei1) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} placeholder={placeholderEscaneo('imei1', '15 dígitos')} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">IMEI 2 <span className="font-normal text-[var(--ui-text-tertiary)]">(opcional)</span></label>
-                  <input name="imei2" value={formData.imei2} onChange={handleChange} inputMode="numeric" maxLength={15} className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('imei2')} ${formData.imei2.length === 15 ? (luhn(formData.imei2) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} placeholder={placeholderEscaneo('imei2', '15 dígitos si corresponde')} />
+                  <input name="imei2" value={formData.imei2} onChange={handleChange} inputMode="numeric" maxLength={esApple ? undefined : 15} className={`w-full border rounded p-2 text-sm font-mono ${claseEscaneo('imei2')} ${formData.imei2.length === 15 ? (luhn(formData.imei2) ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : ''}`} placeholder={placeholderEscaneo('imei2', '15 dígitos si corresponde')} />
                 </div>
                 <fieldset className="sm:col-span-2 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
                   <legend className="px-1 text-xs font-extrabold text-slate-600">IMEI que se va a registrar *</legend>
@@ -825,7 +862,7 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     {[['imei1', formData.imei1, 'IMEI 1'], ['imei2', formData.imei2, 'IMEI 2']].map(([key, value, label]) => (
                       <label key={key} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 font-mono text-xs ${!registroSamsungDual && formData.imei === value && value ? 'border-blue-500 bg-white text-blue-700' : 'border-slate-200 bg-white text-slate-600'} ${registroSamsungDual || !value || !luhn(value) || imeiYaRegistrado(value) ? 'cursor-not-allowed opacity-50' : 'hover:border-blue-300'}`}>
-                        <input type="radio" name="imeiRegistrado" value={value} checked={!registroSamsungDual && Boolean(value) && formData.imei === value} onChange={() => { onDirty?.(); setComprobanteApple(emptyComprobanteApple()); setFormData(prev => ({...prev, imei: value, registrarAmbosImeis: false, celular2: ''})); }} disabled={registroSamsungDual || !value || !luhn(value) || imeiYaRegistrado(value)} className="accent-blue-600" />
+                        <input type="radio" name="imeiRegistrado" value={value} checked={!registroSamsungDual && Boolean(value) && formData.imei === value} onChange={() => { onDirty?.(); invalidateAppleReceipt(); setFormData(prev => ({...prev, imei: value, registrarAmbosImeis: false, celular2: ''})); }} disabled={registroSamsungDual || !value || !luhn(value) || imeiYaRegistrado(value)} className="accent-blue-600" />
                         <span><span className="font-sans font-bold">{label}</span><br />{value || 'Ingresa el IMEI'}{imeiYaRegistrado(value) && <span className="block font-sans text-amber-800">Ya tiene registro activo</span>}</span>
                       </label>
                     ))}
@@ -859,9 +896,28 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                 <div><label className="block text-xs text-gray-500 mb-1">Memoria</label><input name="memoria" value={formData.memoria} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: 256 GB" maxLength={12} /></div>
                 <div><label className="block text-xs text-gray-500 mb-1">RAM</label><input name="ram" value={formData.ram} onChange={handleChange} className="w-full border rounded p-2 text-sm" placeholder="Ej: 8 GB" maxLength={12} /></div>
                 {esApple && (
+                  <button type="button" onClick={() => appleLookupRef.current.search(formData, {refresh: true})} disabled={applePending} className="saas-secondary !min-h-11 whitespace-normal disabled:opacity-60">
+                    {['error', 'not_found'].includes(comprobanteApple.status) ? 'Reintentar validación' : 'Volver a validar comprobante'}
+                  </button>
+                )}
+                {esApple && appleFlow.state === 'READY_TO_CREATE' && appleFlow.imei === formData.imei && (
+                  <section className="sm:col-span-2 min-w-0 rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3" aria-label="Borrador de boleta">
+                    <h3 className="text-sm font-semibold">Boleta preparada para revisión</h3>
+                    <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 break-words">
+                      <div><dt>Cliente</dt><dd>{appleFlow.draft.fields.nombre} · {appleFlow.draft.fields.rut}</dd></div>
+                      <div><dt>Equipo</dt><dd>{appleFlow.draft.fields.nombreComercial || appleFlow.draft.fields.modelo || 'Completar producto'} · {appleFlow.draft.fields.imei1}</dd></div>
+                    </dl>
+                    <p className="text-xs">Datos precargados. Completa el precio de venta del equipo, fecha y formato. El precio del registro no se usa como precio de venta.</p>
+                    <button type="button" onClick={() => {if (!draftHandoffRef.current.open(appleFlow.draft)) showToast('Permite abrir la app de boletas para revisar el borrador.', 'error');}} className="saas-primary !min-h-11 w-full whitespace-normal text-center">Revisar y generar boleta</button>
+                    <button type="button" disabled={applePending} onClick={() => appleLookupRef.current.search(formData, {refresh: true})} className="saas-secondary !min-h-11 w-full whitespace-normal">Ya generé la boleta: comprobar</button>
+                    <p className="text-xs">El borrador no emite una boleta. Confirma la generación en la app de boletas y vuelve aquí.</p>
+                  </section>
+                )}
+                {esApple && (
                   <div
                     aria-live="polite"
-                    className={`sm:col-span-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                    role="status"
+                    className={`sm:col-span-2 flex min-w-0 items-start gap-2 rounded-lg border px-3 py-2 text-xs font-semibold break-words ${
                       comprobanteApple.status === 'found'
                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                         : comprobanteApple.status === 'not_found' || comprobanteApple.status === 'error'
@@ -870,16 +926,23 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                     }`}
                   >
                     {comprobanteApple.status === 'loading' && <span className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700" />}
-                    <span>
+                    <span className="min-w-0 break-words">
                       {comprobanteApple.status === 'found'
-                        ? `Boleta extranjera N° ${comprobanteApple.boleta?.nBoleta || '-'} verificada para este IMEI.`
+                        ? `Comprobante encontrado y validado. N° ${comprobanteApple.boleta?.nBoleta || '-'}.`
                         : comprobanteApple.status === 'loading'
-                          ? 'Buscando una boleta extranjera para este IMEI...'
+                          ? 'Buscando comprobante...'
                           : comprobanteApple.status === 'not_found'
-                            ? 'No existe una boleta extranjera para este IMEI. No se puede continuar.'
+                            ? comprobanteApple.message
                             : comprobanteApple.status === 'error'
-                              ? 'No se pudo verificar la boleta. Vuelve a intentar con Siguiente.'
-                              : 'Al continuar se verificará que este IMEI tenga una boleta extranjera.'}
+                              ? comprobanteApple.message
+                              : comprobanteApple.status === 'saved'
+                                ? 'El comprobante guardado se validará de nuevo en el repositorio al guardar. Puedes comprobarlo ahora con Volver a validar comprobante.'
+                                : appleFlow.message || 'La búsqueda comenzará automáticamente cuando el IMEI y cliente estén completos.'}
+                      {comprobanteApple.status === 'found' && (
+                        <span className="mt-1 block font-normal">
+                          {comprobanteApple.boleta.fechaHora || comprobanteApple.boleta.boletaData?.fechaHora} · {comprobanteApple.boleta.boletaData?.cliente?.nombre}
+                        </span>
+                      )}
                     </span>
                   </div>
                 )}
@@ -894,10 +957,10 @@ export function RegistroForm({ clientes, equipos, registros, initialData, onCanc
                   if (!(await validarPaso2())) return;
                   setPaso(3);
                 }}
-                disabled={comprobanteApple.status === 'loading'}
-                className="saas-primary disabled:cursor-wait disabled:opacity-60"
+                disabled={applePending}
+                className="saas-primary !min-h-11 whitespace-normal disabled:cursor-wait disabled:opacity-60"
               >
-                {comprobanteApple.status === 'loading' ? 'Buscando boleta...' : 'Siguiente'}
+                {applePending ? 'Buscando comprobante...' : 'Siguiente'}
               </button>
             </div>
           </div>

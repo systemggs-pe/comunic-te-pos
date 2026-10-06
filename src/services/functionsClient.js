@@ -1,4 +1,5 @@
 import { auth } from '../lib/firebase.js';
+import {APPLE_RECEIPT_MESSAGES} from '../features/registros/appleReceiptValidation.js';
 
 const BACKEND_BASE_URL = (import.meta.env.VITE_BACKEND_BASE_URL || '').replace(/\/$/, '');
 const IS_LOCAL_API_PROXY = import.meta.env.DEV && !BACKEND_BASE_URL;
@@ -233,6 +234,7 @@ function prettifyValidationIssue(issue = {}) {
 }
 
 export function obtenerMensajeErrorFuncion(error, fallback = 'Error de servidor') {
+  if (APPLE_RECEIPT_MESSAGES[error?.message] && error?.message !== 'IMEI_INVALIDO' && error?.message !== 'UPSTREAM_TIMEOUT') return APPLE_RECEIPT_MESSAGES[error.message];
   const issues = error?.payload?.details?.issues;
   if (Array.isArray(issues) && issues.length) {
     return prettifyValidationIssue(issues[0]);
@@ -323,8 +325,21 @@ export function consultarDniFotos(dni, tipo = 'azul', {refresh = false} = {}) {
   return llamarFuncionSegura('dniFotos', {dni: String(dni), tipo, ...(refresh ? {refresh: true} : {})});
 }
 
-export function consultarComprobanteApplePorImei(imei) {
-  return llamarFuncionSegura('comprobanteApple', {imei: String(imei)});
+export async function consultarComprobanteApplePorImei(imei) {
+  const controller = new AbortController();
+  let timer;
+  const deadline = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => {controller.abort(); reject(new Error('APPLE_RECEIPTS_TIMEOUT'));}, 25_000);
+  });
+  try {
+    return await Promise.race([
+      llamarFuncionSegura('comprobanteApple', {imei: String(imei)}, {signal: controller.signal}),
+      deadline,
+    ]);
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('APPLE_RECEIPTS_TIMEOUT');
+    throw error;
+  } finally {clearTimeout(timer);}
 }
 
 const CLIENTES_QUERY_TTL_MS = 20_000;

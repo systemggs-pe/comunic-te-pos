@@ -1,3 +1,5 @@
+import {receiptFingerprint} from '../functions/_receiptFingerprint.mjs';
+const signReceipt = r => ({...r, estado: 'ACTIVA', receiptFingerprint: receiptFingerprint({...r, estado: 'ACTIVA'})});
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {__test} from '../functions/solicitudesPublicas.mjs';
@@ -314,15 +316,17 @@ test('solicitud publica attaches Apple receipt before completing registration', 
     fetchImpl: async (url, options) => {
       captured = {url, options};
       return new Response(JSON.stringify({
-        boletas: [{
+        boletas: [signReceipt({
           id: 'apple-receipt-1263',
           nBoleta: '1263',
+          fechaHora: '2026-10-01T12:00:00.000Z',
           boletaEquipoKeys: [validImei1, validImei2],
           boletaData: {
-            ventas: [{imeiEquipo: validImei1, imei2Equipo: validImei2, marcaEquipo: 'APPLE'}],
+            cliente: {nombre: 'CLIENTE PRUEBA', dni: '12345678'},
+            ventas: [{imeiEquipo: validImei1, imei2Equipo: validImei2, marcaEquipo: 'APPLE', precio: 1200}],
             equiposMap: {[validImei1]: {imei2: validImei2, marca: 'APPLE'}},
           },
-        }],
+        })],
       }), {status: 200, headers: {'Content-Type': 'application/json'}});
     },
   });
@@ -336,32 +340,17 @@ test('solicitud publica attaches Apple receipt before completing registration', 
   assert.equal(captured.options.headers.Authorization, 'Bearer operator-token');
 });
 
-test('registro accepts preverified Apple receipt for the selected IMEI without a second lookup', async () => {
-  const registro = {
-    marcaEquipo: 'APPLE',
-    imeiEquipo: validImei1,
-    imeiRegistrado: validImei2,
-    boletaExtranjeraId: 'apple-receipt-1263',
-    boletaExtranjeraNro: '',
-  };
-
-  await registrosTest.assertComprobanteApple(registro, {
-    preverifiedAppleReceipt: {
-      id: 'apple-receipt-1263',
-      nBoleta: '1263',
-      boletaEquipoKeys: [validImei1, validImei2],
-      boletaData: {
-        ventas: [{imeiEquipo: validImei1, imei2Equipo: validImei2, marcaEquipo: 'APPLE'}],
-        equiposMap: {[validImei1]: {imei2: validImei2, marca: 'APPLE'}},
-      },
-    },
-    fetchImpl: async () => {
-      throw new Error('SECOND_REMOTE_LOOKUP_SHOULD_NOT_RUN');
-    },
-  });
-
-  assert.equal(registro.boletaExtranjeraId, 'apple-receipt-1263');
-  assert.equal(registro.boletaExtranjeraNro, '1263');
+test('preverified receipt requires exactly one final authoritative lookup', async () => {
+  const receipt = signReceipt({id: 'apple-receipt-1263', nBoleta: 1263, fechaHora: '2026-10-01T12:00:00.000Z',
+    boletaEquipoKeys: [validImei1, validImei2], boletaData: {cliente: {nombre: 'CLIENTE PRUEBA', dni: '12345678'},
+      ventas: [{imeiEquipo: validImei1, imei2Equipo: validImei2, marcaEquipo: 'APPLE', precio: 1200}],
+      equiposMap: {[validImei1]: {imei2: validImei2, marca: 'APPLE'}}}});
+  let calls = 0;
+  const registro = {marcaEquipo: 'APPLE', imeiEquipo: validImei1, imeiRegistrado: validImei2, boletaExtranjeraId: receipt.id};
+  await registrosTest.assertComprobanteApple(registro, {env: TEST_APPLE_ENV, preverifiedAppleReceipt: receipt,
+    fetchImpl: async () => {calls++; return new Response(JSON.stringify({boletas: [receipt]}));}});
+  assert.equal(calls, 1);
+  assert.equal(registro.receiptFingerprint, receipt.receiptFingerprint);
 });
 
 test('solicitud publica model sanitizes and validates client form', () => {

@@ -558,10 +558,11 @@ async function completeRequest(db, body, user, context) {
     pdfCajaUrl: '',
     pdfReciboUrl: '',
   };
-  const preverifiedAppleReceipt = await attachAppleReceiptForPublicRegistro(registro, context);
+  // Single final authoritative lookup; no reuse of a prior validation.
+  const discoverReceipt = String(registro.marcaEquipo || '').toUpperCase() === 'APPLE';
   const result = await createRegistro(db, {cliente, equipo, registro}, context, {
     authorization: context.authorization || '',
-    ...(preverifiedAppleReceipt ? {preverifiedAppleReceipt} : {}),
+    discoverReceipt,
   });
   await ref.set({
     status: 'TERMINADA',

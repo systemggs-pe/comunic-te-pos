@@ -1,3 +1,8 @@
+export function normalizeImei(value) {
+  const imei = String(value || '').replace(/\s/g, '');
+  return /^\d{15}$/.test(imei) ? imei : '';
+}
+
 export function luhn(imei) {
   if (!imei || imei.length !== 15 || !/^\d{15}$/.test(imei)) return false;
   let sum = 0;
