@@ -4,6 +4,7 @@ import {
   documentId,
   getCountFromServer,
   getDocs,
+  getDocsFromServer,
   limit,
   orderBy,
   query,
@@ -29,6 +30,15 @@ export function createFirestoreRepository(db, appId) {
   return {
     refs,
     logo,
+    async backupCount(name) {
+      return (await getCountFromServer(refs[name])).data().count;
+    },
+    async backupPage(name, pageSize, cursor = null) {
+      const constraints = [orderBy(documentId())];
+      if (cursor) constraints.push(startAfter(cursor));
+      constraints.push(limit(pageSize));
+      return getDocsFromServer(query(refs[name], ...constraints));
+    },
     referenceQuery(name, pageSize) {
       return query(refs[name], limit(pageSize));
     },

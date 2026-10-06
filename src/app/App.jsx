@@ -21,6 +21,7 @@ import {normalizeSearchTerm, registroMatchesSearch, ventaMatchesSearch} from '..
 import {indexClientesByDni, mapClienteDocument, normalizeDni} from '../utils/clientes.js';
 import {consultarEstadosRegistroImeis, consultarHistorialOperativo, marcarSolicitudPublicaRegistroTerminado, obtenerMensajeErrorFuncion, obtenerSesionUsuario} from '../services/functionsClient.js';
 import {createFirestoreRepository, mapSnapshotDocs} from '../repositories/firestoreRepository.js';
+import {exportCompleteBackup} from '../services/completeBackup.js';
 
 const lazyNamed = (loader, name) => lazy(() => loader().then(module => ({default: module[name]})));
 const Dashboard = lazyNamed(() => import('../features/dashboard/Dashboard.jsx'), 'Dashboard');
@@ -61,9 +62,9 @@ function SearchResultIcon({type}) {
   return <Users size={17} />;
 }
 
-function MoreMenuItem({Icon, title, description, active = false, tone = 'neutral', showChevron = true, value, onClick}) {
+function MoreMenuItem({Icon, title, description, active = false, tone = 'neutral', showChevron = true, value, onClick, disabled = false}) {
   return (
-    <button type="button" className="app-more-item" data-active={active} data-tone={tone} onClick={onClick} aria-current={active ? 'page' : undefined}>
+    <button type="button" className="app-more-item" data-active={active} data-tone={tone} onClick={onClick} disabled={disabled} aria-current={active ? 'page' : undefined}>
       <span className="app-more-item__icon" aria-hidden="true">{React.createElement(Icon, {size: 18, strokeWidth: 1.85})}</span>
       <span className="app-more-item__copy"><span>{title}</span><small>{description}</small></span>
       {value && <span className="app-more-item__value">{value}</span>}
@@ -125,6 +126,8 @@ function App() {
   const [busquedaGlobal, setBusquedaGlobal] = useState('');
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [logoVentas, setLogoVentas] = useState(null);
+  const [backupProgress, setBackupProgress] = useState(null);
+  const backupRunningRef = React.useRef(false);
   const [pendingView, setPendingView] = useState(null);
 
   const [clientes, setClientes] = useState([]);
@@ -477,11 +480,6 @@ function App() {
     setTotales(prev => ({...prev, ventas: Math.max(prev.ventas - 1, 0)}));
   };
 
-  const cargarColeccionCompletaOrdenada = React.useCallback(
-    nombre => repository.fetchAllOrdered(nombre),
-    [repository],
-  );
-
   const incorporarClientesConsultados = React.useCallback((items = []) => {
     let changed = false;
     items.forEach(item => {
@@ -594,31 +592,13 @@ function App() {
   }, [user]);
 
   // ── RESPALDO MANUAL (botón en topbar) ──
-  // eslint-disable-next-line no-unused-vars
-  const descargarRespaldo = () => {
-    if (registros.length + ventas.length === 0) { showToast('No hay datos para respaldar', 'error'); return; }
-    const hoy = new Date().toISOString().slice(0, 10);
-    const backup = { fecha: new Date().toISOString(), clientes, equipos, registros, ventas };
-    const json = JSON.stringify(backup, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `backup_comunicate_${hoy}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Respaldo descargado', 'success');
-  };
-
   const descargarRespaldoCompleto = async () => {
+    if (!puedeUsuario(user, ROLES_USUARIO.ADMIN) || backupRunningRef.current) return;
+    backupRunningRef.current = true;
+    setBackupProgress({collection: 'conteos', exported: 0, expected: 0});
     const hoy = new Date().toISOString().slice(0, 10);
     try {
-      const [registrosBackup, ventasBackup] = await Promise.all([
-        cargarColeccionCompletaOrdenada('registros'),
-        cargarColeccionCompletaOrdenada('ventas'),
-      ]);
-      if (registrosBackup.length + ventasBackup.length === 0) { showToast('No hay datos para respaldar', 'error'); return; }
-      const backup = { fecha: new Date().toISOString(), clientes, equipos, registros: registrosBackup, ventas: ventasBackup };
+      const backup = await exportCompleteBackup(repository, setBackupProgress);
       const json = JSON.stringify(backup, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url  = URL.createObjectURL(blob);
@@ -630,7 +610,10 @@ function App() {
       showToast('Respaldo descargado completo', 'success');
     } catch (err) {
       clientLogger.error('app.backup.full_download_error', err);
-      showToast('Error al generar respaldo', 'error');
+      showToast('No se pudo verificar el respaldo completo. No se descargó un archivo parcial; vuelve a intentar.', 'error');
+    } finally {
+      backupRunningRef.current = false;
+      setBackupProgress(null);
     }
   };
 
@@ -922,7 +905,7 @@ function App() {
 
               <div className="app-more-group">
                 <p className="app-more-group__label">Sistema</p>
-                {isAdmin && <MoreMenuItem Icon={UploadCloud} title="Descargar respaldo" description="Exportar los datos operativos" value="JSON" onClick={descargarRespaldoCompleto} />}
+                {isAdmin && <MoreMenuItem Icon={UploadCloud} title={backupProgress ? 'Preparando respaldo…' : 'Descargar respaldo'} description={backupProgress ? `${backupProgress.collection}: ${backupProgress.exported}/${backupProgress.expected}` : 'Exportar los datos operativos'} value="JSON" disabled={Boolean(backupProgress)} onClick={descargarRespaldoCompleto} />}
                 <ThemeToggle presentation="menu" />
                 <MoreMenuItem Icon={LogOut} title="Cerrar sesión" description="Salir de esta cuenta" tone="danger" showChevron={false} onClick={() => signOut(auth)} />
               </div>
