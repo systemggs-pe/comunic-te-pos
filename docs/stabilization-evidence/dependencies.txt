@@ -25,4 +25,3 @@ comunicate@7.0.0 C:\Users\COMUNICATE\Documents\REGISTRO DE VENTAS Y EQUIPOS COMU
 ├── tesseract.js@7.0.0
 ├── vite@7.3.6
 └── zod@4.4.3
-

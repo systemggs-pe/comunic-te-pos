@@ -21,23 +21,23 @@ DeprecationWarning: `url.parse()` behavior is not standardized and prone to erro
     at C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\exegesis\lib\index.js:22:71
     at new Promise (<anonymous>)
 i  Running script: node --test netlify/tests/firestoreRules.integration.mjs
-[2026-10-06T05:21:30.608Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb87fa error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-06T05:21:30.608Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb87fa error. Code: 7 Message: 7 PERMISSION_DENIED:
 evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
 ✔ active user reads operational data but cannot modify admin settings (10804.938ms)
 ✔ active admin edits permitted settings but cannot read privileged role collection (531.3928ms)
-[2026-10-06T05:21:31.656Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb8800 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-06T05:21:31.656Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb8800 error. Code: 7 Message: 7 PERMISSION_DENIED:
 false for 'create' @ L353, false for 'create' @ L357, false for 'update' @ L353, false for 'update' @ L357
 ✔ active superadmin reads roles but cannot write them directly (512.4158ms)
-[2026-10-06T05:21:31.972Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb8803 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-06T05:21:31.972Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb8803 error. Code: 7 Message: 7 PERMISSION_DENIED:
 evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
 ✔ disabled privileged identity loses direct access: disabled@example.com (315.4905ms)
-[2026-10-06T05:21:32.523Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb8806 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-06T05:21:32.523Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb8806 error. Code: 7 Message: 7 PERMISSION_DENIED:
 evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
 ✔ disabled privileged identity loses direct access: brand050103@gmail.com (550.2001ms)
-[2026-10-06T05:21:32.923Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb8809 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-06T05:21:32.923Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb8809 error. Code: 7 Message: 7 PERMISSION_DENIED:
 evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
 ✔ disabled privileged identity loses direct access: lauryruyz50@gmail.com (399.7626ms)
-[2026-10-06T05:21:33.376Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb880c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-06T05:21:33.376Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7cfb880c error. Code: 7 Message: 7 PERMISSION_DENIED:
 evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
 ✔ formerly privileged email downgraded to usuario has no admin bypass (454.0559ms)
 ✔ missing role, missing active status and unknown role all fail closed (877.814ms)

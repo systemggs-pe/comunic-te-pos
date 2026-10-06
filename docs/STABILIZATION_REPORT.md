@@ -197,3 +197,5 @@ npm run test:rules
 Referencias oficiales consultadas para el harness: [Firebase Rules unit tests](https://firebase.google.com/docs/rules/unit-tests), [Adoptium portable archives y checksums](https://adoptium.net/installation/archives). Versiones/dependencias se comprobaron con npm view y los lockfiles; no se asumió ausencia de breaking changes por el nombre del paquete.
 
 Ver [stabilization-evidence](stabilization-evidence/) para logs, requests, auditorías y comparación. Commit documental final se obtiene con `git log -1 --format=%H`, evitando referencia circular. No hubo push, deploy ni modificaciones de datos/secretos reales.
+
+Los logs versionados conservan resultados y timestamps; se normalizaron saltos de línea y espacios finales para que git diff --check no reporte formato de salida de las herramientas. El control de coincidencias de secretos locales devolvió cero.
