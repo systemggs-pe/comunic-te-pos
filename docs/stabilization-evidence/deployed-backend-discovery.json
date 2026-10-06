@@ -1,0 +1,29 @@
+{
+  "projects": [
+    "comunicate-tacna"
+  ],
+  "cloudFunctionWrappers": [
+    "vE"
+  ],
+  "endpoints": [
+    "consultarReniec",
+    "analizarCajaGemini"
+  ],
+  "authorizationPatterns": [
+    {
+      "authorizationValueType": "TemplateLiteral",
+      "staticBearer": false,
+      "templateBearer": true
+    },
+    {
+      "authorizationValueType": "TemplateLiteral",
+      "staticBearer": false,
+      "templateBearer": true
+    },
+    {
+      "authorizationValueType": "TemplateLiteral",
+      "staticBearer": false,
+      "templateBearer": true
+    }
+  ]
+}

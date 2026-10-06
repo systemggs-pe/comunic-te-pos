@@ -1,0 +1,271 @@
+{
+  "before": {
+    "info": 0,
+    "low": 1,
+    "moderate": 2,
+    "high": 13,
+    "critical": 0,
+    "total": 16
+  },
+  "after": {
+    "info": 0,
+    "low": 0,
+    "moderate": 2,
+    "high": 5,
+    "critical": 0,
+    "total": 7
+  },
+  "entries": [
+    {
+      "package": "@fastify/busboy",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "3.2.0"
+      ],
+      "versionsAfter": [
+        "3.2.2"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": true
+    },
+    {
+      "package": "@firebase/firestore",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "4.17.0"
+      ],
+      "versionsAfter": [
+        "4.17.2"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": {
+        "name": "firebase",
+        "version": "9.14.0",
+        "isSemVerMajor": true
+      }
+    },
+    {
+      "package": "@firebase/firestore-compat",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "0.4.12"
+      ],
+      "versionsAfter": [
+        "0.4.14"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": {
+        "name": "firebase",
+        "version": "9.14.0",
+        "isSemVerMajor": true
+      }
+    },
+    {
+      "package": "@grpc/grpc-js",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "1.9.16",
+        "1.14.4"
+      ],
+      "versionsAfter": [
+        "1.14.5"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": {
+        "name": "firebase",
+        "version": "9.14.0",
+        "isSemVerMajor": true
+      }
+    },
+    {
+      "package": "@humanfs/node",
+      "severityBefore": "moderate",
+      "directBefore": false,
+      "versionsBefore": [
+        "0.16.7"
+      ],
+      "versionsAfter": [
+        "0.16.8"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": true
+    },
+    {
+      "package": "brace-expansion",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "1.1.18"
+      ],
+      "versionsAfter": [
+        "1.1.21"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": true
+    },
+    {
+      "package": "braces",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "3.0.3"
+      ],
+      "versionsAfter": [
+        "3.0.3"
+      ],
+      "severityAfter": "high",
+      "suggestedFixBefore": {
+        "name": "tailwindcss",
+        "version": "4.3.3",
+        "isSemVerMajor": true
+      }
+    },
+    {
+      "package": "chokidar",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "3.6.0"
+      ],
+      "versionsAfter": [
+        "3.6.0"
+      ],
+      "severityAfter": "high",
+      "suggestedFixBefore": {
+        "name": "tailwindcss",
+        "version": "4.3.3",
+        "isSemVerMajor": true
+      }
+    },
+    {
+      "package": "dompurify",
+      "severityBefore": "low",
+      "directBefore": false,
+      "versionsBefore": [
+        "3.4.13"
+      ],
+      "versionsAfter": [
+        "3.4.16"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": true
+    },
+    {
+      "package": "fast-glob",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "3.3.3"
+      ],
+      "versionsAfter": [
+        "3.3.3"
+      ],
+      "severityAfter": "high",
+      "suggestedFixBefore": true
+    },
+    {
+      "package": "firebase",
+      "severityBefore": "high",
+      "directBefore": true,
+      "versionsBefore": [
+        "12.17.1"
+      ],
+      "versionsAfter": [
+        "12.19.0"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": {
+        "name": "firebase",
+        "version": "9.14.0",
+        "isSemVerMajor": true
+      }
+    },
+    {
+      "package": "js-yaml",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "4.3.1"
+      ],
+      "versionsAfter": [
+        "4.3.2"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": true
+    },
+    {
+      "package": "micromatch",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "4.0.8"
+      ],
+      "versionsAfter": [
+        "4.0.8"
+      ],
+      "severityAfter": "high",
+      "suggestedFixBefore": {
+        "name": "tailwindcss",
+        "version": "4.3.3",
+        "isSemVerMajor": true
+      }
+    },
+    {
+      "package": "postcss-selector-parser",
+      "severityBefore": "moderate",
+      "directBefore": false,
+      "versionsBefore": [
+        "6.1.2"
+      ],
+      "versionsAfter": [
+        "6.1.4"
+      ],
+      "severityAfter": "moderate",
+      "suggestedFixBefore": true
+    },
+    {
+      "package": "source-map-js",
+      "severityBefore": "high",
+      "directBefore": false,
+      "versionsBefore": [
+        "1.2.1"
+      ],
+      "versionsAfter": [
+        "1.2.2"
+      ],
+      "severityAfter": "none",
+      "suggestedFixBefore": true
+    },
+    {
+      "package": "tailwindcss",
+      "severityBefore": "high",
+      "directBefore": true,
+      "versionsBefore": [
+        "3.4.19"
+      ],
+      "versionsAfter": [
+        "3.4.19"
+      ],
+      "severityAfter": "high",
+      "suggestedFixBefore": {
+        "name": "tailwindcss",
+        "version": "4.3.3",
+        "isSemVerMajor": true
+      }
+    }
+  ],
+  "additionalAuditEntries": [
+    {
+      "package": "postcss-nested",
+      "severity": "moderate",
+      "direct": false,
+      "versions": [
+        "6.2.0"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "site": "https://comunicate-registros-v2.netlify.app",
+  "asset": "/assets/index-DzFP0IWD.js",
+  "sha256": "378adaa02498498fb0ac7e062b37f4590d39c74a60a48dd54c1ee0cd233cd87e",
+  "fetchCalls": [
+    "MemberExpression",
+    {
+      "parts": [
+        "",
+        "/api/",
+        ""
+      ],
+      "variables": [
+        {
+          "variable": "is",
+          "definition": {
+            "method": "replace",
+            "receiver": ""
+          }
+        },
+        {
+          "variable": "e",
+          "definition": {
+            "method": "useMemo",
+            "receiver": {
+              "variable": "d",
+              "definition": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "parts": [
+        "",
+        "/api/",
+        ""
+      ],
+      "variables": [
+        {
+          "variable": "is",
+          "definition": {
+            "method": "replace",
+            "receiver": ""
+          }
+        },
+        {
+          "variable": "e",
+          "definition": {
+            "method": "useMemo",
+            "receiver": {
+              "variable": "d",
+              "definition": null
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

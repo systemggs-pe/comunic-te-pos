@@ -1,0 +1,59 @@
+{"timestamp":"2026-10-06T05:09:43.121Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"2dbefdaa-39ef-4bba-b078-99ab124f99d3","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.126Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"2dbefdaa-39ef-4bba-b078-99ab124f99d3","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":6,"statusCode":403,"errorName":"Error","errorMessage":"USUARIO_DESHABILITADO"}
+{"timestamp":"2026-10-06T05:09:43.129Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"dc9ad9fa-2196-46c3-8f31-5eefa24d907e","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.130Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"dc9ad9fa-2196-46c3-8f31-5eefa24d907e","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":403,"errorName":"Error","errorMessage":"USUARIO_DESHABILITADO"}
+{"timestamp":"2026-10-06T05:09:43.131Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"ac41c92a-3e99-46a4-a66a-a89fff9b916b","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.132Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"ac41c92a-3e99-46a4-a66a-a89fff9b916b","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":403,"errorName":"Error","errorMessage":"USUARIO_DESHABILITADO"}
+{"timestamp":"2026-10-06T05:09:43.133Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"80e286e9-9a04-4343-bc8f-98edf0ef8cc5","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.134Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"80e286e9-9a04-4343-bc8f-98edf0ef8cc5","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":403,"errorName":"Error","errorMessage":"USUARIO_DESHABILITADO"}
+{"timestamp":"2026-10-06T05:09:43.135Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"aa8ba083-ad57-4217-ac3a-2d46ab1ea392","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.145Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"aa8ba083-ad57-4217-ac3a-2d46ab1ea392","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":10,"statusCode":403,"errorName":"Error","errorMessage":"USUARIO_DESHABILITADO"}
+{"timestamp":"2026-10-06T05:09:43.146Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"509c4f32-2cbd-40cc-a8b3-b2c25356e2da","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.147Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"509c4f32-2cbd-40cc-a8b3-b2c25356e2da","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":403,"errorName":"Error","errorMessage":"No autorizado"}
+{"timestamp":"2026-10-06T05:09:43.148Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"f34ace1e-1875-4c2d-aea5-e4c586786f16","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.159Z","level":"info","event":"request.success","service":"netlify-functions","requestId":"f34ace1e-1875-4c2d-aea5-e4c586786f16","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","actorUid":"fixture","actorEmail":"brand050103@gmail.com","durationMs":11,"statusCode":200}
+{"timestamp":"2026-10-06T05:09:43.159Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"b81c7b0e-0952-4df0-9141-f603a67e5ba3","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.161Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"b81c7b0e-0952-4df0-9141-f603a67e5ba3","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","actorUid":"fixture","actorEmail":"brand050103@gmail.com","durationMs":2,"statusCode":403,"errorName":"Error","errorMessage":"PERMISO_INSUFICIENTE"}
+{"timestamp":"2026-10-06T05:09:43.163Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"438c3099-9063-468d-ba3a-8f2b9b73e52f","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.164Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"438c3099-9063-468d-ba3a-8f2b9b73e52f","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":401,"errorName":"Error","errorMessage":"Sesion invalida"}
+{"timestamp":"2026-10-06T05:09:43.166Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"24b8518f-4a18-4e91-a0b3-c43275d1d12a","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.168Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"24b8518f-4a18-4e91-a0b3-c43275d1d12a","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":2,"statusCode":401,"errorName":"Error","errorMessage":"Sesion invalida"}
+{"timestamp":"2026-10-06T05:09:43.170Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"2b150c58-4203-49f5-814a-d9fd700aa776","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.171Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"2b150c58-4203-49f5-814a-d9fd700aa776","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":401,"errorName":"Error","errorMessage":"Sesion invalida"}
+{"timestamp":"2026-10-06T05:09:43.172Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"c5c5b1fc-a69e-4814-aad3-38082080fb64","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.173Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"c5c5b1fc-a69e-4814-aad3-38082080fb64","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":401,"errorName":"Error","errorMessage":"Sesion invalida"}
+{"timestamp":"2026-10-06T05:09:43.174Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"9ff1aea2-d9b5-4b02-a4bb-b087a0cf1999","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T05:09:43.174Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"9ff1aea2-d9b5-4b02-a4bb-b087a0cf1999","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0,"statusCode":401,"errorName":"Error","errorMessage":"No autorizado"}
+✔ active users retain only the permissions of their stored role (5.8572ms)
+✔ API denies disabled user, including formerly privileged email (10.296ms)
+✔ API denies disabled privileged role, including formerly privileged email (1.8354ms)
+✔ API denies role without active status, including formerly privileged email (2.3931ms)
+✔ API denies invalid status, including formerly privileged email (1.6203ms)
+✔ API denies invalid or disabled role name, including formerly privileged email (10.4652ms)
+✔ API denies missing authorization, including formerly privileged email (1.3746ms)
+✔ protected API allows active authorized user and denies insufficient role (14.292ms)
+✔ API denies auth/id-token-expired before accessing Firestore (2.9077ms)
+✔ API denies auth/id-token-revoked before accessing Firestore (4.2917ms)
+✔ API denies auth/invalid-id-token before accessing Firestore (1.8645ms)
+✔ API denies auth/user-disabled before accessing Firestore (1.7871ms)
+✔ API rejects missing authentication and unverified identity (2.107ms)
+✔ role writes reject invalid or missing status instead of activating by default (1.1658ms)
+✔ backup exports all four collections over multiple pages without React data or fecha (80.9837ms)
+✔ backup supports empty collections and exact page-size boundaries (22.1279ms)
+✔ backup rejects a partial page export instead of reporting success (2.4347ms)
+✔ backup propagates collection errors, even after other collections succeed (1.1431ms)
+✔ backup rejects duplicate cursors or overlapping pages (1.2813ms)
+✔ backup compares final counts and rejects concurrent collection changes (1.08ms)
+✔ backup rejects invalid counts and preserves authoritative document IDs (1.3813ms)
+✔ roles normalize email and expose a safe public profile (4.8913ms)
+✔ roles require an explicit active document, including formerly privileged email (2.3107ms)
+✔ roles reject disabled or insufficient users (2.2182ms)
+✔ usuarios validates emails and role documents (2.1811ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1453.0984

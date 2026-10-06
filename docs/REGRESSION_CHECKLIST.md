@@ -92,3 +92,24 @@ Fecha de creación: 2026-10-05. Rama: `chore/baseline-stabilization`.
 - [ ] Generación PDF y descarga en desktop/móvil.
 - [ ] Verificar variables de proveedor por nombre, URL de backend, reglas e índices desplegados.
 - [ ] Confirmar que el commit probado coincide con el deploy publicado.
+
+## Evidencia ejecutada en estabilización (2026-10-06)
+
+Estas marcas certifican solo el entorno indicado, no la release publicada. Commit de acceso 3839484, backup d9dc2f6, harness/dependencias 210b47c; logs en docs/stabilization-evidence/.
+
+- [x] Emulador Firestore: usuario activo lee datos y no edita configuración sin rol admin.
+- [x] Emulador Firestore: admin y superadmin respetan permisos y no pueden escribir roles directamente.
+- [x] Emulador Firestore: desactivar correo antes privilegiado revoca acceso directo; degradarlo elimina privilegios admin.
+- [x] Emulador Firestore/API: roles ausentes, inválidos o sin active se rechazan.
+- [x] API: token ausente, inválido, expirado, revocado o cuenta desactivada se rechaza en tests de frontera.
+- [x] Auth/Firestore emulados: login válido/inválido con identidad sintética, API protegida, expiración, cuenta desactivada y cierre de sesión.
+- [x] Backup unitario: 1201 documentos por cada colección, sin depender de fecha ni estado UI.
+- [x] Backup emulado: consultas reales paginadas exportan todos los documentos (>200 por colección) y verifican conteos.
+- [x] Backup unitario: fallos parciales, duplicados y cambios de conteos impiden éxito.
+- [x] API Netlify publicada: registros/RENIEC rechazan POST sin sesión con 401 JSON.
+- [x] CORS Netlify publicado: dominio principal, Firebase y localhost admitidos; origen ajeno sin allow-origin.
+- [x] npm run verify y npm run test:rules pasan tras actualizar dependencias.
+- [ ] Crear/verificar autorizaciones explícitas antes de desplegar; no depender de antiguos correos fijos.
+- [ ] Completar Google OAuth y cierre de sesión desde UI real con cuenta autorizada; no equivale al login de emulador con contraseña.
+- [ ] Verificar preview real de Netlify y reglas/función usuarios publicadas en una release autorizada.
+- [ ] Revisar las 7 alertas restantes de desarrollo y acordar migración compatible de Tailwind.

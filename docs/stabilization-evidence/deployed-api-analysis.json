@@ -1,0 +1,80 @@
+{
+  "fetchCalls": [
+    "MemberExpression",
+    {
+      "variable": "s",
+      "definition": null
+    },
+    {
+      "variable": "s",
+      "definition": null
+    },
+    {
+      "variable": "c",
+      "definition": "BinaryExpression"
+    },
+    {
+      "variable": "F",
+      "definition": "ArrowFunctionExpression"
+    },
+    {
+      "parts": [
+        "",
+        "/",
+        ""
+      ],
+      "variables": [
+        {
+          "variable": "KR",
+          "definition": {
+            "parts": [
+              "https://us-central1-",
+              ".cloudfunctions.net"
+            ],
+            "variables": [
+              null
+            ]
+          }
+        },
+        {
+          "variable": "s",
+          "definition": null
+        }
+      ]
+    },
+    {
+      "parts": [
+        "",
+        "/",
+        ""
+      ],
+      "variables": [
+        {
+          "variable": "JR",
+          "definition": {
+            "origin": "https://api-codart.cgrt.org",
+            "path": "/api/v1/consultas/reniec/dni"
+          }
+        },
+        {
+          "variable": "e",
+          "definition": "ConditionalExpression"
+        }
+      ]
+    }
+  ],
+  "hosts": [
+    "https://react.dev",
+    "http://www.w3.org",
+    "https://securetoken.google.com",
+    "https://firebase.google.com",
+    "http://localhost",
+    "https://apis.google.com",
+    "https://www.google.com",
+    "https://wa.me",
+    "https://cdnjs.cloudflare.com",
+    "https://cdn.jsdelivr.net",
+    "https://us-central1-",
+    "https://api-codart.cgrt.org"
+  ]
+}

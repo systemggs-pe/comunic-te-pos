@@ -1,0 +1,1305 @@
+add @humanfs/types 0.15.0
+change source-map-js 1.2.1 => 1.2.2
+change postcss-selector-parser 6.1.2 => 6.1.4
+change js-yaml 4.3.1 => 4.3.2
+change @grpc/grpc-js 1.14.4 => 1.14.5
+change firebase 12.17.1 => 12.19.0
+change dompurify 3.4.13 => 3.4.16
+change brace-expansion 1.1.18 => 1.1.21
+change @humanfs/node 0.16.7 => 0.16.8
+change @humanfs/core 0.19.1 => 0.19.2
+change @firebase/webchannel-wrapper 1.0.6 => 1.0.7
+change @firebase/util 1.15.2 => 1.15.3
+change @firebase/storage-types 0.8.4 => 0.8.5
+change @firebase/storage-compat 0.4.4 => 0.4.5
+change @firebase/storage 0.14.4 => 0.14.5
+change @firebase/remote-config-types 0.5.1 => 0.5.2
+change @firebase/remote-config-compat 0.2.28 => 0.2.29
+change @firebase/remote-config 0.9.1 => 0.9.2
+change @firebase/performance-types 0.2.4 => 0.2.5
+change @firebase/performance-compat 0.2.26 => 0.2.27
+change @firebase/performance 0.7.13 => 0.7.14
+change @firebase/messaging-interop-types 0.2.5 => 0.2.6
+change @firebase/messaging-compat 0.2.28 => 0.2.30
+change @firebase/messaging 0.13.1 => 0.13.3
+change @firebase/logger 0.5.1 => 0.5.2
+change @firebase/installations-types 0.5.4 => 0.5.5
+change @firebase/installations-compat 0.2.23 => 0.2.24
+change @firebase/installations 0.6.23 => 0.6.24
+change @firebase/functions-types 0.6.4 => 0.6.5
+change @firebase/functions-compat 0.4.6 => 0.5.0
+change @firebase/functions 0.13.6 => 0.14.0
+change @firebase/firestore-types 3.0.4 => 3.0.5
+change @firebase/firestore-compat 0.4.12 => 0.4.14
+change @firebase/firestore 4.17.0 => 4.17.2
+change @firebase/database-types 1.0.21 => 1.0.22
+change @firebase/database-compat 2.1.6 => 2.1.7
+change @firebase/database 1.1.4 => 1.1.5
+change @firebase/data-connect 0.7.3 => 0.7.4
+change @firebase/component 0.7.4 => 0.7.5
+change @firebase/auth-types 0.13.1 => 0.13.2
+change @firebase/auth-interop-types 0.2.5 => 0.2.6
+change @firebase/auth-compat 0.6.9 => 0.6.11
+change @firebase/auth 1.13.4 => 1.13.6
+change @firebase/app-types 0.9.5 => 0.9.6
+change @firebase/app-compat 0.5.16 => 0.5.18
+change @firebase/app-check-types 0.5.4 => 0.5.5
+change @firebase/app-check-interop-types 0.3.4 => 0.3.5
+change @firebase/app-check-compat 0.4.6 => 0.4.7
+change @firebase/app-check 0.13.0 => 0.13.1
+change @firebase/app 0.16.0 => 0.16.2
+change @firebase/analytics-types 0.8.4 => 0.8.5
+change @firebase/analytics-compat 0.2.29 => 0.2.31
+change @firebase/analytics 0.10.23 => 0.10.25
+change @firebase/ai 2.14.0 => 2.16.0
+change @fastify/busboy 3.2.0 => 3.2.2
+{
+  "add": [
+    {
+      "name": "@humanfs/types",
+      "version": "0.15.0",
+      "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@humanfs\\types"
+    }
+  ],
+  "added": 1,
+  "audited": 464,
+  "change": [
+    {
+      "from": {
+        "name": "source-map-js",
+        "version": "1.2.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\source-map-js"
+      },
+      "to": {
+        "name": "source-map-js",
+        "version": "1.2.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\source-map-js"
+      }
+    },
+    {
+      "from": {
+        "name": "postcss-selector-parser",
+        "version": "6.1.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\postcss-selector-parser"
+      },
+      "to": {
+        "name": "postcss-selector-parser",
+        "version": "6.1.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\postcss-selector-parser"
+      }
+    },
+    {
+      "from": {
+        "name": "js-yaml",
+        "version": "4.3.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\js-yaml"
+      },
+      "to": {
+        "name": "js-yaml",
+        "version": "4.3.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\js-yaml"
+      }
+    },
+    {
+      "from": {
+        "name": "@grpc/grpc-js",
+        "version": "1.14.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\google-gax\\node_modules\\@grpc\\grpc-js"
+      },
+      "to": {
+        "name": "@grpc/grpc-js",
+        "version": "1.14.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\google-gax\\node_modules\\@grpc\\grpc-js"
+      }
+    },
+    {
+      "from": {
+        "name": "firebase",
+        "version": "12.17.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\firebase"
+      },
+      "to": {
+        "name": "firebase",
+        "version": "12.19.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\firebase"
+      }
+    },
+    {
+      "from": {
+        "name": "dompurify",
+        "version": "3.4.13",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\dompurify"
+      },
+      "to": {
+        "name": "dompurify",
+        "version": "3.4.16",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\dompurify"
+      }
+    },
+    {
+      "from": {
+        "name": "brace-expansion",
+        "version": "1.1.18",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\brace-expansion"
+      },
+      "to": {
+        "name": "brace-expansion",
+        "version": "1.1.21",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\brace-expansion"
+      }
+    },
+    {
+      "from": {
+        "name": "@humanfs/node",
+        "version": "0.16.7",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@humanfs\\node"
+      },
+      "to": {
+        "name": "@humanfs/node",
+        "version": "0.16.8",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@humanfs\\node"
+      }
+    },
+    {
+      "from": {
+        "name": "@humanfs/core",
+        "version": "0.19.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@humanfs\\core"
+      },
+      "to": {
+        "name": "@humanfs/core",
+        "version": "0.19.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@humanfs\\core"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/webchannel-wrapper",
+        "version": "1.0.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\webchannel-wrapper"
+      },
+      "to": {
+        "name": "@firebase/webchannel-wrapper",
+        "version": "1.0.7",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\webchannel-wrapper"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/util",
+        "version": "1.15.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\util"
+      },
+      "to": {
+        "name": "@firebase/util",
+        "version": "1.15.3",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\util"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/storage-types",
+        "version": "0.8.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\storage-types"
+      },
+      "to": {
+        "name": "@firebase/storage-types",
+        "version": "0.8.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\storage-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/storage-compat",
+        "version": "0.4.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\storage-compat"
+      },
+      "to": {
+        "name": "@firebase/storage-compat",
+        "version": "0.4.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\storage-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/storage",
+        "version": "0.14.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\storage"
+      },
+      "to": {
+        "name": "@firebase/storage",
+        "version": "0.14.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\storage"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/remote-config-types",
+        "version": "0.5.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\remote-config-types"
+      },
+      "to": {
+        "name": "@firebase/remote-config-types",
+        "version": "0.5.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\remote-config-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/remote-config-compat",
+        "version": "0.2.28",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\remote-config-compat"
+      },
+      "to": {
+        "name": "@firebase/remote-config-compat",
+        "version": "0.2.29",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\remote-config-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/remote-config",
+        "version": "0.9.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\remote-config"
+      },
+      "to": {
+        "name": "@firebase/remote-config",
+        "version": "0.9.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\remote-config"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/performance-types",
+        "version": "0.2.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\performance-types"
+      },
+      "to": {
+        "name": "@firebase/performance-types",
+        "version": "0.2.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\performance-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/performance-compat",
+        "version": "0.2.26",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\performance-compat"
+      },
+      "to": {
+        "name": "@firebase/performance-compat",
+        "version": "0.2.27",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\performance-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/performance",
+        "version": "0.7.13",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\performance"
+      },
+      "to": {
+        "name": "@firebase/performance",
+        "version": "0.7.14",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\performance"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/messaging-interop-types",
+        "version": "0.2.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\messaging-interop-types"
+      },
+      "to": {
+        "name": "@firebase/messaging-interop-types",
+        "version": "0.2.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\messaging-interop-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/messaging-compat",
+        "version": "0.2.28",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\messaging-compat"
+      },
+      "to": {
+        "name": "@firebase/messaging-compat",
+        "version": "0.2.30",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\messaging-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/messaging",
+        "version": "0.13.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\messaging"
+      },
+      "to": {
+        "name": "@firebase/messaging",
+        "version": "0.13.3",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\messaging"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/logger",
+        "version": "0.5.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\logger"
+      },
+      "to": {
+        "name": "@firebase/logger",
+        "version": "0.5.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\logger"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/installations-types",
+        "version": "0.5.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\installations-types"
+      },
+      "to": {
+        "name": "@firebase/installations-types",
+        "version": "0.5.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\installations-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/installations-compat",
+        "version": "0.2.23",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\installations-compat"
+      },
+      "to": {
+        "name": "@firebase/installations-compat",
+        "version": "0.2.24",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\installations-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/installations",
+        "version": "0.6.23",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\installations"
+      },
+      "to": {
+        "name": "@firebase/installations",
+        "version": "0.6.24",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\installations"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/functions-types",
+        "version": "0.6.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\functions-types"
+      },
+      "to": {
+        "name": "@firebase/functions-types",
+        "version": "0.6.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\functions-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/functions-compat",
+        "version": "0.4.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\functions-compat"
+      },
+      "to": {
+        "name": "@firebase/functions-compat",
+        "version": "0.5.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\functions-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/functions",
+        "version": "0.13.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\functions"
+      },
+      "to": {
+        "name": "@firebase/functions",
+        "version": "0.14.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\functions"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/firestore-types",
+        "version": "3.0.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\firestore-types"
+      },
+      "to": {
+        "name": "@firebase/firestore-types",
+        "version": "3.0.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\firestore-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/firestore-compat",
+        "version": "0.4.12",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\firestore-compat"
+      },
+      "to": {
+        "name": "@firebase/firestore-compat",
+        "version": "0.4.14",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\firestore-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/firestore",
+        "version": "4.17.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\firestore"
+      },
+      "to": {
+        "name": "@firebase/firestore",
+        "version": "4.17.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\firestore"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/database-types",
+        "version": "1.0.21",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\database-types"
+      },
+      "to": {
+        "name": "@firebase/database-types",
+        "version": "1.0.22",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\database-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/database-compat",
+        "version": "2.1.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\database-compat"
+      },
+      "to": {
+        "name": "@firebase/database-compat",
+        "version": "2.1.7",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\database-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/database",
+        "version": "1.1.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\database"
+      },
+      "to": {
+        "name": "@firebase/database",
+        "version": "1.1.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\database"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/data-connect",
+        "version": "0.7.3",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\data-connect"
+      },
+      "to": {
+        "name": "@firebase/data-connect",
+        "version": "0.7.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\data-connect"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/component",
+        "version": "0.7.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\component"
+      },
+      "to": {
+        "name": "@firebase/component",
+        "version": "0.7.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\component"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/auth-types",
+        "version": "0.13.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\auth-types"
+      },
+      "to": {
+        "name": "@firebase/auth-types",
+        "version": "0.13.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\auth-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/auth-interop-types",
+        "version": "0.2.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\auth-interop-types"
+      },
+      "to": {
+        "name": "@firebase/auth-interop-types",
+        "version": "0.2.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\auth-interop-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/auth-compat",
+        "version": "0.6.9",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\auth-compat"
+      },
+      "to": {
+        "name": "@firebase/auth-compat",
+        "version": "0.6.11",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\auth-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/auth",
+        "version": "1.13.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\auth"
+      },
+      "to": {
+        "name": "@firebase/auth",
+        "version": "1.13.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\auth"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/app-types",
+        "version": "0.9.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-types"
+      },
+      "to": {
+        "name": "@firebase/app-types",
+        "version": "0.9.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/app-compat",
+        "version": "0.5.16",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-compat"
+      },
+      "to": {
+        "name": "@firebase/app-compat",
+        "version": "0.5.18",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/app-check-types",
+        "version": "0.5.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-check-types"
+      },
+      "to": {
+        "name": "@firebase/app-check-types",
+        "version": "0.5.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-check-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/app-check-interop-types",
+        "version": "0.3.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-check-interop-types"
+      },
+      "to": {
+        "name": "@firebase/app-check-interop-types",
+        "version": "0.3.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-check-interop-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/app-check-compat",
+        "version": "0.4.6",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-check-compat"
+      },
+      "to": {
+        "name": "@firebase/app-check-compat",
+        "version": "0.4.7",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-check-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/app-check",
+        "version": "0.13.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-check"
+      },
+      "to": {
+        "name": "@firebase/app-check",
+        "version": "0.13.1",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app-check"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/app",
+        "version": "0.16.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app"
+      },
+      "to": {
+        "name": "@firebase/app",
+        "version": "0.16.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\app"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/analytics-types",
+        "version": "0.8.4",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\analytics-types"
+      },
+      "to": {
+        "name": "@firebase/analytics-types",
+        "version": "0.8.5",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\analytics-types"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/analytics-compat",
+        "version": "0.2.29",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\analytics-compat"
+      },
+      "to": {
+        "name": "@firebase/analytics-compat",
+        "version": "0.2.31",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\analytics-compat"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/analytics",
+        "version": "0.10.23",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\analytics"
+      },
+      "to": {
+        "name": "@firebase/analytics",
+        "version": "0.10.25",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\analytics"
+      }
+    },
+    {
+      "from": {
+        "name": "@firebase/ai",
+        "version": "2.14.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\ai"
+      },
+      "to": {
+        "name": "@firebase/ai",
+        "version": "2.16.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@firebase\\ai"
+      }
+    },
+    {
+      "from": {
+        "name": "@fastify/busboy",
+        "version": "3.2.0",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@fastify\\busboy"
+      },
+      "to": {
+        "name": "@fastify/busboy",
+        "version": "3.2.2",
+        "path": "C:\\Users\\COMUNICATE\\Documents\\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\\comunicate\\node_modules\\@fastify\\busboy"
+      }
+    }
+  ],
+  "changed": 54,
+  "funding": 74,
+  "remove": [],
+  "removed": 0,
+  "audit": {
+    "auditReportVersion": 2,
+    "vulnerabilities": {
+      "@fastify/busboy": {
+        "name": "@fastify/busboy",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1240981,
+            "name": "@fastify/busboy",
+            "dependency": "@fastify/busboy",
+            "title": "@fastify/busboy vulnerable to Denial of Service via oversized multipart boundary",
+            "url": "https://github.com/advisories/GHSA-xjh9-v7x6-24jw",
+            "severity": "high",
+            "cwe": [
+              "CWE-835",
+              "CWE-1322"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=3.1.0 <3.2.1"
+          },
+          {
+            "source": 1240982,
+            "name": "@fastify/busboy",
+            "dependency": "@fastify/busboy",
+            "title": "@fastify/busboy vulnerable to Denial of Service via prototype-named multipart part header",
+            "url": "https://github.com/advisories/GHSA-x8mw-p69m-v3mx",
+            "severity": "high",
+            "cwe": [
+              "CWE-754"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=1.0.0 <3.2.1"
+          },
+          {
+            "source": 1241276,
+            "name": "@fastify/busboy",
+            "dependency": "@fastify/busboy",
+            "title": "@fastify/busboy vulnerable to CRLF injection via multipart Content-Disposition filename and name",
+            "url": "https://github.com/advisories/GHSA-gxm5-99cw-xjw9",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-93"
+            ],
+            "cvss": {
+              "score": 5.8,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:N/I:L/A:N"
+            },
+            "range": "<3.2.2"
+          }
+        ],
+        "effects": [],
+        "range": "<=3.2.1",
+        "nodes": [
+          ""
+        ],
+        "fixAvailable": true
+      },
+      "@firebase/firestore": {
+        "name": "@firebase/firestore",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "@grpc/grpc-js"
+        ],
+        "effects": [
+          "@firebase/firestore-compat",
+          "firebase"
+        ],
+        "range": "1.3.1-0 - 1.3.1-canary.df1b588 || 1.3.2-0 - 1.3.3-canary.bc4a844 || 1.13.1-0 - 1.13.1-canary.ce3addba || 1.14.0-0 - 1.15.1 || 3.7.3-20221108184443 - 3.7.3-canary.fde5adf63 || >=3.8.0-20221206221533",
+        "nodes": [
+          "",
+          "node_modules/@firebase/firestore"
+        ],
+        "fixAvailable": {
+          "name": "firebase",
+          "version": "9.14.0",
+          "isSemVerMajor": true
+        }
+      },
+      "@firebase/firestore-compat": {
+        "name": "@firebase/firestore-compat",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "@firebase/firestore"
+        ],
+        "effects": [
+          "firebase"
+        ],
+        "range": "<=0.0.900-exp.520ca39d0 || 0.2.3-20221108184443 - 0.2.3-canary.fde5adf63 || >=0.3.0-20221206221533",
+        "nodes": [
+          ""
+        ],
+        "fixAvailable": {
+          "name": "firebase",
+          "version": "9.14.0",
+          "isSemVerMajor": true
+        }
+      },
+      "@grpc/grpc-js": {
+        "name": "@grpc/grpc-js",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1240622,
+            "name": "@grpc/grpc-js",
+            "dependency": "@grpc/grpc-js",
+            "title": "@grpc/grpc-js: In certain configurations, getAuthContext can return unauthorized certificates as though they were authorized",
+            "url": "https://github.com/advisories/GHSA-m9gg-hp2v-232j",
+            "severity": "high",
+            "cwe": [
+              "CWE-295"
+            ],
+            "cvss": {
+              "score": 7.4,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N"
+            },
+            "range": ">=1.14.0 <1.14.5"
+          },
+          {
+            "source": 1240623,
+            "name": "@grpc/grpc-js",
+            "dependency": "@grpc/grpc-js",
+            "title": "@grpc/grpc-js: In certain configurations, getAuthContext can return unauthorized certificates as though they were authorized",
+            "url": "https://github.com/advisories/GHSA-m9gg-hp2v-232j",
+            "severity": "high",
+            "cwe": [
+              "CWE-295"
+            ],
+            "cvss": {
+              "score": 7.4,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N"
+            },
+            "range": "<1.13.6"
+          },
+          {
+            "source": 1240624,
+            "name": "@grpc/grpc-js",
+            "dependency": "@grpc/grpc-js",
+            "title": "@grpc/grpc-js: The server transmits some error messages thrown by method handlers to the client in status messages",
+            "url": "https://github.com/advisories/GHSA-f596-whhp-79r4",
+            "severity": "low",
+            "cwe": [
+              "CWE-550"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N"
+            },
+            "range": ">=1.14.0 <1.14.5"
+          },
+          {
+            "source": 1240625,
+            "name": "@grpc/grpc-js",
+            "dependency": "@grpc/grpc-js",
+            "title": "@grpc/grpc-js: The server transmits some error messages thrown by method handlers to the client in status messages",
+            "url": "https://github.com/advisories/GHSA-f596-whhp-79r4",
+            "severity": "low",
+            "cwe": [
+              "CWE-550"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N"
+            },
+            "range": "<1.13.6"
+          }
+        ],
+        "effects": [
+          "@firebase/firestore"
+        ],
+        "range": "<=1.13.5 || 1.14.0 - 1.14.4",
+        "nodes": [
+          "",
+          ""
+        ],
+        "fixAvailable": {
+          "name": "firebase",
+          "version": "9.14.0",
+          "isSemVerMajor": true
+        }
+      },
+      "@humanfs/node": {
+        "name": "@humanfs/node",
+        "severity": "moderate",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1158499,
+            "name": "@humanfs/node",
+            "dependency": "@humanfs/node",
+            "title": "humanfs: Recursive copy follows symlinked files and copies data from outside the source tree",
+            "url": "https://github.com/advisories/GHSA-p498-v437-472g",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-22"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<0.16.8"
+          }
+        ],
+        "effects": [],
+        "range": "<0.16.8",
+        "nodes": [
+          ""
+        ],
+        "fixAvailable": true
+      },
+      "brace-expansion": {
+        "name": "brace-expansion",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1240100,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+            "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 5.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+            },
+            "range": "<1.1.21"
+          },
+          {
+            "source": 1240104,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<1.1.20"
+          },
+          {
+            "source": 1240108,
+            "name": "brace-expansion",
+            "dependency": "brace-expansion",
+            "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+            "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<1.1.19"
+          }
+        ],
+        "effects": [],
+        "range": "<=1.1.20",
+        "nodes": [
+          ""
+        ],
+        "fixAvailable": true
+      },
+      "braces": {
+        "name": "braces",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1240992,
+            "name": "braces",
+            "dependency": "braces",
+            "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+            "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+            "severity": "high",
+            "cwe": [
+              "CWE-674"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<=3.0.3"
+          }
+        ],
+        "effects": [
+          "chokidar",
+          "micromatch"
+        ],
+        "range": "*",
+        "nodes": [
+          "node_modules/braces"
+        ],
+        "fixAvailable": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      },
+      "chokidar": {
+        "name": "chokidar",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "braces"
+        ],
+        "effects": [
+          "tailwindcss"
+        ],
+        "range": "2.0.0 - 3.6.0",
+        "nodes": [
+          "node_modules/chokidar"
+        ],
+        "fixAvailable": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      },
+      "dompurify": {
+        "name": "dompurify",
+        "severity": "low",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1240621,
+            "name": "dompurify",
+            "dependency": "dompurify",
+            "title": "DOMPurify: IN_PLACE: node-removing afterSanitize hook leaves detached subtree event handlers armed, causing DOM XSS",
+            "url": "https://github.com/advisories/GHSA-p98j-92pf-mc4p",
+            "severity": "low",
+            "cwe": [
+              "CWE-79"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=3.4.13 <=3.4.15"
+          },
+          {
+            "source": 1241204,
+            "name": "dompurify",
+            "dependency": "dompurify",
+            "title": "DOMPurify: IN_PLACE returns a force-removed rawtext root whose text carries attacker markup — pure HTML reparse executes",
+            "url": "https://github.com/advisories/GHSA-6688-9rhm-gjv2",
+            "severity": "low",
+            "cwe": [
+              "CWE-79"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": "<=3.4.15"
+          }
+        ],
+        "effects": [],
+        "range": "<=3.4.15",
+        "nodes": [
+          ""
+        ],
+        "fixAvailable": true
+      },
+      "fast-glob": {
+        "name": "fast-glob",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "micromatch"
+        ],
+        "effects": [],
+        "range": "*",
+        "nodes": [
+          "node_modules/fast-glob"
+        ],
+        "fixAvailable": true
+      },
+      "firebase": {
+        "name": "firebase",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "@firebase/firestore",
+          "@firebase/firestore-compat"
+        ],
+        "effects": [],
+        "range": "0.900.22 || 6.0.2-0 - 6.0.2-canary.42eae23 || 6.0.3-0 - 6.0.4-canary.bc4a844 || 7.9.1-0 - 7.9.1-canary.0396117e || 7.13.2-0 - 7.13.2-canary.ce3addba || 7.14.0-0 - 7.15.1 || 8.10.0-20217172214 - 8.10.0-canary.f40c0db53 || 9.0.0-20217250818 - 9.0.0-canary.d0d3acb10 || 9.0.1-2021727231341 - 9.0.1-canary.e039e1472 || 9.0.2-2021891633 - 9.0.2-canary.ff9baf70c || 9.0.3-202181503543 - 9.1.0-canary.f7d8324a1 || 9.1.1-2021830195733 - 9.1.1-canary.e70de6201 || 9.1.2-20219523556 - 9.1.2-canary.fc1d36497 || 9.13.1-20221108184443 - 9.14.0-canary.fde5adf63 || >=9.15.0-20221206221533",
+        "nodes": [
+          ""
+        ],
+        "fixAvailable": {
+          "name": "firebase",
+          "version": "9.14.0",
+          "isSemVerMajor": true
+        }
+      },
+      "js-yaml": {
+        "name": "js-yaml",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1193727,
+            "name": "js-yaml",
+            "dependency": "js-yaml",
+            "title": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
+            "url": "https://github.com/advisories/GHSA-2883-xcg3-v3hh",
+            "severity": "high",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=4.0.0 <4.3.2"
+          }
+        ],
+        "effects": [],
+        "range": "4.0.0 - 4.3.1",
+        "nodes": [
+          ""
+        ],
+        "fixAvailable": true
+      },
+      "micromatch": {
+        "name": "micromatch",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          "braces"
+        ],
+        "effects": [
+          "fast-glob",
+          "tailwindcss"
+        ],
+        "range": ">=0.2.0",
+        "nodes": [
+          "node_modules/micromatch"
+        ],
+        "fixAvailable": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      },
+      "postcss-selector-parser": {
+        "name": "postcss-selector-parser",
+        "severity": "moderate",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1153170,
+            "name": "postcss-selector-parser",
+            "dependency": "postcss-selector-parser",
+            "title": "postcss-selector-parser allows denial of service through uncontrolled AST recursion",
+            "url": "https://github.com/advisories/GHSA-w9m9-85wc-3x92",
+            "severity": "low",
+            "cwe": [
+              "CWE-404"
+            ],
+            "cvss": {
+              "score": 4.3,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:L"
+            },
+            "range": ">=6.1.0 <6.1.3"
+          },
+          {
+            "source": 1241232,
+            "name": "postcss-selector-parser",
+            "dependency": "postcss-selector-parser",
+            "title": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion",
+            "url": "https://github.com/advisories/GHSA-rj75-hqrm-r3gf",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-400",
+              "CWE-407"
+            ],
+            "cvss": {
+              "score": 5.9,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<7.1.6"
+          }
+        ],
+        "effects": [],
+        "range": "<=7.1.5",
+        "nodes": [
+          "",
+          "node_modules/postcss-selector-parser"
+        ],
+        "fixAvailable": true
+      },
+      "source-map-js": {
+        "name": "source-map-js",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1241209,
+            "name": "source-map-js",
+            "dependency": "source-map-js",
+            "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+            "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+            "severity": "high",
+            "cwe": [
+              "CWE-1284"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=1.0.0 <1.2.2"
+          }
+        ],
+        "effects": [],
+        "range": "1.0.0 - 1.2.1",
+        "nodes": [
+          ""
+        ],
+        "fixAvailable": true
+      },
+      "tailwindcss": {
+        "name": "tailwindcss",
+        "severity": "high",
+        "isDirect": true,
+        "via": [
+          "chokidar",
+          "fast-glob",
+          "micromatch"
+        ],
+        "effects": [],
+        "range": "<=0.0.0-oxide-insiders.ff2c25f || 2.1.0-canary.1 - 3.4.19",
+        "nodes": [
+          "node_modules/tailwindcss"
+        ],
+        "fixAvailable": {
+          "name": "tailwindcss",
+          "version": "4.3.3",
+          "isSemVerMajor": true
+        }
+      }
+    },
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 1,
+        "moderate": 2,
+        "high": 13,
+        "critical": 0,
+        "total": 16
+      },
+      "dependencies": {
+        "prod": 170,
+        "dev": 204,
+        "optional": 93,
+        "peer": 0,
+        "peerOptional": 0,
+        "total": 463
+      }
+    }
+  }
+}

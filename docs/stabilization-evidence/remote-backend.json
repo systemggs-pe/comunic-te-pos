@@ -1,0 +1,108 @@
+{
+  "base": "https://us-central1-comunicate-tacna.cloudfunctions.net",
+  "source": "Deployed /assets/index-DukDfu43.js fetch wrapper vE, projectId and call sites",
+  "preview": "Synthetic origin; not an identified real Netlify preview",
+  "healthcheck": "Not present in repository; no invented healthy endpoint",
+  "observations": [
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/consultarReniec",
+      "origin": "",
+      "method": "POST",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/consultarReniec",
+      "origin": "https://comunicate-tacna.web.app",
+      "method": "OPTIONS",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/consultarReniec",
+      "origin": "http://localhost:5173",
+      "method": "OPTIONS",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/consultarReniec",
+      "origin": "https://deploy-preview-1--baseline-probe.netlify.app",
+      "method": "OPTIONS",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/consultarReniec",
+      "origin": "https://stabilization-invalid.example",
+      "method": "OPTIONS",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/analizarCajaGemini",
+      "origin": "",
+      "method": "POST",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/analizarCajaGemini",
+      "origin": "https://comunicate-tacna.web.app",
+      "method": "OPTIONS",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/analizarCajaGemini",
+      "origin": "http://localhost:5173",
+      "method": "OPTIONS",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/analizarCajaGemini",
+      "origin": "https://deploy-preview-1--baseline-probe.netlify.app",
+      "method": "OPTIONS",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    },
+    {
+      "url": "https://us-central1-comunicate-tacna.cloudfunctions.net/analizarCajaGemini",
+      "origin": "https://stabilization-invalid.example",
+      "method": "OPTIONS",
+      "status": 404,
+      "contentType": "text/html; charset=UTF-8",
+      "allowOrigin": null,
+      "allowMethods": null,
+      "allowHeaders": null
+    }
+  ]
+}
