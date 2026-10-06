@@ -49,7 +49,7 @@ async function saveUser(db, body, user, context) {
   const next = buildRoleDocument({
     email,
     role: body?.role,
-    status: body?.status || 'active',
+    status: body?.status,
     displayName: body?.displayName,
     uid: body?.uid,
   }, user, current);

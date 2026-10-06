@@ -87,26 +87,26 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_EX
   }
 }
 
-export async function requireFirebaseUser(event) {
-  const header = event.headers.authorization || event.headers.Authorization || '';
+export async function requireFirebaseUser(event, services = {getAuth: getAdminAuth, getDb: getAdminDb}) {
+  const header = event.headers?.authorization || event.headers?.Authorization || '';
   const match = header.match(/^Bearer (.+)$/);
   if (!match) throw Object.assign(new Error('No autorizado'), {status: 401});
 
   try {
-    const decoded = await getAdminAuth().verifyIdToken(match[1], true);
+    const decoded = await services.getAuth().verifyIdToken(match[1], true);
     const user = {
       uid: decoded.uid,
       email: decoded.email || '',
       emailVerified: Boolean(decoded.email_verified),
     };
-    return await resolveUserAccess(getAdminDb(), user);
+    return await resolveUserAccess(services.getDb(), user);
   } catch (error) {
     if (error?.status === 403 || error?.status === 500) throw error;
     throw Object.assign(new Error('Sesion invalida'), {status: 401});
   }
 }
 
-export async function handlePost(event, callback, options = {}) {
+export async function handlePost(event, callback, options = {}, services) {
   const context = createRequestContext(event, options);
   const headers = {
     ...corsHeaders(event),
@@ -125,7 +125,7 @@ export async function handlePost(event, callback, options = {}) {
   }
 
   try {
-    const user = await requireFirebaseUser(event);
+    const user = await requireFirebaseUser(event, services);
     attachUserToContext(context, user);
     const contentType = getHeader(event, 'content-type');
     if (contentType && !/^application\/json(?:\s*;|$)/i.test(contentType)) {

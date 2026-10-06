@@ -1,8 +1,3 @@
-export const EMAILS_PERMITIDOS = [
-  'brand050103@gmail.com',
-  'lauryruyz50@gmail.com',
-];
-
 export const ROLES_USUARIO = {
   USUARIO: 'usuario',
   ADMIN: 'admin',
@@ -16,5 +11,6 @@ const ROLE_RANK = {
 };
 
 export function puedeUsuario(user, minimumRole = ROLES_USUARIO.USUARIO) {
-  return (ROLE_RANK[user?.role] || 0) >= (ROLE_RANK[minimumRole] || 0);
+  return user?.status === 'active' && Boolean(ROLE_RANK[minimumRole])
+    && (ROLE_RANK[user?.role] || 0) >= ROLE_RANK[minimumRole];
 }

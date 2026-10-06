@@ -75,7 +75,7 @@ test('roles normalize email and expose a safe public profile', () => {
   });
 });
 
-test('roles resolve fallback superadmin and configured DB users', async () => {
+test('roles require an explicit active document, including formerly privileged email', async () => {
   const db = new FakeDb({
     [`${basePath}/operator@example.com`]: {
       email: 'operator@example.com',
@@ -84,13 +84,11 @@ test('roles resolve fallback superadmin and configured DB users', async () => {
     },
   });
 
-  const fallback = await resolveUserAccess(db, {
+  await assert.rejects(() => resolveUserAccess(db, {
     uid: 'brand',
     email: 'brand050103@gmail.com',
     emailVerified: true,
-  });
-  assert.equal(fallback.role, 'superadmin');
-  assert.equal(fallback.roleSource, 'fallback');
+  }), {status: 403});
 
   const operator = await resolveUserAccess(db, {
     uid: 'operator',

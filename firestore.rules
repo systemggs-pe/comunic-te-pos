@@ -5,13 +5,7 @@ service cloud.firestore {
     function isAllowedUser() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && (
-          request.auth.token.email in [
-            'brand050103@gmail.com',
-            'lauryruyz50@gmail.com'
-          ]
-          || userRoleRank() >= 1
-        );
+        && userRoleRank() >= 1;
     }
 
     function userRoleDoc() {
@@ -32,15 +26,12 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAllowedUser()
-        && (request.auth.token.email in [
-          'brand050103@gmail.com',
-          'lauryruyz50@gmail.com'
-        ] || userRoleRank() >= 2);
+        && userRoleRank() >= 2;
     }
 
     function isSuperadmin() {
       return isAllowedUser()
-        && (request.auth.token.email == 'brand050103@gmail.com' || userRoleRank() >= 3);
+        && userRoleRank() >= 3;
     }
 
     function isSharedApp(appId, scope) {

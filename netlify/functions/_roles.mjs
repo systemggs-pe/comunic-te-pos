@@ -12,17 +12,6 @@ const ROLE_RANK = {
   superadmin: 3,
 };
 
-const DEFAULT_SUPERADMIN_EMAILS = ['brand050103@gmail.com'];
-const DEFAULT_ADMIN_EMAILS = ['lauryruyz50@gmail.com'];
-
-function configuredEmails(name, fallback) {
-  const values = String(process.env[name] || '')
-    .split(',')
-    .map(value => value.trim().toLowerCase())
-    .filter(Boolean);
-  return values.length ? values : fallback;
-}
-
 export function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -34,7 +23,7 @@ export function normalizeRole(value) {
 
 export function normalizeStatus(value) {
   const status = String(value || '').trim().toLowerCase();
-  return USER_STATUSES.includes(status) ? status : 'active';
+  return USER_STATUSES.includes(status) ? status : '';
 }
 
 export function roleRank(role) {
@@ -42,7 +31,8 @@ export function roleRank(role) {
 }
 
 export function hasRole(user, minimumRole) {
-  return roleRank(user?.role) >= roleRank(minimumRole);
+  return user?.status === 'active' && roleRank(minimumRole) > 0
+    && roleRank(user?.role) >= roleRank(minimumRole);
 }
 
 export function assertRole(user, minimumRole) {
@@ -53,21 +43,6 @@ export function assertRole(user, minimumRole) {
 
 export function baseRef(db) {
   return db.collection('artifacts').doc(APP_ID).collection('users').doc(SCOPE);
-}
-
-function fallbackAccessForEmail(email) {
-  if (configuredEmails('SUPERADMIN_EMAILS', DEFAULT_SUPERADMIN_EMAILS).includes(email)) {
-    return {role: 'superadmin', status: 'active', source: 'fallback'};
-  }
-  if (configuredEmails('ADMIN_EMAILS', DEFAULT_ADMIN_EMAILS).includes(email)) {
-    return {role: 'admin', status: 'active', source: 'fallback'};
-  }
-  const allowedEmails = String(process.env.ALLOWED_EMAILS || '')
-    .split(',')
-    .map(value => value.trim().toLowerCase())
-    .filter(Boolean);
-  if (allowedEmails.includes(email)) return {role: 'usuario', status: 'active', source: 'allowed-email'};
-  return {role: '', status: 'disabled', source: 'none'};
 }
 
 export async function resolveUserAccess(db, user) {
@@ -95,18 +70,7 @@ export async function resolveUserAccess(db, user) {
     };
   }
 
-  const fallback = fallbackAccessForEmail(email);
-  if (!fallback.role || fallback.status !== 'active') {
-    throw Object.assign(new Error('No autorizado'), {status: 403});
-  }
-  return {
-    ...user,
-    email,
-    role: fallback.role,
-    status: fallback.status,
-    roleSource: fallback.source,
-    roleRef: ref,
-  };
+  throw Object.assign(new Error('No autorizado'), {status: 403});
 }
 
 export function publicUserProfile(user) {
@@ -144,6 +108,7 @@ export function buildRoleDocument({email, role, status, displayName = '', uid = 
     throw Object.assign(new Error('EMAIL_INVALIDO'), {status: 400});
   }
   if (!normalizedRole) throw Object.assign(new Error('ROL_INVALIDO'), {status: 400});
+  if (!normalizedStatus) throw Object.assign(new Error('ESTADO_INVALIDO'), {status: 400});
 
   return {
     email: normalizedEmail,
