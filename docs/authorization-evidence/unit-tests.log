@@ -1,0 +1,28 @@
+✔ valid confirmed migration prepares only two assignments and two active admins (8.8204ms)
+✔ missing user aborts without guessing identities (1.1565ms)
+✔ same email recreated with another UID aborts (0.4543ms)
+✔ unknown role aborts (0.4298ms)
+✔ inactive proposed role aborts (1.0106ms)
+✔ disabled administrative identity aborts (0.4385ms)
+✔ unverified administrative identity aborts (0.4262ms)
+✔ plan leaving zero admins cannot replace the confirmed roles (0.3022ms)
+✔ noncanonical email and duplicate identities abort (0.5929ms)
+✔ conflicting persisted uid aborts rather than transferring privileges (0.6854ms)
+✔ update preserves metadata and only patches necessary authorization fields (3.4276ms)
+✔ default dry-run performs no commit and creates no backup (1.3708ms)
+✔ failed backup prevents all writes (1.9687ms)
+✔ backup precedes atomic commit and repeated migration is idempotent (1.7875ms)
+✔ state changing after backup aborts all writes (1.0241ms)
+✔ rollback dry-run is harmless before migration and writes nothing (1.6573ms)
+✔ rollback removing the last admins aborts even in dry-run (1.5561ms)
+✔ rollback dry-run plans only created documents when independent recovery admin exists (1.2506ms)
+✔ rollback rejects concurrent changes and unrelated data added to created docs (1.33ms)
+✔ tampered backup is rejected and hashes bind review to exact content (0.8716ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1675.5256

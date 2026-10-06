@@ -1,0 +1,38 @@
+
+> comunicate@7.0.0 authorization:migrate
+> node scripts/migrate-authorizations.mjs
+
+AUTHORIZATION MIGRATION DRY RUN
+USER: U-003
+CURRENT:
+- active: true
+- role: AUSENTE
+- role active: false
+- permissions: Sin autorización explícita
+PROPOSED:
+- active: true
+- role: superadmin
+- role active: true
+- permissions: Operación + administración + gestión de usuarios/roles
+CHANGES:
+- email, uid, role, status
+USER: U-006
+CURRENT:
+- active: true
+- role: AUSENTE
+- role active: false
+- permissions: Sin autorización explícita
+PROPOSED:
+- active: true
+- role: admin
+- role active: true
+- permissions: Operación + administración; sin gestión de roles
+CHANGES:
+- email, uid, role, status
+ROLES TO CREATE: Ningún catálogo; dos asignaciones userRoles confirmadas
+DOCUMENTS TO CREATE: U-003 -> artifacts/comunicate-pos/users/shared/userRoles/<email-U-003>; U-006 -> artifacts/comunicate-pos/users/shared/userRoles/<email-U-006>
+DOCUMENTS TO MODIFY: NINGUNO
+LOCKOUT AFTER MIGRATION: NO
+ADMIN VALID AFTER MIGRATION: YES (2; superadmin: 1)
+PLAN SHA256: 54da86f32708fef16e6ce9776d61fbd5e0a64544b7e745ad098f838fc3dd197c
+PRODUCTION WRITES: NO

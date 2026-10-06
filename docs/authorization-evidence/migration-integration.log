@@ -1,0 +1,45 @@
+
+> comunicate@7.0.0 test:authorizations
+> firebase emulators:exec --config firebase.emulator.json --project demo-comunicate --only firestore,auth "node --test netlify/tests/authorizationMigration.integration.mjs"
+
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-comunicate", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
++  firestore: Firestore Emulator was started in standard edition.
++  firestore: Firestore Emulator UI websocket is running on 9150.
+(node:18136) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+    at urlParse (node:url:136:13)
+    at Object.urlResolve [as resolve] (node:url:725:10)
+    at $RefParser.parse (C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@apidevtools\json-schema-ref-parser\lib\index.js:103:19)
+    at $RefParser.resolve (C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@apidevtools\json-schema-ref-parser\lib\index.js:184:16)
+    at $RefParser.bundle (C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@apidevtools\json-schema-ref-parser\lib\index.js:227:16)
+    at bundle (C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\exegesis\lib\index.js:55:22)
+    at C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\exegesis\lib\index.js:60:34
+    at Generator.next (<anonymous>)
+    at C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\exegesis\lib\index.js:22:71
+    at new Promise (<anonymous>)
+i  Running script: node --test netlify/tests/authorizationMigration.integration.mjs
+✔ dry-run against real Auth/Firestore emulators creates zero role documents (9439.4299ms)
+✔ atomic fixture migration restores both Rules reads and correct backend admin permissions (1903.2219ms)
+✔ disabled Auth admin and failed backup both prevent fixture writes (99.0376ms)
+✔ transaction rejects target changed since backup and keeps other target untouched (90.268ms)
+✔ update preserves unrelated fields and rollback dry-run/restoration respect independent admin (264.5184ms)
+✔ rollback of bootstrap alone aborts instead of removing last admins (114.1334ms)
+✔ transaction rejects concurrent change to independent recovery administrator (82.1207ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14634.3216
++  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+!  Firestore Emulator has exited upon receiving signal: SIGINT
+i  auth: Stopping Authentication Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

@@ -1,0 +1,40 @@
+
+> comunicate@7.0.0 authorization:migrate
+> node scripts/migrate-authorizations.mjs --dry-run --prepare-backup
+
+AUTHORIZATION MIGRATION DRY RUN
+USER: U-003
+CURRENT:
+- active: true
+- role: AUSENTE
+- role active: false
+- permissions: Sin autorización explícita
+PROPOSED:
+- active: true
+- role: superadmin
+- role active: true
+- permissions: Operación + administración + gestión de usuarios/roles
+CHANGES:
+- email, uid, role, status
+USER: U-006
+CURRENT:
+- active: true
+- role: AUSENTE
+- role active: false
+- permissions: Sin autorización explícita
+PROPOSED:
+- active: true
+- role: admin
+- role active: true
+- permissions: Operación + administración; sin gestión de roles
+CHANGES:
+- email, uid, role, status
+ROLES TO CREATE: Ningún catálogo; dos asignaciones userRoles confirmadas
+DOCUMENTS TO CREATE: U-003 -> artifacts/comunicate-pos/users/shared/userRoles/<email-U-003>; U-006 -> artifacts/comunicate-pos/users/shared/userRoles/<email-U-006>
+DOCUMENTS TO MODIFY: NINGUNO
+LOCKOUT AFTER MIGRATION: NO
+ADMIN VALID AFTER MIGRATION: YES (2; superadmin: 1)
+PLAN SHA256: 54da86f32708fef16e6ce9776d61fbd5e0a64544b7e745ad098f838fc3dd197c
+PRODUCTION WRITES: NO
+READ-ONLY BACKUP PREVIEW: C:\Users\COMUNICATE\Documents\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\comunicate\.netlify\authorization-migration\backups\authorization-migration-backup-1791266976607-0691cf86-789d-4689-8b4c-902efe5faba4.json
+Apply always takes a fresh backup; this preview does not authorize writing.

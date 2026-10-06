@@ -1,0 +1,10 @@
+
+> comunicate@7.0.0 authorization:rollback
+> node scripts/rollback-authorizations.mjs --backup C:\Users\COMUNICATE\Documents\REGISTRO DE VENTAS Y EQUIPOS COMUNICATE\comunicate\.netlify\authorization-migration\backups\authorization-migration-backup-1791266976607-***.json
+
+AUTHORIZATION ROLLBACK DRY RUN
+CHANGES: 0
+ADMINS AFTER: 0
+SUPERADMINS AFTER: 0
+BACKUP SHA256: 4a4535e9b1ecd3a0b935f558581144dfd67a5f09d010e705d8b8fe6085281150
+PRODUCTION WRITES: NO

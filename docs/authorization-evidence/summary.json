@@ -1,0 +1,64 @@
+{
+  "initialCommit": "d6ccd034147072cd64ff72bfbad98cd452af9139",
+  "rolesConfirmed": true,
+  "assignments": [
+    {
+      "user": "U-003",
+      "role": "superadmin",
+      "status": "active"
+    },
+    {
+      "user": "U-006",
+      "role": "admin",
+      "status": "active"
+    }
+  ],
+  "planHash": "54da86f32708fef16e6ce9776d61fbd5e0a64544b7e745ad098f838fc3dd197c",
+  "dryRun": {
+    "exit": 0,
+    "create": 2,
+    "update": 0,
+    "validAdminsAfter": 2,
+    "superadminsAfter": 1,
+    "lockoutAfter": false,
+    "scope": "two confirmed identities"
+  },
+  "defaultDryRun": {
+    "firstExit": 1,
+    "firstReason": "READ_TIMEOUT_60S",
+    "retryExit": 0
+  },
+  "rollbackDryRun": {
+    "exit": 0,
+    "changes": 0
+  },
+  "unitTests": {
+    "new": 20,
+    "total": 204,
+    "passed": 204
+  },
+  "integration": {
+    "migration": 7,
+    "existing": 14,
+    "passed": 21
+  },
+  "verify": {
+    "exit": 0,
+    "lintErrors": 0,
+    "lintWarnings": 6,
+    "build": true,
+    "modules": 2178
+  },
+  "productionAfter": {
+    "users": 7,
+    "roleDocuments": 0,
+    "admins": 0
+  },
+  "productionAuditVulnerabilities": 0,
+  "productionWrites": false,
+  "cliApplyInvocations": 0,
+  "push": false,
+  "deploy": false,
+  "readyToApply": false,
+  "pending": "separate explicit authorization to execute apply"
+}

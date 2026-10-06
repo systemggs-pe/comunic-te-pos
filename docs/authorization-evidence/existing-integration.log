@@ -1,0 +1,76 @@
+
+> comunicate@7.0.0 test:rules
+> firebase emulators:exec --config firebase.emulator.json --project demo-comunicate --only firestore,auth "node --test netlify/tests/firestoreRules.integration.mjs"
+
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-comunicate", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
++  firestore: Firestore Emulator was started in standard edition.
++  firestore: Firestore Emulator UI websocket is running on 9150.
+(node:16684) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+    at urlParse (node:url:136:13)
+    at Object.urlResolve [as resolve] (node:url:725:10)
+    at $RefParser.parse (C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@apidevtools\json-schema-ref-parser\lib\index.js:103:19)
+    at $RefParser.resolve (C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@apidevtools\json-schema-ref-parser\lib\index.js:184:16)
+    at $RefParser.bundle (C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@apidevtools\json-schema-ref-parser\lib\index.js:227:16)
+    at bundle (C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\exegesis\lib\index.js:55:22)
+    at C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\exegesis\lib\index.js:60:34
+    at Generator.next (<anonymous>)
+    at C:\Users\COMUNICATE\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\exegesis\lib\index.js:22:71
+    at new Promise (<anonymous>)
+i  Running script: node --test netlify/tests/firestoreRules.integration.mjs
+[2026-10-06T06:15:07.229Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x2dab0416 error. Code: 7 Message: 7 PERMISSION_DENIED:
+evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
+✔ active user reads operational data but cannot modify admin settings (8255.7306ms)
+✔ active admin edits permitted settings but cannot read privileged role collection (522.3872ms)
+[2026-10-06T06:15:08.117Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x2dab041c error. Code: 7 Message: 7 PERMISSION_DENIED:
+false for 'create' @ L353, false for 'create' @ L357, false for 'update' @ L353, false for 'update' @ L357
+✔ active superadmin reads roles but cannot write them directly (361.5947ms)
+[2026-10-06T06:15:08.488Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x2dab041f error. Code: 7 Message: 7 PERMISSION_DENIED:
+evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
+✔ disabled privileged identity loses direct access: <email-redactado> (370.891ms)
+[2026-10-06T06:15:08.824Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x2dab0422 error. Code: 7 Message: 7 PERMISSION_DENIED:
+evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
+✔ disabled privileged identity loses direct access: <email-redactado> (336.3144ms)
+[2026-10-06T06:15:09.087Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x2dab0425 error. Code: 7 Message: 7 PERMISSION_DENIED:
+evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
+✔ disabled privileged identity loses direct access: <email-redactado> (262.3471ms)
+[2026-10-06T06:15:09.424Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x2dab0428 error. Code: 7 Message: 7 PERMISSION_DENIED:
+evaluation error at L323:32 for 'create' @ L323, false for 'create' @ L357, evaluation error at L323:32 for 'update' @ L323, false for 'update' @ L357, false for 'create' @ L323, false for 'create' @ L357
+✔ formerly privileged email downgraded to usuario has no admin bypass (337.519ms)
+✔ missing role, missing active status and unknown role all fail closed (605.8061ms)
+✔ unauthenticated and unverified identities cannot read protected data (198.1307ms)
+✔ disabling a role revokes access even with the same authenticated context (264.9472ms)
+✔ role recovery permits the existing authenticated context again (235.2316ms)
+✔ backend-normalized email and noncanonical role values do not bypass exact rules (342.8381ms)
+✔ backup reads every operational collection through real paginated Firestore queries (3839.7471ms)
+{"timestamp":"2026-10-06T06:15:15.374Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"96a2ddd4-8260-480c-8f81-85993ede481e","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T06:15:15.537Z","level":"info","event":"request.success","service":"netlify-functions","requestId":"96a2ddd4-8260-480c-8f81-85993ede481e","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","actorUid":"auth-fixture","actorEmail":"<email-redactado>","durationMs":163,"statusCode":200}
+{"timestamp":"2026-10-06T06:15:15.537Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"04bc27ee-9503-41a0-b180-9836359dcead","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T06:15:15.549Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"04bc27ee-9503-41a0-b180-9836359dcead","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","actorUid":"auth-fixture","actorEmail":"<email-redactado>","durationMs":12,"statusCode":403,"errorName":"Error","errorMessage":"PERMISO_INSUFICIENTE"}
+{"timestamp":"2026-10-06T06:15:15.550Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"21c8841c-9dd1-4d23-9b91-614e0846fbb8","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T06:15:15.551Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"21c8841c-9dd1-4d23-9b91-614e0846fbb8","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":1,"statusCode":401,"errorName":"Error","errorMessage":"Sesion invalida"}
+{"timestamp":"2026-10-06T06:15:15.601Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"80df86f4-c9bd-41b7-8c4e-a3fd1a22fe7d","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T06:15:15.615Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"80df86f4-c9bd-41b7-8c4e-a3fd1a22fe7d","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":14,"statusCode":403,"errorName":"Error","errorMessage":"USUARIO_DESHABILITADO"}
+{"timestamp":"2026-10-06T06:15:15.626Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"1dec4099-b00f-4784-ac50-b712423904c1","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T06:15:15.630Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"1dec4099-b00f-4784-ac50-b712423904c1","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":4,"statusCode":401,"errorName":"Error","errorMessage":"Sesion invalida"}
+{"timestamp":"2026-10-06T06:15:15.631Z","level":"info","event":"request.start","service":"netlify-functions","requestId":"3040e64d-6345-416f-a068-55f75db78be0","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0}
+{"timestamp":"2026-10-06T06:15:15.631Z","level":"warn","event":"request.error","service":"netlify-functions","requestId":"3040e64d-6345-416f-a068-55f75db78be0","functionName":"netlify-function","method":"POST","path":"","origin":"","ipAddress":"","durationMs":0,"statusCode":401,"errorName":"Error","errorMessage":"No autorizado"}
+✔ Auth emulator covers valid/invalid login, protected API, disabled user, expired session and logout (722.7798ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18413.3269
++  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+!  Firestore Emulator has exited upon receiving signal: SIGINT
+i  auth: Stopping Authentication Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

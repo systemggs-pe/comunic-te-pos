@@ -1,0 +1,5 @@
+
+> comunicate@7.0.0 authorization:migrate
+> node scripts/migrate-authorizations.mjs
+
+ABORT MIGRATION: TIMEOUT
